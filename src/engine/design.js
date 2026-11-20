@@ -53,7 +53,9 @@ export function annotateBody(body, ctx) {
       if (m) {
         const msg = lookupMessage(ctx.messages, m[1])
         const missing = msg === undefined || msg === null ? ' data-tpl-missing="1"' : ''
-        return `<${tagName} data-tpl-edit="t:${escapeHtml(m[1])}"${missing}>${chipify(String(msg ?? '').trim())}</${tagName}>`
+        // en un layout los textos son de cada plantilla: se muestran pero no se editan aquí
+        const edit = ctx.kind === 'layout' ? '' : ` data-tpl-edit="t:${escapeHtml(m[1])}"${missing}`
+        return `<${tagName}${edit}>${chipify(String(msg ?? '').trim())}</${tagName}>`
       }
       return `<${tagName} data-tpl-edit="c:${node.id}">${chipify(node.content)}</${tagName}>`
     },

@@ -12,6 +12,12 @@ import { annotateBody } from './design.js'
 import { tryRenderJinja } from './render.js'
 import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
+const CONTENT_SLOT = `<mj-section css-class="tpl-slot" padding="16px 24px">
+  <mj-column border="2px dashed #a5b4fc" border-radius="8px" padding="28px 0">
+    <mj-text align="center" color="#6366f1" font-size="13px" font-weight="600">⧉ Contenido de la plantilla</mj-text>
+  </mj-column>
+</mj-section>`
+
 const HTML_TO_TEXT_OPTS = {
   wordwrap: 80,
   selectors: [
@@ -46,7 +52,7 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const onImport = (file) => imported.push(file)
   const warn = (m) => { if (!warnings.includes(m)) warnings.push(m) }
   const ctx = {
-    lang: locale, country, langKey, messages: i18n.messages?.[langKey] || {}, links, warnings,
+    lang: locale, country, langKey, kind, messages: i18n.messages?.[langKey] || {}, links, warnings,
     // (modo diseño) lectura de $import para pintar instancias de componentes seleccionables
     expandImport: (call) => {
       const r = expandImport(project.templatesDir, call, warn)
@@ -62,6 +68,8 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   let body = design ? annotateBody(rawBody, ctx) : rawBody
   // un componente editado/previsualizado suelto usa los valores por defecto de sus parámetros
   if (kind === 'component') body = applyParams(body, meta.params, [], warn)
+  // un layout se previsualiza con un hueco en lugar de $content
+  if (kind === 'layout') body = body.replace('$content', () => CONTENT_SLOT)
 
   // 3. $import + layout (un componente suelto se envuelve con el <mj-head> del layout de vista previa)
   const withImports = resolveImports(body, project.templatesDir, { onImport, warn })

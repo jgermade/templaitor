@@ -15,12 +15,23 @@
     return Object.entries(g)
   })
   const comps = $derived(store.components.filter(match))
+  const lays = $derived(store.layouts.filter(match))
 
   async function pick(id, kind) {
     open = false
     filter = ''
-    if (kind === 'component') store.returnTo = null
+    if (kind !== 'template') store.returnTo = null
     await store.open(id, kind)
+  }
+
+  async function newLayout() {
+    const id = prompt('Nombre del layout (p.ej. marketing):')
+    if (!id) return
+    try {
+      const l = await api.createLayout(id.trim())
+      await store.refreshTemplates()
+      await pick(l.id, 'layout')
+    } catch (e) { store.notify(e.message, 'error') }
   }
 
   async function newComponent() {
@@ -40,7 +51,12 @@
   <div class="backdrop" role="none" onclick={() => (open = false)}></div>
   <div class="picker" role="dialog" aria-label="Abrir plantilla o componente">
     <input bind:this={input} bind:value={filter} placeholder="Buscar…" onkeydown={(e) => {
-      if (e.key === 'Enter') { const t = groups[0]?.[1][0]; if (t) pick(t.id, 'template'); else if (comps[0]) pick(comps[0].id, 'component') }
+      if (e.key === 'Enter') {
+        const t = groups[0]?.[1][0]
+        if (t) pick(t.id, 'template')
+        else if (comps[0]) pick(comps[0].id, 'component')
+        else if (lays[0]) pick(lays[0].id, 'layout')
+      }
     }} />
     <div class="list">
       <div class="head">Plantillas</div>
@@ -62,6 +78,15 @@
         </button>
       {/each}
       <button class="item add" onclick={newComponent}>＋ Nuevo componente</button>
+
+      <div class="head">Layouts</div>
+      {#each lays as l}
+        <button class="item" class:cur={store.kind === 'layout' && store.doc?.id === l.id} onclick={() => pick(l.id, 'layout')}>
+          <span class="lay">⧉</span>{l.name}
+          <span class="langs">{l.usedBy.length} uso(s)</span>
+        </button>
+      {/each}
+      <button class="item add" onclick={newLayout}>＋ Nuevo layout</button>
     </div>
   </div>
 {/if}
@@ -82,4 +107,5 @@
   .item.add { color: var(--accent); }
   .langs { margin-left: auto; font-size: 11px; color: var(--muted); font-family: var(--mono); }
   .diamond { color: #7c3aed; margin-right: 6px; font-size: 11px; }
+  .lay { color: #b45309; margin-right: 6px; font-size: 12px; }
 </style>

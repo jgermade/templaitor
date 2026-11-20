@@ -266,6 +266,86 @@ function knownValues(project) {
   return { data, messages }
 }
 
+// ── Layouts ───────────────────────────────────────────────────
+
+const LAYOUT_ID = /^[\w.-]+\.mjml$/
+
+function layoutFile(project, id) {
+  if (!LAYOUT_ID.test(String(id || ''))) throw httpError(400, `Layout no válido: ${id}`)
+  return path.join(project.layoutsDir, id)
+}
+
+/** Layouts con las plantillas que los usan (frontmatter `layout:`) */
+export function listLayouts(project) {
+  const templates = listTemplates(project).map((t) => {
+    const { meta } = parseFrontmatter(fs.readFileSync(templatePaths(project, t.id).mjml, 'utf8'))
+    return { id: t.id, layout: meta.layout }
+  })
+  return listMjmlFiles(project.layoutsDir).map(file => ({
+    kind: 'layout',
+    id: file,
+    name: file.replace(/\.mjml$/, ''),
+    usedBy: templates.filter(t => t.layout === file).map(t => ({ kind: 'template', id: t.id })),
+  }))
+}
+
+/**
+ * Documento de layout para el editor. Como un layout no tiene textos ni datos
+ * propios, la vista previa usa los de la primera plantilla que lo usa (no se guardan).
+ */
+export function readLayout(project, id) {
+  const file = layoutFile(project, id)
+  if (!fs.existsSync(file)) throw httpError(404, `Layout no encontrado: ${id}`)
+  const from = listLayouts(project).find(l => l.id === id)?.usedBy[0]?.id ?? null
+  const tpl = from ? readTemplate(project, from) : null
+  return {
+    kind: 'layout',
+    id,
+    name: id.replace(/\.mjml$/, ''),
+    mjml: fs.readFileSync(file, 'utf8'),
+    yml: tpl?.yml ?? '',
+    data: tpl?.data ?? `${JSON5.stringify(knownValues(project).data, { space: 2, quote: '"' })}\n`,
+    previewFrom: from,
+  }
+}
+
+export function writeLayout(project, id, { mjml }) {
+  const file = layoutFile(project, id)
+  if (!mjml?.includes('$content')) throw httpError(400, 'El layout debe contener $content (donde va cada plantilla)')
+  fs.writeFileSync(file, mjml)
+  return readLayout(project, id)
+}
+
+export function createLayout(project, id) {
+  const name = String(id || '').trim().replace(/\.mjml$/, '')
+  const file = layoutFile(project, `${name}.mjml`)
+  if (fs.existsSync(file)) throw httpError(409, `Ya existe el layout ${name}.mjml`)
+  fs.mkdirSync(project.layoutsDir, { recursive: true })
+  fs.writeFileSync(file, [
+    '<mjml lang="$lang">',
+    '  <mj-head>',
+    '    <mj-attributes>',
+    '      <mj-all font-family="Helvetica, Arial, sans-serif" />',
+    '      <mj-text font-size="14px" line-height="1.6" color="#333333" />',
+    '    </mj-attributes>',
+    '  </mj-head>',
+    '  <mj-body background-color="#f4f4f5">',
+    '    $content',
+    '  </mj-body>',
+    '</mjml>',
+    '',
+  ].join('\n'))
+  return readLayout(project, `${name}.mjml`)
+}
+
+export function deleteLayout(project, id) {
+  const file = layoutFile(project, id)
+  const used = listLayouts(project).find(l => l.id === id)?.usedBy || []
+  if (used.length) throw httpError(409, `El layout se usa en: ${used.map(u => u.id).join(', ')}`)
+  if (!fs.existsSync(file)) throw httpError(404, `Layout no encontrado: ${id}`)
+  fs.rmSync(file)
+}
+
 // ── Imágenes (directorio static) ─────────────────────────────
 
 export const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i

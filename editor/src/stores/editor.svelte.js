@@ -21,6 +21,7 @@ class EditorStore {
   project = $state(null)
   templates = $state([])
   components = $state([])
+  layouts = $state([])
   assets = $state([]) // imágenes del directorio static
   doc = $state(null) // { kind, id, name, mjml, yml, data }
   returnTo = $state(null) // plantilla desde la que se abrió un componente
@@ -48,6 +49,8 @@ class EditorStore {
   })
   kind = $derived(this.doc?.kind ?? 'template')
   isComponent = $derived(this.kind === 'component')
+  isLayout = $derived(this.kind === 'layout')
+  isTemplate = $derived(this.kind === 'template')
   /** Parámetros declarados en el frontmatter (al editar un componente) */
   componentParams = $derived(normalizeParams(this.frontmatter.params))
   isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
@@ -60,8 +63,9 @@ class EditorStore {
   demoData = $derived.by(() => {
     try { return JSON5.parse(this.doc?.data || '{}') } catch { return null }
   })
+  // de un layout solo se guarda el MJML (textos/datos son de la plantilla de vista previa)
   dirty = $derived(!!this.doc && !!this.saved && (
-    this.doc.mjml !== this.saved.mjml || this.doc.yml !== this.saved.yml || this.doc.data !== this.saved.data
+    this.doc.mjml !== this.saved.mjml || (!this.isLayout && (this.doc.yml !== this.saved.yml || this.doc.data !== this.saved.data))
   ))
   selected = $derived(this.selectedId != null ? findNode(this.tree, this.selectedId) : null)
 
@@ -82,12 +86,15 @@ class EditorStore {
     await this.refreshTemplates()
     const hash = decodeURIComponent(location.hash.slice(1))
     if (hash.startsWith('c:') && this.components.some(c => c.id === hash.slice(2))) return this.open(hash.slice(2), 'component')
+    if (hash.startsWith('l:') && this.layouts.some(l => l.id === hash.slice(2))) return this.open(hash.slice(2), 'layout')
     const first = this.templates.find(t => t.id === hash) || this.templates[0]
     if (first) await this.open(first.id)
   }
 
   async refreshTemplates() {
-    ;[this.templates, this.components, this.project, this.assets] = await Promise.all([api.templates(), api.components(), api.project(), api.assets()])
+    ;[this.templates, this.components, this.layouts, this.project, this.assets] = await Promise.all([
+      api.templates(), api.components(), api.layouts(), api.project(), api.assets(),
+    ])
   }
 
   async uploadAsset(file) {
@@ -123,7 +130,7 @@ class EditorStore {
   async open(id, kind = 'template') {
     if (this.dirty && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) return false
     const doc = await api.template(id, kind)
-    if (kind === 'component' && this.doc?.kind === 'template') this.returnTo = this.doc.id
+    if (kind !== 'template' && this.doc?.kind === 'template') this.returnTo = this.doc.id
     if (kind === 'template') this.returnTo = null
     this.doc = doc
     this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
@@ -132,7 +139,7 @@ class EditorStore {
     this.selectedId = null
     const langs = Object.keys(this.i18n.messages || {})
     if (!langs.includes(this.lang)) this.lang = langs[0] || this.project?.defaultLocale
-    history.replaceState(null, '', `#${kind === 'component' ? 'c:' : ''}${encodeURIComponent(id)}`)
+    history.replaceState(null, '', `#${{ component: 'c:', layout: 'l:' }[kind] ?? ''}${encodeURIComponent(id)}`)
     return true
   }
 
@@ -141,7 +148,7 @@ class EditorStore {
     try {
       const doc = await api.save({ kind: this.kind, id: this.doc.id, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data })
       this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
-      this.notify(this.isComponent ? 'Componente guardado (se aplica en todas las plantillas que lo usan)' : 'Guardado')
+      this.notify(this.isTemplate ? 'Guardado' : `${this.isLayout ? 'Layout' : 'Componente'} guardado (se aplica en todas las plantillas que lo usan)`)
       await this.refreshTemplates()
     } catch (e) {
       this.notify(e.message, 'error')
@@ -151,7 +158,7 @@ class EditorStore {
   async compile() {
     try {
       if (this.dirty) await this.save()
-      const r = await api.compile(this.isComponent ? undefined : this.doc?.id)
+      const r = await api.compile(this.isTemplate ? this.doc?.id : undefined)
       const warn = r.issues.length ? ` · ${r.issues.length} aviso(s)` : ''
       this.notify(`Compilado: ${r.files.length} fichero(s) en ${this.project.outDir}/${warn}`, r.issues.length ? 'warn' : 'success')
     } catch (e) {
@@ -431,6 +438,11 @@ class EditorStore {
   async openComponent(compId) {
     if (this.dirty) await this.save()
     await this.open(compId, 'component')
+  }
+
+  async openLayout(id) {
+    if (this.dirty) await this.save()
+    await this.open(id, 'layout')
   }
 
   async back() {

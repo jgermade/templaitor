@@ -28,9 +28,20 @@
   </div>
 
   <div class="sections">
-    <Section id="messages" title="Mensajes" count={keyCount}>
-      <MessagesPanel />
-    </Section>
+    {#if store.isLayout}
+      <p class="borrowed">
+        {#if store.doc.previewFrom}
+          Vista previa con los textos y datos de <button class="link" onclick={() => store.open(store.doc.previewFrom)}>{store.doc.previewFrom}</button>
+          (no se guardan con el layout).
+        {:else}
+          Ninguna plantilla usa este layout: la vista previa usa datos de ejemplo.
+        {/if}
+      </p>
+    {:else}
+      <Section id="messages" title="Mensajes" count={keyCount}>
+        <MessagesPanel />
+      </Section>
+    {/if}
 
     {#if store.isComponent}
       <Section id="params" title="Parámetros" count={Object.keys(store.componentParams).length} open>
@@ -57,7 +68,7 @@
       </Section>
     {/if}
 
-    <Section id="settings" title={store.isComponent ? 'Componente' : 'Plantilla'}>
+    <Section id="settings" title={store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Plantilla'}>
       <TemplateSettings />
     </Section>
   </div>
@@ -71,6 +82,8 @@
   }
   .data > :global(.cm-host) { flex: 1; }
   .bad { position: absolute; right: 8px; bottom: 6px; color: #fca5a5; font-size: 11px; }
+  .borrowed { margin: 0; padding: 10px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .link { border: 0; background: none; padding: 0; color: #2563eb; text-decoration: underline; font-size: 12px; }
   .sections { flex: 1; overflow: auto; padding-bottom: 24px; }
   .palette { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 0 14px; }
   .palette button { display: flex; align-items: center; gap: 6px; text-align: left; font-size: 12px; padding: 4px 8px; }

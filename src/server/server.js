@@ -8,6 +8,7 @@ import JSON5 from 'json5'
 import {
   listTemplates, readTemplate, writeTemplate, createTemplate, deleteTemplate,
   listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
+  listLayouts, readLayout, writeLayout, createLayout, deleteLayout,
 } from '../engine/project.js'
 import { previewDraft, compileProject, compileSource, langsOf } from '../engine/pipeline.js'
 import { readLinks } from '../engine/project.js'
@@ -50,10 +51,18 @@ export function createHandler(project) {
     // imágenes del directorio static (servidas en /static/)
     'GET /api/assets': () => listAssets(project),
 
-    // `kind`: 'template' (por defecto) | 'component'
-    'GET /api/template': ({ query }) => readTemplate(project, query.get('id'), kindOf(query.get('kind'))),
+    'GET /api/layouts': () => listLayouts(project),
+
+    'POST /api/layouts': ({ body }) => createLayout(project, body.id),
+
+    // `kind`: 'template' (por defecto) | 'component' | 'layout'
+    'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
+      ? readLayout(project, query.get('id'))
+      : readTemplate(project, query.get('id'), kindOf(query.get('kind')))),
 
     'PUT /api/template': ({ body }) => {
+      // de un layout solo se guarda el MJML (textos y datos son de la plantilla de vista previa)
+      if (body.kind === 'layout') return writeLayout(project, body.id, body)
       validateDraft(body)
       return writeTemplate(project, body.id, body, kindOf(body.kind))
     },
@@ -70,12 +79,13 @@ export function createHandler(project) {
     },
 
     'DELETE /api/template': ({ query }) => {
+      if (query.get('kind') === 'layout') { deleteLayout(project, query.get('id')); return { ok: true } }
       deleteTemplate(project, query.get('id'), kindOf(query.get('kind')))
       return { ok: true }
     },
 
     'POST /api/preview': ({ body }) => previewDraft(project, {
-      mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, mode: body.mode, kind: kindOf(body.kind),
+      mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, mode: body.mode, kind: previewKind(body.kind),
     }),
 
     'POST /api/compile': async ({ body }) => {
@@ -164,6 +174,7 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
 // ── helpers ───────────────────────────────────────────────────
 
 const kindOf = (k) => (k === 'component' ? 'component' : 'template')
+const previewKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')
 
 function rel(project, file) {
   return path.relative(project.templatesDir, file).split(path.sep).join('/')

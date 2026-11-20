@@ -7,7 +7,7 @@ import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/s
 import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
 import { annotateBody, chipify } from '../src/engine/design.js'
-import { loadProject, readTemplate, createTemplate, listTemplates, listComponents, readLinks } from '../src/engine/project.js'
+import { loadProject, readTemplate, createTemplate, listTemplates, listComponents, readLinks, listLayouts, readLayout, writeLayout } from '../src/engine/project.js'
 import { compileProject, previewDraft, compileSource } from '../src/engine/pipeline.js'
 import { findImportCalls, parseImportCall, formatImportCall, applyParams } from '../src/shared/imports.js'
 import YAML from 'yaml'
@@ -192,4 +192,19 @@ test('parámetros image y boolean', async () => {
   assert.doesNotMatch(without.text, /Tu pedido ya está en preparación/)
   const raw = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
   assert.match(raw.html, /src="\{\{ assets_url \}\}\/banner-order\.svg"/, 'la URL de la imagen conserva el Jinja2')
+})
+
+test('layouts: listado con usos, vista previa con hueco y textos no editables', async () => {
+  const project = loadProject(DEMO)
+  const [base] = listLayouts(project)
+  assert.equal(base.id, 'base.layout.mjml')
+  assert.equal(base.usedBy.length, 2)
+  const doc = readLayout(project, base.id)
+  assert.equal(doc.previewFrom, base.usedBy[0].id)
+  const d = await previewDraft(project, { ...doc, kind: 'layout', mode: 'design' })
+  assert.deepEqual(d.errors, [])
+  assert.match(d.html, /Contenido de la plantilla/)
+  assert.doesNotMatch(d.html, /data-tpl-edit="t:/)
+  assert.throws(() => writeLayout(project, base.id, { mjml: '<mjml><mj-body></mj-body></mjml>' }), /\$content/)
+  assert.throws(() => readLayout(project, '../x.mjml'), /no válido/)
 })

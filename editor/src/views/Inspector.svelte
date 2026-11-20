@@ -44,7 +44,7 @@
   {#if node}
     <div class="head">
       <nav class="crumbs">
-        <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Componente' : 'Plantilla'}</button>
+        <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Plantilla'}</button>
         {#each crumbs as c}
           <span class="muted">›</span>
           <button class="ghost" class:cur={c.id === store.selectedId} onclick={() => (store.selectedId = c.id)}>{c.label}</button>
@@ -98,6 +98,11 @@
           {:else}
             <p class="muted">Parcial importado: <code>{instance.ref}</code>. Edítalo en la vista Código.</p>
           {/if}
+        </section>
+      {:else if node.type === 'text' && node.value.trim() === '$content'}
+        <section>
+          <div class="panel-title">Contenido de la plantilla</div>
+          <p class="muted slotp">Aquí se inserta cada plantilla que usa este layout. Muévelo en «Estructura» para cambiar dónde va; no lo elimines (el layout debe contener <code>$content</code>).</p>
         </section>
       {:else if node.type === 'text'}
         <label class="field">
@@ -180,6 +185,7 @@
 <style>
   aside { background: var(--panel); border-left: 1px solid var(--border); overflow: auto; min-height: 0; }
   .comp p { margin: 0 0 10px; font-size: 12.5px; }
+  .slotp { font-size: 12.5px; margin: 0 0 10px; }
   .btns { display: grid; gap: 6px; margin-top: 10px; }
   .comp .panel-title { padding-left: 0; }
   .chip.param { background: #f5f3ff; border-color: #c4b5fd; color: #6d28d9; }

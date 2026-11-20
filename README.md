@@ -165,6 +165,15 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
 - **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
 - **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
 
+## Layouts
+
+Un layout (`_layouts/<nombre>.mjml`) es un documento MJML completo con `$content` donde va cada plantilla
+(que lo elige con `layout: <nombre>.mjml` en su frontmatter). En el editor se abren desde el buscador
+(sección **Layouts**) o con ✎ junto al selector de layout de la plantilla, y se editan con el mismo WYSIWYG:
+`$content` aparece como un hueco discontinuo que se puede mover en «Estructura». Como un layout no tiene
+textos ni datos propios, la vista previa usa los de la primera plantilla que lo usa (no se guardan con el
+layout) y sus `$t` se muestran pero no se editan ahí. Se pueden crear layouts nuevos y borrar los que no se usan.
+
 ## Editor visual
 
 - **Diseño**: el lienzo es el HTML real compilado por MJML. Click para seleccionar un bloque;
@@ -210,6 +219,5 @@ examples/demo/             proyecto de ejemplo
 
 - [ ] Integrar en `doomus-rs`: sustituir `emails/_engine` por `templaitor compile` y leer `*.subject.txt` en el backend.
 - [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
-- [ ] Edición visual de layouts (hoy solo en la vista Código).
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.

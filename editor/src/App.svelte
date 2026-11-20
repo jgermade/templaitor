@@ -86,9 +86,11 @@
 
     {#if store.doc && store.view !== 'code'}
       <div class="subject">
-        <span class="label">{store.isComponent ? 'Componente' : 'Asunto'}</span>
+        <span class="label">{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Asunto'}</span>
         {#if store.isComponent}
           <span class="rendered muted">◆ {store.doc.name} — vista previa con el &lt;mj-head&gt; del layout</span>
+        {:else if store.isLayout}
+          <span class="rendered muted">⧉ {store.doc.id} — el hueco discontinuo es <code>$content</code>, donde va cada plantilla</span>
         {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}

@@ -10,6 +10,7 @@
 
   const isEl = $derived(node.type === 'element')
   const instance = $derived(store.instanceOf(node))
+  const slot = $derived(node.type === 'text' && node.value.trim() === '$content')
   const def = $derived(isEl ? describe(node.tag) : null)
   const hasKids = $derived(isEl && node.children.length > 0)
 
@@ -72,8 +73,8 @@
     <button class="twisty ghost" class:hidden={!hasKids} onclick={(e) => { e.stopPropagation(); collapsed = !collapsed }} tabindex="-1">
       {collapsed ? '▸' : '▾'}
     </button>
-    <span class="icon" class:comp={instance}>{isEl ? def.icon : instance ? '◆' : node.type === 'comment' ? '#' : '$'}</span>
-    <span class="label" class:comp={instance}>{isEl ? def.label : instance ? instance.name : node.type === 'comment' ? 'Comentario' : 'Código'}</span>
+    <span class="icon" class:comp={instance} class:slot>{isEl ? def.icon : instance ? '◆' : slot ? '⧉' : node.type === 'comment' ? '#' : '$'}</span>
+    <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Contenido de la plantilla' : node.type === 'comment' ? 'Comentario' : 'Código'}</span>
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
@@ -108,6 +109,7 @@
   .muted .label { color: var(--muted); font-weight: 400; }
   .muted .label.comp, .label.comp { color: #6d28d9; font-weight: 500; }
   .icon.comp { color: #7c3aed; font-size: 10px; }
+  .label.slot, .icon.slot { color: #b45309; font-weight: 500; }
   .summary { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; font-size: 12px; }
   .actions { display: none; flex: none; }
   .row:hover .actions { display: flex; }

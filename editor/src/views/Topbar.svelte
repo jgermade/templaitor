@@ -62,12 +62,12 @@
 
   <div class="path">
     <button class="link" onclick={() => (picking = !picking)} title="Abrir plantilla o componente">
-      <span class="at" class:comp={store.isComponent}>{store.isComponent ? '◆' : '@'}</span>
-      <span class="id">{store.isComponent ? `${store.project?.componentsDir}/` : ''}{store.doc?.id ?? '…'}/</span>
+      <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}>{store.isComponent ? '◆' : store.isLayout ? '⧉' : '@'}</span>
+      <span class="id">{store.isComponent ? `${store.project?.componentsDir}/` : ''}{store.isLayout ? '_layouts/' : ''}{store.doc?.id ?? '…'}{store.isLayout ? '' : '/'}</span>
     </button>
     <TemplatePicker bind:open={picking} {onnew} />
   </div>
-  {#if store.isComponent && store.returnTo}
+  {#if !store.isTemplate && store.returnTo}
     <button class="ghost back" onclick={() => store.back()} title="Volver a la plantilla">← {store.returnTo}</button>
   {/if}
   {#if store.dirty}<span class="dirty" title="Cambios sin guardar">●</span>{/if}
@@ -128,6 +128,7 @@
     border: 1px solid #93c5fd; color: #2563eb; background: #eff6ff; font-size: 12px;
   }
   .at.comp { border-color: #c4b5fd; color: #7c3aed; background: #f5f3ff; }
+  .at.lay { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
   .id { color: #2563eb; text-decoration: underline; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .back { font-size: 12px; color: var(--muted); }
   .dirty { color: var(--warn); font-size: 10px; }
