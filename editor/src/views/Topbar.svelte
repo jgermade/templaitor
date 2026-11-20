@@ -10,17 +10,17 @@
   let picking = $state(false)
 
   const VIEWS = $derived([
-    ['design', 'Diseño'],
-    ['preview', 'Vista previa'],
+    ['design', 'Design'],
+    ['preview', 'Preview'],
     ...(store.isPdf ? [['pdf', 'PDF']] : []),
-    ['code', 'Código'],
+    ['code', 'Code'],
   ])
 
   const draft = () => ({ kind: store.kind, mjml: store.doc.mjml, yml: store.doc.yml, data: store.doc.data, lang: store.lang })
 
   /**
-   * URL del email recién enviado en la bandeja de Mailpit (`smtp.web`), buscándolo por su Message-ID.
-   * Si la bandeja no es Mailpit o no responde, devuelve null (se enlaza a la bandeja).
+   * URL of the email just sent in the Mailpit inbox (`smtp.web`), looked up by its Message-ID.
+   * When the inbox is not Mailpit or does not answer, returns null (the inbox is linked instead).
    */
   async function mailpitMessageUrl(web, messageId) {
     if (!messageId) return null
@@ -35,7 +35,7 @@
       } catch {
         return null
       }
-      await new Promise(r => setTimeout(r, 250)) // Mailpit indexa el mensaje en segundo plano
+      await new Promise(r => setTimeout(r, 250)) // Mailpit indexes the message in the background
     }
     return null
   }
@@ -44,9 +44,9 @@
     let last = 'demo@example.com'
     try { last = localStorage.getItem('tpl:send-to') || last } catch {}
     const to = await promptDialog({
-      title: `Enviar prueba a ${store.project.smtp.label}`,
-      message: `${store.doc.id} · ${store.lang} · con los datos de demo`,
-      label: 'Destinatario', value: last, inputType: 'email', okLabel: 'Enviar ➤',
+      title: `Send a test to ${store.project.smtp.label}`,
+      message: `${store.doc.id} · ${store.lang} · with the demo data`,
+      label: 'Recipient', value: last, inputType: 'email', okLabel: 'Send ➤',
     })
     if (!to) return
     try { localStorage.setItem('tpl:send-to', to) } catch {}
@@ -55,7 +55,7 @@
       const web = store.project.smtp.web
       const href = web ? (await mailpitMessageUrl(web, messageId)) ?? web : null
       if (href) store.lastSentUrl = href
-      store.notify(`Enviado a ${to}`, 'success', href ? { href, label: `Abrir en ${store.project.smtp.label}` } : null)
+      store.notify(`Sent to ${to}`, 'success', href ? { href, label: `Open in ${store.project.smtp.label}` } : null)
     } catch (e) {
       store.notify(e.message, 'error')
     }
@@ -70,38 +70,38 @@
   </div>
 
   <div class="path">
-    <button class="link" onclick={() => (picking = !picking)} title="Abrir plantilla o componente">
+    <button class="link" onclick={() => (picking = !picking)} title="Open a template, component or layout">
       <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}>{store.isComponent ? '◆' : store.isLayout ? '⧉' : '@'}</span>
       <span class="id">{store.isComponent ? `${store.project?.componentsDir}/` : ''}{store.isLayout ? '_layouts/' : ''}{store.doc?.id ?? '…'}{store.isLayout ? '' : '/'}</span>
     </button>
     <TemplatePicker bind:open={picking} {onnew} />
   </div>
   {#if !store.isTemplate && store.returnTo}
-    <button class="ghost back" onclick={() => store.back()} title="Volver a la plantilla">← {store.returnTo}</button>
+    <button class="ghost back" onclick={() => store.back()} title="Back to the template">← {store.returnTo}</button>
   {/if}
-  {#if store.dirty}<span class="dirty" title="Cambios sin guardar">●</span>{/if}
+  {#if store.dirty}<span class="dirty" title="Unsaved changes">●</span>{/if}
 
   <div class="spacer"></div>
 
-  <div class="seg" role="group" aria-label="Vista">
+  <div class="seg" role="group" aria-label="View">
     {#each VIEWS as [v, label]}
       <button class:active={store.view === v} onclick={() => (store.view = v)}>{label}</button>
     {/each}
   </div>
   {#if !store.isPdf}
-  <div class="seg" role="group" aria-label="Dispositivo">
-    <button class:active={store.device === 'desktop'} onclick={() => (store.device = 'desktop')} title="Escritorio">🖥</button>
-    <button class:active={store.device === 'mobile'} onclick={() => (store.device = 'mobile')} title="Móvil">📱</button>
+  <div class="seg" role="group" aria-label="Device">
+    <button class:active={store.device === 'desktop'} onclick={() => (store.device = 'desktop')} title="Desktop">🖥</button>
+    <button class:active={store.device === 'mobile'} onclick={() => (store.device = 'mobile')} title="Mobile">📱</button>
   </div>
   {/if}
-  <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Deshacer (Ctrl+Z)">↶</button>
-  <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Rehacer (Ctrl+Shift+Z)">↷</button>
-  <button class="ghost" onclick={() => store.compile()} title="Compilar a {store.project?.outDir}/">⚙ Compilar</button>
-  <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Guardar (Ctrl+S)">
-    {store.dirty ? 'Guardar' : 'Guardado'}
+  <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Undo (Ctrl+Z)">↶</button>
+  <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Redo (Ctrl+Shift+Z)">↷</button>
+  <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/">⚙ Compile</button>
+  <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Save (Ctrl+S)">
+    {store.dirty ? 'Save' : 'Saved'}
   </button>
 
-  <div class="flags" role="group" aria-label="Idioma">
+  <div class="flags" role="group" aria-label="Language">
     {#each store.langs as l}
       {@const locale = store.project?.locales?.[l] || l}
       <button class="flag" class:active={store.lang === l} onclick={() => (store.lang = l)} title={locale}>
@@ -111,7 +111,7 @@
   </div>
 
   {#if store.project?.smtp && !store.isPdf}
-    <button class="send" onclick={sendTest} title="Enviar prueba por SMTP">{store.project.smtp.label} <span class="arrow">➤</span></button>
+    <button class="send" onclick={sendTest} title="Send a test email (SMTP)">{store.project.smtp.label} <span class="arrow">➤</span></button>
   {/if}
   {#if store.project?.smtp?.web}
     <a
@@ -119,7 +119,7 @@
       href={store.lastSentUrl ?? store.project.smtp.web}
       target="_blank"
       rel="noopener"
-      title={store.lastSentUrl ? `Abrir el último email enviado en ${store.project.smtp.label}` : `Abrir ${store.project.smtp.label}`}
+      title={store.lastSentUrl ? `Open the last sent email in ${store.project.smtp.label}` : `Open ${store.project.smtp.label}`}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
     </a>

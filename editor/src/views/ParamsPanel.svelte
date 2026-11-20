@@ -10,49 +10,49 @@
 </script>
 
 <p class="intro muted">
-  Úsalos en el componente como <code>$param.nombre</code> (en textos, botones o atributos). Cada instancia
-  puede darles valor: <code>$import(_components/{store.doc.id}, nombre="…")</code>.
+  Use them in the component as <code>$param.name</code> (in texts, buttons or attributes). Each instance
+  can set them: <code>$import(_components/{store.doc.id}, name="…")</code>.
 </p>
 
 {#each params as [name, d] (name)}
   <div class="param">
     <div class="row">
-      <code class:unused={!used.has(name)} title={used.has(name) ? '' : 'No se usa en el componente'}>$param.{name}</code>
-      <select value={d.type} onchange={(e) => store.setParamDecl(name, 'type', e.currentTarget.value)} aria-label="Tipo">
+      <code class:unused={!used.has(name)} title={used.has(name) ? '' : 'Not used by the component'}>$param.{name}</code>
+      <select value={d.type} onchange={(e) => store.setParamDecl(name, 'type', e.currentTarget.value)} aria-label="Type">
         {#each TYPES as t}<option value={t}>{t}</option>{/each}
       </select>
-      <button class="ghost x" title="Eliminar parámetro" onclick={() => store.removeParamDecl(name)}>✕</button>
+      <button class="ghost x" title="Remove parameter" onclick={() => store.removeParamDecl(name)}>✕</button>
     </div>
     <div class="grid">
-      <label><span>Etiqueta</span><input value={d.label === name ? '' : d.label} placeholder={name} oninput={(e) => store.setParamDecl(name, 'label', e.currentTarget.value)} /></label>
+      <label><span>Label</span><input value={d.label === name ? '' : d.label} placeholder={name} oninput={(e) => store.setParamDecl(name, 'label', e.currentTarget.value)} /></label>
       {#if d.type === 'boolean'}
-        <label class="check"><span>Por defecto</span>
-          <span><input type="checkbox" checked={!!toBoolean(d.default)} onchange={(e) => store.setParamDecl(name, 'default', e.currentTarget.checked)} /> {toBoolean(d.default) ? 'sí' : 'no'}</span>
+        <label class="check"><span>Default</span>
+          <span><input type="checkbox" checked={!!toBoolean(d.default)} onchange={(e) => store.setParamDecl(name, 'default', e.currentTarget.checked)} /> {toBoolean(d.default) ? 'yes' : 'no'}</span>
         </label>
       {:else if d.type === 'image'}
-        <div class="full img"><span>Por defecto</span>
+        <div class="full img"><span>Default</span>
           <ImageField value={d.default ?? ''} onchange={(v) => store.setParamDecl(name, 'default', v)} {...store.imageProps} />
         </div>
       {:else}
-        <label><span>Por defecto</span><input class="mono" value={d.default ?? ''} oninput={(e) => store.setParamDecl(name, 'default', e.currentTarget.value)} /></label>
+        <label><span>Default</span><input class="mono" value={d.default ?? ''} oninput={(e) => store.setParamDecl(name, 'default', e.currentTarget.value)} /></label>
       {/if}
       {#if d.type === 'boolean'}
-        <p class="full tip">Úsalo para mostrar u ocultar partes: <code>$if($param.{name}) … $end</code></p>
+        <p class="full tip">Use it to show or hide parts: <code>$if($param.{name}) … $end</code></p>
       {/if}
       {#if d.type === 'select'}
-        <label class="full"><span>Opciones (separadas por comas)</span>
+        <label class="full"><span>Options (comma separated)</span>
           <input class="mono" value={(d.options || []).join(', ')} onchange={(e) => store.setParamDecl(name, 'options', e.currentTarget.value.split(',').map(o => o.trim()).filter(Boolean))} />
         </label>
       {/if}
     </div>
   </div>
 {:else}
-  <p class="empty">Sin parámetros.</p>
+  <p class="empty">No parameters.</p>
 {/each}
 
 <form class="add" onsubmit={(e) => { e.preventDefault(); if (newName.trim()) { store.addParamDecl(newName); newName = '' } }}>
-  <input class="mono" placeholder="nombre" bind:value={newName} />
-  <button type="submit" disabled={!newName.trim()}>Añadir parámetro</button>
+  <input class="mono" placeholder="name" bind:value={newName} />
+  <button type="submit" disabled={!newName.trim()}>Add parameter</button>
 </form>
 
 <style>

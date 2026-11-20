@@ -1,5 +1,5 @@
-// Renderizado Jinja2 para la vista previa (nunjucks es compatible con la
-// sintaxis Jinja2 habitual: variables, filtros, if/for, etc.)
+// Jinja2 rendering for the preview (nunjucks supports the usual Jinja2
+// syntax: variables, filters, if/for, etc.)
 import nunjucks from 'nunjucks'
 
 const env = new nunjucks.Environment(null, { autoescape: true, throwOnUndefined: false })

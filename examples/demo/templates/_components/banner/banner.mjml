@@ -2,23 +2,23 @@
 params:
   image:
     type: image
-    label: Imagen
+    label: Image
     default: "{{ assets_url }}/banner-order.svg"
   alt:
     type: text
-    label: Texto alternativo
+    label: Alt text
     default: ""
   href:
     type: text
-    label: Enlace
+    label: Link
     default: ""
   show_caption:
     type: boolean
-    label: Mostrar pie de foto
+    label: Show caption
     default: false
   caption:
     type: text
-    label: Pie de foto
+    label: Caption
     default: $t('caption')
 ---
 

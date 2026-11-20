@@ -2,143 +2,146 @@
 
 # templaitor
 
-Editor genérico de plantillas de email **MJML → HTML/TXT con Jinja2**, con editor visual (WYSIWYG).
+Generic **MJML → HTML/TXT with Jinja2** template editor, with a visual (WYSIWYG) editor, reusable
+components and accessible PDF documents.
 
-Nace del motor de emails de `doomus-rs` (`emails/_engine`) y lo generaliza: cualquier proyecto con un
-`templaitor.config.yml` puede compilar y editar sus plantillas. La salida sigue siendo Jinja2, lista
-para renderizarse en runtime (minijinja, Jinja2, Tera…).
+It started as the email engine of `doomus-rs` (`emails/_engine`) and generalizes it: any project with a
+`templaitor.config.yml` can compile and edit its templates. The output is still Jinja2, ready to be
+rendered at runtime (minijinja, Jinja2, Tera…).
 
 ```
-plantilla.mjml + plantilla.yml (textos por idioma) ──► dist/<id>/<nombre>.<locale>.html
-                                                   ──► dist/<id>/<nombre>.<locale>.txt
-                                                   ──► dist/<id>/<nombre>.<locale>.subject.txt
+template.mjml + template.yml (texts per language) ──► dist/<id>/<name>.<locale>.html
+                                                  ──► dist/<id>/<name>.<locale>.txt
+                                                  ──► dist/<id>/<name>.<locale>.subject.txt
 ```
 
-## Uso rápido
+## Quick start
 
 ```bash
-make install           # (o `make i`) instala dependencias y compila el editor (dist/editor)
-make up                # desarrollo local: editor + API en http://localhost:5180 (Mailpit en /mailpit/)
-make down              # para Mailpit
+make install           # (or `make i`) installs dependencies and builds the editor (dist/editor)
+make up                # local development: editor + API on http://localhost:5180 (Mailpit under /mailpit/)
+make down              # stops Mailpit
 make test              # tests
-make build             # compila el editor a dist/editor
+make build             # builds the editor into dist/editor
 ```
 
-`make up` abre `examples/demo` por defecto; para otro proyecto: `make up PROJECT=ruta/al/proyecto`.
+`make up` opens `examples/demo` by default; for another project: `make up PROJECT=path/to/project`.
 
-**Mailpit local**: si hay Docker, `make up` arranca [Mailpit](https://mailpit.axllent.org/) con
-`docker compose` (SMTP en `localhost:1025`). Su bandeja se publica en **`/mailpit/`** del propio editor
-(http://localhost:5180/mailpit/), así que con `GATE=...` también es accesible en `https://<gate>/mailpit/`. El botón **mailpit ➤** del
-editor envía la plantilla renderizada con los datos de demo; el aviso y el icono ↗ de la barra superior
-abren **ese email** en Mailpit (o la bandeja si aún no se ha enviado nada). Sin Docker
-arranca igual (con un aviso); `make up MAILPIT=0` lo desactiva y `make down` lo para. Puertos:
-`MAILPIT_SMTP_PORT` / `MAILPIT_WEB_PORT`.
+**Local Mailpit**: when Docker is available, `make up` starts [Mailpit](https://mailpit.axllent.org/) with
+`docker compose` (SMTP on `localhost:1025`). Its inbox is published under **`/mailpit/`** of the editor
+itself (http://localhost:5180/mailpit/), so with `GATE=...` it is also reachable at
+`https://<gate>/mailpit/`. The editor **mailpit ➤** button sends the template rendered with the demo data;
+the notification and the ↗ icon in the top bar open **that email** in Mailpit (or the inbox if nothing has
+been sent yet). Without Docker it starts anyway (with a warning); `make up MAILPIT=0` disables it and
+`make down` stops it. Ports: `MAILPIT_SMTP_PORT` / `MAILPIT_WEB_PORT`.
 
-Para exponerlo públicamente con [intergate](https://jgermade.github.io/intergate/):
+To expose it publicly with [intergate](https://jgermade.github.io/intergate/):
 
 ```bash
 make up GATE=templaitor.gate.example.com
 ```
 
-Abre un túnel SSH (`ssh -p 2222 -R templaitor:80:localhost:5180 gate.example.com`) que se reconecta
-solo, y permite ese host en Vite. Requiere que tu clave SSH esté autorizada para el subdominio en el
-dashboard de intergate. El puerto SSH es 2222 por defecto; se puede indicar en el propio host
-(`GATE=templaitor.gate.example.com:2223`) o con `GATE_SSH_PORT`. Clave concreta: `GATE_KEY=~/.ssh/intergate`.
-⚠ El editor no tiene autenticación y puede escribir ficheros del proyecto: restringe el acceso al
-subdominio en intergate si no quieres que sea público.
-Sin `make`: `npm run dev` (desarrollo, :5180), `npm run editor` (editor ya compilado, :3333) y `npm run compile`.
+It opens an SSH tunnel (`ssh -p 2222 -R templaitor:80:localhost:5180 gate.example.com`) that reconnects
+on its own, and allows that host in Vite. Your SSH key must be authorized for the subdomain in the
+intergate dashboard. The SSH port defaults to 2222; set it in the host itself
+(`GATE=templaitor.gate.example.com:2223`) or with `GATE_SSH_PORT`. Specific key: `GATE_KEY=~/.ssh/intergate`.
+⚠ The editor has no authentication and can write project files: restrict access to the subdomain in
+intergate unless you want it to be public.
+Without `make`: `npm run dev` (development, :5180), `npm run editor` (prebuilt editor, :3333) and `npm run compile`.
 
-En otro proyecto:
+In another project:
 
 ```bash
-npx templaitor editor --cwd ruta/al/proyecto     # editor visual
-npx templaitor compile --cwd ruta/al/proyecto    # compilar (--watch, --strict)
-npx templaitor new grupo/nombre --layout base.layout.mjml
+npx templaitor editor --cwd path/to/project     # visual editor
+npx templaitor compile --cwd path/to/project    # compile (--watch, --strict)
+npx templaitor new group/name --layout base.layout.mjml
 ```
 
 
 # Project Specs
 
-## Estructura de un proyecto
+## Project layout
 
 ```
 templaitor.config.yml
 templates/
-  _layouts/base.layout.mjml        # layouts con $content
-  _components/footer/              # componentes reutilizables: $import(_components/footer)
+  _layouts/base.layout.mjml        # layouts with $content
+  _components/footer/              # reusable components: $import(_components/footer)
     footer.mjml · footer.yml · footer.json5
-  _shared/links.yml                # URLs para $link{...}
-  _shared/logo.svg                 # estáticos (servidos en /static/ por el editor)
+  _shared/links.yml                # URLs for $link{...}
+  _shared/logo.svg                 # static files (served at /static/ by the editor)
   customers/email-verification/
-    email-verification.mjml        # plantilla (frontmatter opcional: layout)
-    email-verification.yml         # subject + messages por idioma
-    email-verification.json5       # datos de demo para la vista previa
-dist/                              # salida compilada
+    email-verification.mjml        # template (optional frontmatter: layout)
+    email-verification.yml         # subject + messages per language
+    email-verification.json5       # demo data for the preview
+dist/                              # compiled output
 ```
 
-Las carpetas que empiezan por `_` no son plantillas. Una plantilla es una carpeta `x/` con `x.mjml`.
+Folders starting with `_` are not templates. A template is a folder `x/` containing `x.mjml`.
 
 ## `templaitor.config.yml`
 
 ```yaml
-name: Mi proyecto
-templates: templates     # raíz de plantillas
+name: My project
+templates: templates     # templates root
 outDir: dist
-layouts: _layouts        # relativo a templates
+layouts: _layouts        # relative to templates
 partials: _partials
-components: _components  # componentes reutilizables
-previewLayout: base.layout.mjml   # <mj-head> para previsualizar componentes (por defecto, el primero)
+components: _components  # reusable components
+previewLayout: base.layout.mjml   # <mj-head> used to preview components (default: the first layout)
 links: _shared/links.yml
 static: _shared
-locales:                 # clave de idioma en el .yml → locale ($lang y nombre de fichero)
+locales:                 # language key in the .yml → locale ($lang and file names)
   es: es-ES
   en: en-US
 output:
-  text: true             # genera .txt
-  subject: true          # genera .subject.txt
-smtp:                    # opcional: botón "Enviar" del editor (p.ej. Mailpit)
+  text: true             # writes .txt
+  subject: true          # writes .subject.txt
+pdf:
+  engine: auto           # weasyprint · prince · chromium · auto
+smtp:                    # optional: editor "Send" button (e.g. Mailpit)
   host: localhost
   port: 1025
   from: noreply@example.com
-  label: mailpit         # texto del botón de envío
-  web: /mailpit/         # bandeja web (enlace tras enviar; relativa al editor)
+  label: mailpit         # send button label
+  web: /mailpit/         # web inbox (linked after sending; relative to the editor)
 ```
 
-## Comandos `$` (compile-time) y Jinja2 (runtime)
+## `$` commands (compile time) and Jinja2 (runtime)
 
-| Comando | Descripción |
+| Command | Description |
 |---|---|
-| `$import( ruta, clave="valor", … )` | Incluye un parcial o componente (relativo a `templates/`; `_components/x` = `_components/x/x.mjml`), con parámetros opcionales |
-| `$param.nombre` | (dentro de un componente) valor del parámetro de la instancia o su valor por defecto |
-| `$lang` / `$country` | Locale actual (`es-ES`) / país (`ES`) |
-| `$if( expr ) … $else … $end` | Condicional compile-time (expresión JS) |
-| `$t('clave')` | Texto de `messages.<idioma>.clave` (admite claves anidadas `a.b`) |
-| `$link{ nombre, label: …, title: … }` | `<a>` con la URL de `links.yml` |
+| `$import( path, key="value", … )` | Includes a partial or component (relative to `templates/`; `_components/x` = `_components/x/x.mjml`), with optional parameters |
+| `$param.name` | (inside a component) the instance's parameter value or its default |
+| `$lang` / `$country` | Current locale (`es-ES`) / country (`ES`) |
+| `$if( expr ) … $else … $end` | Compile-time conditional (JS expression) |
+| `$t('key')` | Text from `messages.<language>.key` (nested keys `a.b` supported) |
+| `$link{ name, label: …, title: … }` | `<a>` with the URL from `links.yml` |
 
-La resolución es recursiva (un `$t` puede contener otros comandos). Todo lo que sea Jinja2
-(`{{ }}`, `{% %}`, `{# #}`) se protege del compilador MJML y llega intacto al HTML, al TXT y al asunto.
-Para bloques Jinja2 entre secciones usa `<mj-raw>{% if … %}</mj-raw>`.
+Resolution is recursive (a `$t` may contain other commands). Everything Jinja2 (`{{ }}`, `{% %}`,
+`{# #}`) is protected from the MJML compiler and reaches the HTML, TXT and subject intact.
+For Jinja2 blocks between sections use `<mj-raw>{% if … %}</mj-raw>`.
 
-## Componentes reutilizables
+## Reusable components
 
-Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragmento MJML),
-`<nombre>.yml` (`messages` por idioma) y `<nombre>.json5` (datos de demo). Se usa con
-`$import(_components/<nombre>)` en plantillas, layouts u otros componentes.
+A component is a folder `_components/<name>/` with `<name>.mjml` (an MJML fragment), `<name>.yml`
+(`messages` per language) and `<name>.json5` (demo data). It is used with `$import(_components/<name>)`
+in templates, layouts or other components.
 
-- Sus textos `$t` se resuelven con su propio `.yml`; la plantilla puede **sobrescribir** cualquier clave en el suyo.
-- En el editor: panel **Componentes** para insertarlos, ver cuántas plantillas los usan y crearlos;
-  en el lienzo cada instancia se selecciona como un bloque (◆) y con **doble click** se edita el componente
-  con el mismo WYSIWYG (con «← volver» a la plantilla). Los cambios se aplican en todas las plantillas.
-- **Parámetros**: se declaran en el frontmatter del componente y se usan como `$param.nombre` en
-  textos, botones o atributos. Cada instancia les da valor (o usa el valor por defecto):
+- Its `$t` texts resolve with its own `.yml`; the template can **override** any key in its own.
+- In the editor: the **Components** panel inserts them, shows how many templates use them and creates
+  them; on the canvas every instance is selected as one block (◆) and **double-clicking** edits the
+  component with the same WYSIWYG (with "← back" to the template). Changes apply to every template.
+- **Parameters**: declared in the component frontmatter and used as `$param.name` in texts, buttons or
+  attributes. Each instance sets them (or uses the default value):
 
   ```
   ---
   params:
-    url: { type: text, label: Enlace, default: "#" }
+    url: { type: text, label: Link, default: "#" }
     color: { type: color, label: Color, default: "#4F46E5" }
     align: { type: select, options: [left, center, right], default: center }
-    label: $t('cta')          # forma corta: solo el valor por defecto
+    label: $t('cta')          # short form: just the default value
     logo: { type: image, default: "{{ assets_url }}/logo.svg" }
     show_note: { type: boolean, default: false }
   ---
@@ -153,153 +156,160 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
   ```
 
   ```
-  $import(_components/cta-button, url="{{ app_url }}/verify?token={{ token }}", label="$t('cta')", color="#059669")
+  $import(_components/cta-button, url="{{ app_url }}/verify?token={{ token }}", label="$t('cta')", color="#047857")
   ```
 
-  Tipos: `text`, `color`, `select` (con `options`), `image` (URL; en el editor, miniatura, galería de las
-  imágenes de `static` y subida de ficheros, que se insertan como `{{ assets_url }}/fichero`, configurable con
-  `assetsUrl`) y `boolean` (`true`/`false`, para `$if($param.x) … $end`; se evalúa al compilar, así que para
-  condiciones en runtime usa `{% if %}`).
+  Types: `text`, `color`, `select` (with `options`), `image` (a URL; in the editor: thumbnail, gallery of
+  the `static` images and file upload, inserted as `{{ assets_url }}/file`, configurable with `assetsUrl`)
+  and `boolean` (`true`/`false`, for `$if($param.x) … $end`; evaluated at compile time, so use
+  `{% if %}` for runtime conditions).
 
-  Los valores (entre comillas dobles o simples) admiten Jinja2 y comandos `$`. En el editor, el inspector
-  de una instancia muestra un formulario con los parámetros declarados, y al editar
-  el componente el panel **Parámetros** permite declararlos y añadir `$param.x` como chip en los textos.
-- **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
-- **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
+  Values (in double or single quotes) accept Jinja2 and `$` commands. In the editor, the inspector of an
+  instance shows a form with the declared parameters, and when editing the component the **Parameters**
+  panel declares them and inserts `$param.x` as a chip in texts.
+- **Turn selection into a component**: moves the selected block and its texts to a new component.
+- **Detach**: replaces an instance with a copy editable only in that template.
 
-## Documentos PDF
+## PDF documents
 
-Una plantilla es un documento PDF si su frontmatter lleva `format: pdf`. Usa lo mismo que los emails
-(MJML, `$t`, componentes, layouts y el WYSIWYG) y añade opciones de página:
+A template is a PDF document when its frontmatter has `format: pdf`. It uses the same things as emails
+(MJML, `$t`, components, layouts and the WYSIWYG) plus page options:
 
 ```
 ---
 format: pdf
-layout: document.layout.mjml      # layout de documento: <mj-body width="680px"> (A4 con 15 mm de margen)
+layout: document.layout.mjml      # document layout: <mj-body width="680px"> (A4 with 15 mm margins)
 pdf:
+  engine: weasyprint              # optional: weasyprint · prince · chromium · auto
   size: A4                        # A4 · A5 · A3 · Letter · Legal
   orientation: portrait           # portrait · landscape
-  margin: 15mm                    # o { top, right, bottom, left }
-  header: ""                      # {page} {pages} {title} {date}
+  margin: 15mm                    # or { top, right, bottom, left }
+  header: ""                      # {page} {pages} {title}
   footer: "{page} / {pages}"
 ---
 ```
 
-- `templaitor compile` genera `<nombre>.<locale>.html` (Jinja2 + CSS de paginación `@page`) y
-  `<nombre>.<locale>.pdf.json` (motor, página y opciones de cada motor) para que el backend renderice el
-  PDF con sus datos en runtime. `compile --pdf` añade `<nombre>.<locale>.sample.pdf` con los datos de demo
-  y `compile --validate` además los valida con veraPDF.
-- `templaitor pdf grupo/nombre [--lang es] [--data datos.json5] [-o salida.pdf] [--engine weasyprint] [--validate]`
-- `templaitor validate fichero.pdf [--flavour ua1]` valida cualquier PDF; `templaitor engines` muestra
-  qué motores y validador hay instalados.
-- En el editor: vista **PDF** (el PDF real, se regenera al editar, con selector de motor, descarga y
-  botón **Validar PDF/UA (veraPDF)**), formato y opciones de página en «Plantilla», bloque «Salto de
-  página» y el subject como **título** del documento.
+- `templaitor compile` writes `<name>.<locale>.html` (Jinja2 + `@page` paged-media CSS) and
+  `<name>.<locale>.pdf.json` (engine, page and per-engine options) so the backend can render the PDF with
+  its data at runtime. `compile --pdf` adds `<name>.<locale>.sample.pdf` with the demo data and
+  `compile --validate` also validates them with veraPDF.
+- `templaitor pdf group/name [--lang es] [--data data.json5] [-o out.pdf] [--engine weasyprint] [--validate]`
+- `templaitor validate file.pdf [--flavour ua1]` validates any PDF; `templaitor engines` lists the
+  installed engines and validator.
+- In the editor: **PDF** view (the real PDF, re-rendered on edit, with an engine selector, download and a
+  **Validate PDF/UA (veraPDF)** button), format and page options under "Template", a "Page break" block and
+  the subject used as the document **title**.
 
-### Motores de render
+### Rendering engines
 
-El HTML de PDF es el mismo para todos los motores: usa CSS de paginación estándar (`@page` con cabecera y
-pie en cajas de margen, columnas de MJML sin `@media`). Se elige con `pdf.engine` en
-`templaitor.config.yml` o en el frontmatter de la plantilla (`auto` = el primero instalado, por este orden):
+The PDF HTML is the same for every engine: it uses standard paged-media CSS (`@page` with header and footer
+in margin boxes, MJML columns outside `@media`). Choose it with `pdf.engine` in `templaitor.config.yml` or
+in the template frontmatter (`auto` = the first installed one, in this order):
 
-| Motor | PDF/UA-1 (veraPDF) | Licencia | Instalación |
+| Engine | PDF/UA-1 (veraPDF) | License | Install |
 |---|---|---|---|
-| **WeasyPrint** (recomendado) | ✓ cumple (106 reglas ✓, 0 ✕) | Libre (BSD) | `pip install weasyprint` (≥ 58) |
-| **Prince** | genera PDF/UA-1 (`--pdf-profile=PDF/UA-1`); no probado aquí | Comercial | princexml.com |
-| **Chromium** (Playwright) | ✕ no cumple (4 reglas: metadatos XMP, contenido sin etiquetar, enlaces) | Libre | `npm i -D playwright && npx playwright install chromium` |
+| **WeasyPrint** (recommended) | ✓ compliant (106 rules ✓, 0 ✕) | Free (BSD) | `pip install weasyprint` (≥ 58) |
+| **Prince** | produces PDF/UA-1 (`--pdf-profile=PDF/UA-1`); not tested here | Commercial | princexml.com |
+| **Chromium** (Playwright) | ✕ not compliant (4 rules: XMP metadata, untagged content, links) | Free | `npm i -D playwright && npx playwright install chromium` |
 
-Resultados de validar la factura del demo con veraPDF 1.30 (perfil PDF/UA-1). **Como la prioridad es
-cumplir la normativa de accesibilidad, el recomendado es WeasyPrint**: libre y conforme. Prince es la
-alternativa comercial de referencia. Chromium etiqueta el PDF (estructura, idioma, marcadores) pero no
-llega a PDF/UA-1: úsalo solo para vistas rápidas o si no hay otro motor.
+Results of validating the demo invoice with veraPDF 1.30 (PDF/UA-1 profile). **Since meeting the
+accessibility regulations is the priority, WeasyPrint is the recommended engine**: free and compliant.
+Prince is the commercial reference alternative. Chromium tags the PDF (structure, language, bookmarks) but
+does not reach PDF/UA-1: use it only for quick previews or when no other engine is available.
 
-### Validación con veraPDF
+### Validation with veraPDF
 
-[veraPDF](https://verapdf.org) es el validador de referencia de PDF/UA y PDF/A. Se usa el ejecutable
-`verapdf` (o `TEMPLAITOR_VERAPDF=/ruta`) o, si no, Docker con la imagen oficial: `make verapdf` la descarga
-y `make pdf-tools` comprueba motores y validador. Las reglas que fallan se muestran con su cláusula de
-ISO 14289-1 y una explicación.
+[veraPDF](https://verapdf.org) is the reference validator for PDF/UA and PDF/A. templaitor uses the
+`verapdf` executable (or `TEMPLAITOR_VERAPDF=/path`) or, otherwise, Docker with the official image:
+`make verapdf` pulls it and `make pdf-tools` checks engines and validator. Failing rules are shown with
+their ISO 14289-1 clause and an explanation.
 
-## Accesibilidad
+## Accessibility
 
-Emails y PDF se comprueban contra **WCAG 2.1 AA / EN 301 549** (la norma que exige la Directiva Europea de
-Accesibilidad) y los PDF se generan **etiquetados (PDF/UA)**: estructura de encabezados, tablas y
-texto alternativo, idioma, título y marcadores.
+Emails and PDFs are checked against **WCAG 2.1 AA / EN 301 549** (the standard required by the European
+Accessibility Act) and PDFs are produced **tagged (PDF/UA)**: heading structure, tables and text
+alternatives, language, title and bookmarks.
 
-Cada compilación y vista previa revisa: idioma (`lang`), título, estructura de encabezados, texto
-alternativo de imágenes, enlaces sin texto o poco descriptivos, tablas de datos (`<th scope>`),
-contraste de color (4.5:1, 3:1 en texto grande) y tamaño mínimo de texto.
+Every compile and preview checks: language (`lang`), title, heading structure, image text alternatives,
+links without text or with vague text, data tables (`<th scope>`), color contrast (4.5:1, 3:1 for large
+text) and minimum text size.
 
-- En el editor, el indicador **♿** de la barra del asunto resume el estado y la **Vista previa** (y la
-  vista PDF) muestra el informe completo: criterio a criterio, con cómo arreglar cada incidencia,
-  esquema de encabezados, inventario de imágenes y enlaces y todos los pares de contraste.
-- Los textos tienen **Semántica** (Párrafo / Título 1–3) en el inspector: envuelve el contenido en
-  `<hN>` que hereda el estilo del `mj-text`, así la estructura no cambia el diseño.
-- `templaitor compile` muestra las incidencias (`a11y-error` / `a11y-warn`) y con `--strict` falla si hay alguna.
-- Es una comprobación automática: revisa también el orden de lectura y que los textos tengan sentido.
+- In the editor, the **♿** indicator in the subject bar summarizes the status, and the **Preview** (and
+  the PDF view) shows the full report: criterion by criterion, how to fix each issue, the heading outline,
+  the inventory of images and links and every contrast pair.
+- Texts have **Semantics** (Paragraph / Heading 1–3) in the inspector: it wraps the content in an `<hN>`
+  that inherits the `mj-text` style, so adding structure does not change the design.
+- `templaitor compile` prints the issues (`a11y-error` / `a11y-warn`) and fails with `--strict` if there are any.
+- It is an automated check: also review the reading order and that the texts make sense.
 
 ## Layouts
 
-Un layout (`_layouts/<nombre>.mjml`) es un documento MJML completo con `$content` donde va cada plantilla
-(que lo elige con `layout: <nombre>.mjml` en su frontmatter). En el editor se abren desde el buscador
-(sección **Layouts**) o con ✎ junto al selector de layout de la plantilla, y se editan con el mismo WYSIWYG:
-`$content` aparece como un hueco discontinuo que se puede mover en «Estructura». Como un layout no tiene
-textos ni datos propios, la vista previa usa los de la primera plantilla que lo usa (no se guardan con el
-layout) y sus `$t` se muestran pero no se editan ahí. Se pueden crear layouts nuevos y borrar los que no se usan.
+A layout (`_layouts/<name>.mjml`) is a full MJML document with `$content` where each template goes (a
+template picks it with `layout: <name>.mjml` in its frontmatter). In the editor they are opened from the
+picker (**Layouts** section) or with ✎ next to the template's layout selector, and edited with the same
+WYSIWYG: `$content` shows as a dashed slot that can be moved in "Structure". A layout has no texts or data
+of its own, so the preview uses those of the first template using it (not saved with the layout) and its
+`$t` texts are shown but not editable there. New layouts can be created and unused ones deleted.
 
-## Editor visual
+## Visual editor
 
-- **Diseño**: el lienzo es el HTML real compilado por MJML. Click para seleccionar un bloque;
-  en textos y botones se escribe directamente. Si el contenido es `$t('clave')`, lo que escribes
-  va al `.yml` del idioma activo. Las variables Jinja2 y los comandos `$` aparecen como *chips*
-  no editables; escribir `{{ variable }}` crea uno nuevo.
-- **Interfaz**: ruta de la plantilla (click para buscar/abrir plantillas y componentes), banderas de idioma,
-  botón de envío SMTP (p.ej. *mailpit*) e icono ↗ que abre Mailpit (el último email enviado); en la barra
-  del asunto, abrir la vista previa en otra pestaña y el conmutador `text`. A la izquierda, datos de demo (JSON5) y secciones plegables: Mensajes, Componentes,
-  Bloques, Estructura y Plantilla. El inspector aparece al seleccionar un bloque.
-- **Estructura**: árbol de bloques con arrastrar y soltar (valida dónde puede ir cada componente),
-  subir/bajar, duplicar y eliminar. **Bloques**: paleta de componentes MJML; los nuevos textos y
-  botones nacen traducibles en todos los idiomas.
-- **Inspector**: atributos de cada componente, traducciones en todos los idiomas, renombrar claves,
-  insertar variables (de los datos de demo) y links. Sin selección: layout, asunto, idiomas y
-  traducciones pendientes.
-- **Mensajes**: todas las claves del idioma activo, añadir/eliminar claves e idiomas.
-- **Vista previa / text**: render con los datos de demo (nunjucks, compatible con Jinja2) y versión TXT.
-- **Código**: `.mjml`, `.yml`, `.json5`, layouts, parciales y `links.yml` con vista previa en vivo.
-- Deshacer/rehacer, `Ctrl+S`, vista móvil, compilar y enviar prueba por SMTP.
+- **Design**: the canvas is the real HTML compiled by MJML. Click to select a block; type directly into
+  texts and buttons. When the content is `$t('key')`, what you type goes to the `.yml` of the active
+  language. Jinja2 variables and `$` commands show as non-editable *chips*; typing `{{ variable }}`
+  creates a new one.
+- **Interface**: template path (click to search/open templates, components and layouts), language flags,
+  SMTP send button (e.g. *mailpit*) and a ↗ icon that opens Mailpit (the last sent email); in the subject
+  bar, open the preview in a new tab and the `text` toggle. On the left, demo data (JSON5) and collapsible
+  sections: Messages, Components, Blocks, Structure and Template. The inspector appears when a block is
+  selected.
+- **Structure**: block tree with drag and drop (validates where each component may go), move up/down,
+  duplicate and delete. **Blocks**: palette of MJML components; new texts and buttons are translatable in
+  every language from the start.
+- **Inspector**: component attributes, translations in every language, key renaming, insertion of variables
+  (from the demo data) and links.
+- **Messages**: every key of the active language, add/remove keys and languages.
+- **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
+- **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
+- Undo/redo, `Ctrl+S`, mobile view, compile and SMTP test sending. Dialogs are `<dialog>` modals.
 
-Las ediciones visuales reescriben el MJML con un formato normalizado (indentación de 2 espacios).
+Visual edits rewrite the MJML with a normalized format (2-space indentation).
 
-## Marca
+## Brand
 
-`assets/brand/`: `logo.svg` (color), `logo-mono.svg` (una tinta, impresión), `favicon.svg` (versión
-simplificada para 16–48 px) y exportaciones PNG (`logo-128/256/512.png`, `favicon-32.png`,
-`logo-mono-256.png`). Los SVG solo usan trazados y degradados lineales (sin filtros, máscaras ni
-fuentes), así que se incrustan como vectores en PDF; en emails usa los PNG (Gmail/Outlook no muestran SVG).
+`assets/brand/`: `logo.svg` (color), `logo-mono.svg` (single ink, print), `favicon.svg` (simplified for
+16–48 px) and PNG exports (`logo-128/256/512.png`, `favicon-32.png`, `logo-mono-256.png`). The SVGs only
+use paths and linear gradients (no filters, masks or fonts), so they embed as vectors in PDFs; in emails
+use the PNGs (Gmail/Outlook do not display SVG).
 
-## Arquitectura
+## Architecture
 
 ```
-bin/templaitor.js          CLI (compile · editor · new)
-src/shared/                código común Node/navegador
-  mjml-tree.js             parser/serializador MJML que conserva comandos $ y Jinja2
-  components.js            catálogo de componentes (atributos, anidamiento válido)
-src/engine/                motor de compilación (portado de doomus-rs)
-  pipeline.js              frontmatter → $import/layout → comandos $ → guard → MJML → HTML/TXT
-  design.js                anotación del modo diseño (ids de nodo, regiones editables, chips)
+bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new)
+src/shared/                code shared by Node and the browser
+  mjml-tree.js             MJML parser/serializer that keeps $ commands and Jinja2
+  components.js            component catalog (attributes, valid nesting)
+  imports.js               $import calls with parameters
+  semantics.js             paragraph / heading semantics
+src/engine/                compilation engine (ported from doomus-rs)
+  pipeline.js              frontmatter → $import/layout → $ commands → guard → MJML → HTML/TXT
+  design.js                design-mode annotation (node ids, editable regions, chips)
+  a11y.js                  accessibility checker (WCAG 2.1 AA)
+  pdf.js · verapdf.js      PDF engines and veraPDF validation
   commands.js · guard.js · resolver.js · render.js · project.js
-src/server/server.js       API HTTP del editor + estáticos
-editor/                    SPA Svelte 5 + Vite (→ dist/editor)
-  src/stores/editor.svelte.js   estado: los textos fuente son la única fuente de verdad
-  src/lib/bridge.js             script del iframe (selección, edición inline, serialización)
-examples/demo/             proyecto de ejemplo
+src/server/server.js       editor HTTP API + static files
+editor/                    Svelte 5 + Vite SPA (→ dist/editor)
+  src/stores/editor.svelte.js   state: the source texts are the single source of truth
+  src/lib/bridge.js             iframe script (selection, inline editing, serialization)
+examples/demo/             demo project
 ```
+
+Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · conventions: [`AGENTS.md`](AGENTS.md).
 
 # Todos
 
-- [ ] Integrar en `doomus-rs`: sustituir `emails/_engine` por `templaitor compile` y leer `*.subject.txt` en el backend.
-- [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
-- [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
-- [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.
-- [ ] Adjuntar un PDF (plantilla PDF) a un email al enviar la prueba.
-- [ ] Modo de comparación de plantillas: diff de código (MJML/YAML/datos) y diff visual (render lado a lado / superpuesto).
+- [ ] doomus-rs integration: replace `emails/_engine` with `templaitor compile` and read `*.subject.txt` in the backend.
+- [ ] Floating format toolbar (bold, italic, link) for inline editing.
+- [ ] Variable validation: warn about `{{ var }}` without demo data.
+- [ ] Render the preview with minijinja (Rust) so it matches the runtime exactly.
+- [ ] Attach a PDF (PDF template) to an email when sending a test.
+- [ ] Template compare mode: code diff (MJML/YAML/data) and visual diff (side by side / overlay).

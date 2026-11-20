@@ -5,14 +5,14 @@ import { fileURLToPath } from 'node:url'
 import { loadProject } from './src/engine/project.js'
 import { createHandler } from './src/server/server.js'
 
-// Proyecto que sirve la API en desarrollo (make up PROJECT=...)
+// Project served by the API in development (make up PROJECT=...)
 const PROJECT = process.env.TEMPLAITOR_PROJECT || 'examples/demo'
-// Mailpit local (docker compose) publicado en /mailpit/ del mismo servidor
+// Local Mailpit (docker compose) published under /mailpit/ of the same server
 const MAILPIT = process.env.TEMPLAITOR_MAILPIT || 'http://127.0.0.1:8025'
-// hosts públicos permitidos (p.ej. el subdominio de intergate: make up GATE=...)
+// allowed public hosts (e.g. the intergate subdomain: make up GATE=...)
 const ALLOWED_HOSTS = (process.env.TEMPLAITOR_ALLOWED_HOSTS || '').split(',').map(h => h.trim()).filter(Boolean)
 
-/** Monta la API del motor (/api, /static) dentro del servidor de Vite: un único puerto en desarrollo */
+/** Mounts the engine API (/api, /static) inside the Vite server: a single port in development */
 function templaitorApi() {
   return {
     name: 'templaitor-api',
@@ -43,7 +43,7 @@ export default defineConfig({
     port: 5180,
     allowedHosts: ALLOWED_HOSTS,
     proxy: {
-      // bandeja de Mailpit (incluye el websocket de actualizaciones en vivo)
+      // Mailpit inbox (including the live-update websocket)
       '/mailpit': { target: MAILPIT, ws: true, changeOrigin: true },
     },
   },

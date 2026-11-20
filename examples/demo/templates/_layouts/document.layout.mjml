@@ -16,7 +16,7 @@
         <mj-image src="{{ assets_url }}/logo.svg" width="40px" align="left" padding="0" alt="Acme" />
       </mj-column>
       <mj-column width="50%">
-        <mj-text align="right" font-size="12px" color="#4b5563">Acme S.L. · B-00000000<br>Calle Ejemplo 1, 28000 Madrid</mj-text>
+        <mj-text align="right" font-size="12px" color="#4b5563">Acme S.L. · B-00000000<br>1 Example Street, 28000 Madrid</mj-text>
       </mj-column>
     </mj-section>
 

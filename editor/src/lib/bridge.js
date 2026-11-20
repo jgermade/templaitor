@@ -1,5 +1,5 @@
-// Script que se inyecta dentro del iframe del lienzo.
-// Debe ser autocontenido: se serializa con Function.prototype.toString().
+// Script injected into the canvas iframe.
+// It must be self-contained: it is serialized with Function.prototype.toString().
 //
 // iframe → editor:  ready · select · hover · editstart · edit · editend · key
 // editor → iframe:  update · select · insert
@@ -15,8 +15,8 @@ export function bridgeMain() {
     .tpl-design .tpl-comp.tpl-selected { outline: 2px solid #7c3aed !important; }
     .tpl-design [data-tpl-edit] { cursor: text; border-radius: 2px; min-height: 1em; }
     .tpl-design [data-tpl-edit][contenteditable="true"] { outline: 2px solid #f59e0b; outline-offset: 2px; background: rgba(245,158,11,.06); }
-    .tpl-design [data-tpl-edit]:empty::before { content: 'Escribe aquí…'; opacity: .45; font-style: italic; }
-    .tpl-design [data-tpl-missing]:empty::before { content: '⚠ Sin traducción'; color: #dc2626; opacity: 1; }
+    .tpl-design [data-tpl-edit]:empty::before { content: 'Type here…'; opacity: .45; font-style: italic; }
+    .tpl-design [data-tpl-missing]:empty::before { content: '⚠ Missing translation'; color: #dc2626; opacity: 1; }
     .tpl-chip { display: inline-block; padding: 0 .45em; margin: 0 1px; border-radius: 999px; border: 1px solid #c7d2fe;
       background: #eef2ff; color: #4338ca !important; font: 600 .82em/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
       white-space: nowrap; vertical-align: baseline; user-select: all; text-decoration: none; text-transform: none; }
@@ -30,7 +30,7 @@ export function bridgeMain() {
     .tpl-chip--var::before { content: '{ '; opacity: .5 } .tpl-chip--var::after { content: ' }'; opacity: .5 }
     .tpl-chip--link::before { content: '🔗 '; } .tpl-chip--t::before { content: '🌐 '; }
     .tpl-page-break { position: relative; height: 0; border-top: 2px dashed #a1a1aa; margin: 22px 0; }
-    .tpl-page-break::after { content: 'Salto de página'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
+    .tpl-page-break::after { content: 'Page break'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
       background: #fff; color: #71717a; font: 600 10px/16px system-ui, sans-serif; padding: 0 8px; border-radius: 8px; border: 1px solid #d4d4d8; }
     #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
       font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; }
@@ -90,13 +90,13 @@ export function bridgeMain() {
     badge.style.display = 'block'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
-    // si no cabe encima (bloque pegado arriba), se dibuja por dentro
+    // if it does not fit above (block at the very top), draw it inside
     const inside = r.top < 18
     badge.style.transform = inside ? 'none' : 'translateY(-100%)'
     badge.style.borderRadius = inside ? '0 0 3px 0' : '3px 3px 0 0'
   }
 
-  // ── Serialización de la región editable → código fuente ─────
+  // ── Editable region serialization → source code ─────────
   const INLINE = /^(B|STRONG|I|EM|U|S|SMALL|SUP|SUB|CODE|SPAN|A)$/
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const escAttr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
@@ -128,7 +128,7 @@ export function bridgeMain() {
     return out
   }
 
-  // ── Edición ─────────────────────────────────────────────────
+  // ── Editing ─────────────────────────────────────────────────
   function startEdit(region) {
     if (editing?.region === region) return
     if (editing) stopEdit()
@@ -154,7 +154,7 @@ export function bridgeMain() {
     if (pending) { const p = pending; pending = null; applyUpdate(p) }
   }
 
-  // ── Actualizaciones de contenido ────────────────────────────
+  // ── Content updates ───────────────────────────────────────
   function applyUpdate({ html }) {
     if (editing) { pending = { html }; return }
     const y = scrollY
@@ -185,7 +185,7 @@ export function bridgeMain() {
         sel.addRange(savedRange)
       }
       document.execCommand('insertHTML', false, msg.html + '​')
-      // elimina el espacio de anchura cero auxiliar
+      // removes the helper zero-width space
       editing.region.innerHTML = editing.region.innerHTML.replace(/​/g, '')
       flush()
     }

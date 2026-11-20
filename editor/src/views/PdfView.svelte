@@ -1,5 +1,5 @@
 <script>
-  // PDF real del borrador con los datos de demo (se regenera al editar) + motor y validación veraPDF
+  // Real PDF of the draft with the demo data (re-rendered on edit) + engine and veraPDF validation
   import { untrack } from 'svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
@@ -17,7 +17,7 @@
     if (!store.doc) return
     const d = draft()
     const n = ++seq
-    // la validación anterior deja de corresponder al PDF (sin suscribirse a ella)
+    // the previous validation no longer matches the PDF (without subscribing to it)
     untrack(() => {
       const v = store.pdfValidation
       if (v?.status === 'done' && !v.stale && n > 1) store.pdfValidation = { ...v, stale: true }
@@ -54,41 +54,41 @@
 </script>
 
 <div class="pdf">
-  <div class="toolbar" role="toolbar" aria-label="Opciones del PDF">
+  <div class="toolbar" role="toolbar" aria-label="PDF options">
     <label>
-      Motor
+      Engine
       <select value={store.pdfEngine || ''} onchange={(e) => (store.pdfEngine = e.currentTarget.value || null)}>
-        <option value="">Por defecto ({configured})</option>
+        <option value="">Default ({configured})</option>
         {#each engines as e}
-          <option value={e.id} disabled={!e.available}>{e.label}{e.pdfua ? ' · PDF/UA' : ' · sin PDF/UA'}{e.available ? '' : ' (no instalado)'}</option>
+          <option value={e.id} disabled={!e.available}>{e.label}{e.pdfua ? ' · PDF/UA' : ' · no PDF/UA'}{e.available ? '' : ' (not installed)'}</option>
         {/each}
       </select>
     </label>
     {#if store.pdfEngineUsed}
       {@const used = engines.find(e => e.id === store.pdfEngineUsed)}
       <span class="badge" class:ok={used?.pdfua} class:no={used && !used.pdfua}>
-        {used?.label ?? store.pdfEngineUsed}{used?.pdfua ? ' · PDF/UA-1' : ' · no genera PDF/UA'}
+        {used?.label ?? store.pdfEngineUsed}{used?.pdfua ? ' · PDF/UA-1' : ' · no PDF/UA'}
       </span>
     {/if}
     <span class="grow"></span>
     <button onclick={validate} disabled={store.pdfValidation?.status === 'running' || !store.project?.pdf?.verapdf}
-      title={store.project?.pdf?.verapdf ? `Validar con ${store.project.pdf.verapdf}` : 'veraPDF no disponible (make verapdf)'}>
-      {store.pdfValidation?.status === 'running' ? 'Validando…' : '✓ Validar PDF/UA (veraPDF)'}
+      title={store.project?.pdf?.verapdf ? `Validate with ${store.project.pdf.verapdf}` : 'veraPDF not available (make verapdf)'}>
+      {store.pdfValidation?.status === 'running' ? 'Validating…' : '✓ Validate PDF/UA (veraPDF)'}
     </button>
     {#if url}
-      <a class="download" href={url} download={`${store.doc.name}.${store.project?.locales?.[store.lang] || store.lang}.pdf`}>⤓ Descargar</a>
+      <a class="download" href={url} download={`${store.doc.name}.${store.project?.locales?.[store.lang] || store.lang}.pdf`}>⤓ Download</a>
     {/if}
   </div>
   <div class="frame">
     {#if error}
       <div class="error">
-        <b>No se pudo generar el PDF</b>
+        <b>Could not render the PDF</b>
         <p class="mono">{error}</p>
       </div>
     {:else if url}
       <iframe title="PDF" src={url}></iframe>
     {/if}
-    {#if loading}<div class="loading"><span class="spinner"></span> Generando PDF…</div>{/if}
+    {#if loading}<div class="loading"><span class="spinner"></span> Rendering PDF…</div>{/if}
   </div>
 </div>
 

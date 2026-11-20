@@ -1,5 +1,5 @@
 <script>
-  // Renderiza el modal activo de lib/dialogs (un único <dialog> para toda la app)
+  // Renders the active modal from lib/dialogs (a single <dialog> for the whole app)
   import { dialogs } from '../lib/dialogs.svelte.js'
 
   let dialog = $state()

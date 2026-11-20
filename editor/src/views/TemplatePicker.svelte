@@ -27,7 +27,7 @@
 
   async function newLayout() {
     open = false
-    const id = await promptDialog({ title: 'Nuevo layout', label: 'Nombre', placeholder: 'marketing', okLabel: 'Crear', pattern: '[\\w.\\-]+', hint: 'Se crea _layouts/<nombre>.mjml con $content.' })
+    const id = await promptDialog({ title: 'New layout', label: 'Name', placeholder: 'marketing', okLabel: 'Create', pattern: '[\\w.\\-]+', hint: 'Creates _layouts/<name>.mjml with $content.' })
     if (!id) return
     try {
       const l = await api.createLayout(id.trim())
@@ -38,7 +38,7 @@
 
   async function newComponent() {
     open = false
-    const id = await promptDialog({ title: 'Nuevo componente', label: 'Nombre', placeholder: 'header, legal-notice…', okLabel: 'Crear', pattern: '[\\w.\\-]+' })
+    const id = await promptDialog({ title: 'New component', label: 'Name', placeholder: 'header, legal-notice…', okLabel: 'Create', pattern: '[\\w.\\-]+' })
     if (!id) return
     try {
       const c = await api.createComponent({ id: id.trim() })
@@ -52,8 +52,8 @@
 
 {#if open}
   <div class="backdrop" role="none" onclick={() => (open = false)}></div>
-  <div class="picker" role="dialog" aria-label="Abrir plantilla o componente">
-    <input bind:this={input} bind:value={filter} placeholder="Buscar…" onkeydown={(e) => {
+  <div class="picker" role="dialog" aria-label="Open a template, component or layout">
+    <input bind:this={input} bind:value={filter} placeholder="Search…" onkeydown={(e) => {
       if (e.key === 'Enter') {
         const t = groups[0]?.[1][0]
         if (t) pick(t.id, 'template')
@@ -62,7 +62,7 @@
       }
     }} />
     <div class="list">
-      <div class="head">Plantillas</div>
+      <div class="head">Templates</div>
       {#each groups as [group, items]}
         {#each items as t}
           <button class="item" class:cur={store.kind === 'template' && store.doc?.id === t.id} onclick={() => pick(t.id, 'template')}>
@@ -71,25 +71,25 @@
           </button>
         {/each}
       {/each}
-      <button class="item add" onclick={() => { open = false; onnew?.() }}>＋ Nueva plantilla</button>
+      <button class="item add" onclick={() => { open = false; onnew?.() }}>＋ New template</button>
 
-      <div class="head">Componentes</div>
+      <div class="head">Components</div>
       {#each comps as c}
         <button class="item" class:cur={store.kind === 'component' && store.doc?.id === c.id} onclick={() => pick(c.id, 'component')}>
           <span class="diamond">◆</span>{c.name}
-          <span class="langs">{c.usedBy.length} uso(s)</span>
+          <span class="langs">{c.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newComponent}>＋ Nuevo componente</button>
+      <button class="item add" onclick={newComponent}>＋ New component</button>
 
       <div class="head">Layouts</div>
       {#each lays as l}
         <button class="item" class:cur={store.kind === 'layout' && store.doc?.id === l.id} onclick={() => pick(l.id, 'layout')}>
           <span class="lay">⧉</span>{l.name}
-          <span class="langs">{l.usedBy.length} uso(s)</span>
+          <span class="langs">{l.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newLayout}>＋ Nuevo layout</button>
+      <button class="item add" onclick={newLayout}>＋ New layout</button>
     </div>
   </div>
 {/if}

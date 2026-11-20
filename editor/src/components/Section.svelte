@@ -1,9 +1,9 @@
 <script>
-  // Sección plegable del panel lateral; recuerda su estado por navegador
+  // Collapsible sidebar section; remembers its state per browser
   let { title, id, open = false, count = null, actions, children } = $props()
 
   // svelte-ignore state_referenced_locally
-  const key = `tpl:section:${id}` // se lee una vez: el id de la sección no cambia
+  const key = `tpl:section:${id}` // read once: the section id never changes
   // svelte-ignore state_referenced_locally
   let isOpen = $state((() => {
     try { const v = localStorage.getItem(key); return v === null ? open : v === '1' } catch { return open }

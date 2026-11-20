@@ -15,7 +15,7 @@
   const hasKids = $derived(isEl && node.children.length > 0)
 
   const summary = $derived.by(() => {
-    if (instance) return instance.comp ? `${instance.comp.usedBy.length} uso(s)` : instance.ref
+    if (instance) return instance.comp ? `${instance.comp.usedBy.length} use(s)` : instance.ref
     if (node.type === 'text') return node.value
     if (node.type === 'comment') return `<!-- ${node.value} -->`
     if (node.content != null) {
@@ -74,14 +74,14 @@
       {collapsed ? '▸' : '▾'}
     </button>
     <span class="icon" class:comp={instance} class:slot>{isEl ? def.icon : instance ? '◆' : slot ? '⧉' : node.type === 'comment' ? '#' : '$'}</span>
-    <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Contenido de la plantilla' : node.type === 'comment' ? 'Comentario' : 'Código'}</span>
+    <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
-        <button class="ghost" title="Subir" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}>↑</button>
-        <button class="ghost" title="Bajar" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}>↓</button>
-        <button class="ghost" title="Duplicar" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}>⧉</button>
-        <button class="ghost danger" title="Eliminar" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}>✕</button>
+        <button class="ghost" title="Move up" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}>↑</button>
+        <button class="ghost" title="Move down" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}>↓</button>
+        <button class="ghost" title="Duplicate" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}>⧉</button>
+        <button class="ghost danger" title="Delete" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}>✕</button>
       </span>
     {/if}
   </div>

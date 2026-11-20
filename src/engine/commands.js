@@ -1,4 +1,4 @@
-// Resolución recursiva de comandos $ (compile-time)
+// Recursive resolution of $ commands (compile time)
 //
 //   $lang · $country · $t('key') · $link{ name, label: ..., title: ... }
 //   $if( expr ) ... $else ... $end
@@ -13,7 +13,7 @@ export function resolveCommands(content, ctx) {
   let passes = 0
   while (prev !== result) {
     if (++passes > MAX_PASSES) {
-      warn(ctx, 'Demasiadas pasadas resolviendo comandos $ (¿referencia circular en $t?)')
+      warn(ctx, 'Too many passes resolving $ commands (circular reference in $t?)')
       break
     }
     prev = result
@@ -23,7 +23,7 @@ export function resolveCommands(content, ctx) {
 }
 
 function applyPass(content, ctx) {
-  // $if primero: sus expresiones usan $lang/$country como literales JS
+  // $if first: its expressions use $lang/$country as JS literals
   content = resolveIf(content, ctx)
   content = content.replace(/\$lang\b/g, ctx.lang)
   content = content.replace(/\$country\b/g, ctx.country)
@@ -35,7 +35,7 @@ function applyPass(content, ctx) {
 export function lookupMessage(messages, key) {
   if (!messages) return undefined
   if (key in messages) return messages[key]
-  // soporte de claves anidadas: $t('footer.legal')
+  // nested keys: $t('footer.legal')
   return key.split('.').reduce((acc, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), messages)
 }
 
@@ -43,7 +43,7 @@ function resolveT(content, ctx) {
   return content.replace(/\$t\(\s*['"]([^'"]+)['"]\s*\)/g, (_, key) => {
     const value = lookupMessage(ctx.messages, key)
     if (value === undefined || value === null) {
-      warn(ctx, `$t('${key}') no encontrado para el locale ${ctx.lang}`)
+      warn(ctx, `$t('${key}') not found for locale ${ctx.lang}`)
       return ''
     }
     return String(value).trim()
@@ -54,7 +54,7 @@ function resolveLink(content, ctx) {
   return content.replace(/\$link\{\s*([\w.-]+)\s*(?:,([^}]*))?\}/g, (_, name, attrs = '') => {
     const url = ctx.links?.[name]
     if (!url) {
-      warn(ctx, `$link: '${name}' no existe en links.yml`)
+      warn(ctx, `$link: '${name}' is not defined in links.yml`)
       return ''
     }
     const { label = name, title } = parseAttrs(attrs)
@@ -70,7 +70,7 @@ function resolveIf(content, ctx) {
       .replace(/\$lang\b/g, JSON.stringify(ctx.lang))
       .replace(/\$country\b/g, JSON.stringify(ctx.country))
     try {
-      // Las plantillas son código de confianza del proyecto (compile-time)
+      // Templates are trusted project code (compile time)
       const result = new Function(`return (${safeExpr})`)()
       return result ? ifBody : elseBody
     } catch (err) {

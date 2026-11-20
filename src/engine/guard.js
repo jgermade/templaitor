@@ -1,4 +1,4 @@
-// Protege los tokens Jinja2 ({{ }}, {% %}, {# #}) del compilador MJML (XML)
+// Protects Jinja2 tokens ({{ }}, {% %}, {# #}) from the MJML (XML) compiler
 
 const JINJA_RE = /\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\}/g
 

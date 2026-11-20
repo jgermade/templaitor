@@ -11,7 +11,7 @@
 
   const design = $derived(store.view === 'design')
   const keyCount = $derived(Object.keys(store.messages).length)
-  // altura inicial del editor de datos ajustada a su contenido (luego redimensionable)
+  // initial height of the data editor fitted to its content (resizable afterwards)
   const dataHeight = $derived.by(() => {
     void store.doc.id
     const lines = (store.saved?.data ?? store.doc.data).split('\n').length
@@ -20,58 +20,58 @@
 </script>
 
 <aside>
-  <div class="data" style="height: {dataHeight}px" title="Datos de demo ({store.doc.name}.json5)">
+  <div class="data" style="height: {dataHeight}px" title="Demo data ({store.doc.name}.json5)">
     {#key store.doc.kind + store.doc.id}
       <CodeEditor lang="json5" dark gutters={false} value={store.doc.data} onchange={(v) => store.update({ data: v }, 'code:data')} onsave={() => store.save()} />
     {/key}
-    {#if store.demoData === null}<span class="bad">JSON5 no válido</span>{/if}
+    {#if store.demoData === null}<span class="bad">Invalid JSON5</span>{/if}
   </div>
 
   <div class="sections">
     {#if store.isLayout}
       <p class="borrowed">
         {#if store.doc.previewFrom}
-          Vista previa con los textos y datos de <button class="link" onclick={() => store.open(store.doc.previewFrom)}>{store.doc.previewFrom}</button>
-          (no se guardan con el layout).
+          Previewed with the texts and data of <button class="link" onclick={() => store.open(store.doc.previewFrom)}>{store.doc.previewFrom}</button>
+          (not saved with the layout).
         {:else}
-          Ninguna plantilla usa este layout: la vista previa usa datos de ejemplo.
+          No template uses this layout: the preview uses sample data.
         {/if}
       </p>
     {:else}
-      <Section id="messages" title="Mensajes" count={keyCount}>
+      <Section id="messages" title="Messages" count={keyCount}>
         <MessagesPanel />
       </Section>
     {/if}
 
     {#if store.isComponent}
-      <Section id="params" title="Parámetros" count={Object.keys(store.componentParams).length} open>
+      <Section id="params" title="Parameters" count={Object.keys(store.componentParams).length} open>
         <ParamsPanel />
       </Section>
     {/if}
 
     {#if design}
-      <Section id="components" title="Componentes" count={store.components.length} open>
+      <Section id="components" title="Components" count={store.components.length} open>
         <ComponentsPanel />
       </Section>
 
-      <Section id="blocks" title="Bloques">
+      <Section id="blocks" title="Blocks">
         <div class="palette">
           {#each PALETTE as tag}
             {@const d = describe(tag)}
-            <button onclick={() => store.add(tag)} title="Añadir {d.label} ({tag})"><span class="ic">{d.icon}</span>{d.label}</button>
+            <button onclick={() => store.add(tag)} title="Add {d.label} ({tag})"><span class="ic">{d.icon}</span>{d.label}</button>
           {/each}
           {#if store.isPdf}
-            <button onclick={() => store.addPageBreak()} title="Fuerza una página nueva en el PDF"><span class="ic">⤓</span>Salto de página</button>
+            <button onclick={() => store.addPageBreak()} title="Forces a new page in the PDF"><span class="ic">⤓</span>Page break</button>
           {/if}
         </div>
       </Section>
 
-      <Section id="tree" title="Estructura" open>
+      <Section id="tree" title="Structure" open>
         <Outline />
       </Section>
     {/if}
 
-    <Section id="settings" title={store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Plantilla'}>
+    <Section id="settings" title={store.isComponent ? 'Component' : store.isLayout ? 'Layout' : 'Template'}>
       <TemplateSettings />
     </Section>
   </div>

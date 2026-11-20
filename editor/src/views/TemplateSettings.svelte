@@ -7,13 +7,13 @@
   const lay = $derived(store.isLayout ? store.layouts.find(l => l.id === store.doc.id) : null)
 
   async function remove() {
-    const what = store.isComponent ? 'el componente' : store.isLayout ? 'el layout' : 'la plantilla'
+    const what = store.isComponent ? 'component' : store.isLayout ? 'layout' : 'template'
     const users = comp?.usedBy ?? lay?.usedBy ?? []
-    const extra = users.length ? `\n\nSe usa en: ${users.map(u => u.id).join(', ')}` : ''
+    const extra = users.length ? `\n\nUsed by: ${users.map(u => u.id).join(', ')}` : ''
     if (!(await confirmDialog({
-      title: `Eliminar ${what}`,
-      message: `${store.doc.id}\n\nEsta acción borra sus ficheros.${extra}`,
-      okLabel: 'Eliminar', danger: true,
+      title: `Delete ${what}`,
+      message: `${store.doc.id}\n\nThis deletes its files.${extra}`,
+      okLabel: 'Delete', danger: true,
     }))) return
     try {
       await api.remove(store.doc.id, store.kind)
@@ -29,78 +29,78 @@
 {#if store.doc}
   <div class="wrap">
     {#if lay}
-      <p class="muted">Las plantillas lo usan con <code>layout: {lay.id}</code> en su frontmatter; su contenido se inserta en <code>$content</code>.</p>
-      <div class="field"><span>Usado en</span>
+      <p class="muted">Templates use it with <code>layout: {lay.id}</code> in their frontmatter; their content goes into <code>$content</code>.</p>
+      <div class="field"><span>Used by</span>
         {#each lay.usedBy as u}
           <button class="ghost uselink mono" onclick={() => store.open(u.id)}>@ {u.id}</button>
-        {:else}<div class="muted">Ninguna plantilla</div>{/each}
+        {:else}<div class="muted">No templates</div>{/each}
       </div>
     {:else if comp}
-      <p class="muted">Se inserta con <code>$import({comp.importPath})</code>. Sus textos viven en <code>{comp.name}.yml</code>; una plantilla puede sobrescribir cualquier clave en su propio <code>.yml</code>.</p>
-      <div class="field"><span>Usado en</span>
-        {#each comp.usedBy as u}<div class="mono">{u.kind === 'layout' ? '⧉' : '@'} {u.id}</div>{:else}<div class="muted">Ninguna plantilla</div>{/each}
+      <p class="muted">Inserted with <code>$import({comp.importPath})</code>. Its texts live in <code>{comp.name}.yml</code>; a template can override any key in its own <code>.yml</code>.</p>
+      <div class="field"><span>Used by</span>
+        {#each comp.usedBy as u}<div class="mono">{u.kind === 'layout' ? '⧉' : '@'} {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
       </div>
     {:else}
       <label class="field">
-        <span>Formato</span>
+        <span>Format</span>
         <select value={store.isPdf ? 'pdf' : 'email'} onchange={(e) => store.setFormat(e.currentTarget.value)}>
           <option value="email">Email</option>
-          <option value="pdf">Documento PDF</option>
+          <option value="pdf">PDF document</option>
         </select>
       </label>
       {#if store.isPdf}
         <div class="pdfgrid">
-          <label class="field"><span>Tamaño</span>
+          <label class="field"><span>Size</span>
             <select value={store.pdfSettings.size || 'A4'} onchange={(e) => store.setFrontmatter(['pdf', 'size'], e.currentTarget.value)}>
               {#each ['A4', 'A5', 'A3', 'Letter', 'Legal'] as s}<option value={s}>{s}</option>{/each}
             </select>
           </label>
-          <label class="field"><span>Orientación</span>
+          <label class="field"><span>Orientation</span>
             <select value={store.pdfSettings.orientation || 'portrait'} onchange={(e) => store.setFrontmatter(['pdf', 'orientation'], e.currentTarget.value)}>
-              <option value="portrait">Vertical</option>
-              <option value="landscape">Horizontal</option>
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
             </select>
           </label>
-          <label class="field"><span>Márgenes</span>
+          <label class="field"><span>Margins</span>
             <input class="mono" value={typeof store.pdfSettings.margin === 'object' ? '' : store.pdfSettings.margin ?? ''} placeholder="15mm" oninput={(e) => store.setFrontmatter(['pdf', 'margin'], e.currentTarget.value)} />
           </label>
-          <label class="field full"><span>Cabecera</span>
+          <label class="field full"><span>Header</span>
             <input value={store.pdfSettings.header ?? ''} placeholder="{'{title}'}" oninput={(e) => store.setFrontmatter(['pdf', 'header'], e.currentTarget.value)} />
           </label>
-          <label class="field full"><span>Pie de página</span>
+          <label class="field full"><span>Footer</span>
             <input value={store.pdfSettings.footer ?? ''} placeholder="{'{page} / {pages}'}" oninput={(e) => store.setFrontmatter(['pdf', 'footer'], e.currentTarget.value)} />
           </label>
-          <p class="full muted tip">Variables: <code>{'{page}'}</code> <code>{'{pages}'}</code> <code>{'{title}'}</code> <code>{'{date}'}</code>. El ancho del layout debe caber en la página (A4 con 15 mm de margen: 680px).</p>
+          <p class="full muted tip">Variables: <code>{'{page}'}</code> <code>{'{pages}'}</code> <code>{'{title}'}</code>. The layout width must fit the page (A4 with 15 mm margins: 680px).</p>
         </div>
       {/if}
       <label class="field">
         <span>Layout</span>
         <div class="layrow">
           <select value={store.frontmatter.layout || ''} onchange={(e) => store.setLayout(e.currentTarget.value)} disabled={!store.isFragment}>
-            {#if !store.isFragment}<option value="">— documento MJML completo —</option>{/if}
+            {#if !store.isFragment}<option value="">— full MJML document —</option>{/if}
             {#each store.layouts as l}<option value={l.id}>{l.id}</option>{/each}
           </select>
           {#if store.frontmatter.layout}
-            <button title="Editar layout" onclick={() => store.openLayout(store.frontmatter.layout)}>✎</button>
+            <button title="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}>✎</button>
           {/if}
         </div>
       </label>
     {/if}
 
     {#if store.missing.length}
-      <div class="field"><span>Traducciones pendientes</span>
+      <div class="field"><span>Missing translations</span>
         {#each store.missing as m}<div class="miss"><span class="mono">{m.lang}</span> · <code>{m.key}</code></div>{/each}
       </div>
     {/if}
 
     <ul class="help muted">
-      <li>Click en un bloque para seleccionarlo; en textos y botones se escribe directamente.</li>
-      <li>Doble click en un componente (◆) para editarlo.</li>
-      <li><code>{'{{ variable }}'}</code> crea una variable Jinja2.</li>
-      <li><kbd>Supr</kbd> elimina · <kbd>Ctrl+Z</kbd> deshace · <kbd>Ctrl+S</kbd> guarda.</li>
+      <li>Click a block to select it; type directly into texts and buttons.</li>
+      <li>Double-click a component (◆) to edit it.</li>
+      <li><code>{'{{ variable }}'}</code> creates a Jinja2 variable.</li>
+      <li><kbd>Del</kbd> deletes · <kbd>Ctrl+Z</kbd> undoes · <kbd>Ctrl+S</kbd> saves.</li>
     </ul>
 
-    <button class="danger del" onclick={remove}>Eliminar {store.isComponent ? 'componente' : store.isLayout ? 'layout' : 'plantilla'}</button>
+    <button class="danger del" onclick={remove}>Delete {store.isComponent ? 'component' : store.isLayout ? 'layout' : 'template'}</button>
   </div>
 {/if}
 

@@ -1,29 +1,29 @@
-# Configuración del proyecto templaitor
+# templaitor project configuration
 name: Demo
-templates: templates          # raíz de plantillas
-outDir: dist                  # salida compilada (HTML/TXT con Jinja2)
-layouts: _layouts             # relativo a `templates`
-components: _components     # componentes reutilizables: $import(_components/nombre)
+templates: templates          # templates root
+outDir: dist                  # compiled output (HTML/TXT with Jinja2)
+layouts: _layouts             # relative to `templates`
+components: _components     # reusable components: $import(_components/name)
 links: _shared/links.yml
-static: _shared               # servido en /static/ por el editor
+static: _shared               # served at /static/ by the editor
 
-# idioma (clave en el .yml) → locale usado en los nombres de fichero y en $lang
+# language (key in the .yml) → locale used in file names and in $lang
 locales:
   es: es-ES
   en: en-US
 
 output:
-  text: true                  # genera <nombre>.<locale>.txt
-  subject: true               # genera <nombre>.<locale>.subject.txt
+  text: true                  # writes <name>.<locale>.txt
+  subject: true               # writes <name>.<locale>.subject.txt
 
-# PDF: motor de render (weasyprint · prince · chromium · auto). weasyprint y prince generan PDF/UA-1.
+# PDF: rendering engine (weasyprint · prince · chromium · auto). weasyprint and prince produce PDF/UA-1.
 pdf:
   engine: auto
 
-# SMTP para "Enviar prueba" desde el editor (Mailpit local: `make up` lo arranca con docker compose)
+# SMTP for "Send a test" in the editor (local Mailpit: `make up` starts it with docker compose)
 smtp:
   host: localhost
   port: 1025
   from: noreply@example.com
-  label: mailpit              # texto del botón de envío
-  web: /mailpit/              # bandeja web (relativa: funciona en local y a través de intergate)
+  label: mailpit              # send button label
+  web: /mailpit/              # web inbox (relative: works locally and through intergate)

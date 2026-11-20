@@ -1,9 +1,9 @@
-// Estado global del editor (Svelte 5 runes).
+// Global editor state (Svelte 5 runes).
 //
-// Fuente de verdad: los tres textos de la plantilla (mjml, yml, data). El árbol
-// MJML y los mensajes i18n se derivan de ellos; toda edición visual se traduce
-// a una modificación de esos textos, de modo que la vista de código, el
-// guardado y la compilación siempre ven exactamente lo mismo.
+// Source of truth: the three template texts (mjml, yml, data). The MJML tree and
+// the i18n messages are derived from them; every visual edit becomes a change to
+// those texts, so the code view, saving and compiling always see exactly the
+// same thing.
 
 import YAML from 'yaml'
 import JSON5 from 'json5'
@@ -24,10 +24,10 @@ class EditorStore {
   templates = $state([])
   components = $state([])
   layouts = $state([])
-  assets = $state([]) // imágenes del directorio static
+  assets = $state([]) // images in the static directory
   doc = $state(null) // { kind, id, name, mjml, yml, data }
-  returnTo = $state(null) // plantilla desde la que se abrió un componente
-  saved = $state(null) // snapshot de lo guardado
+  returnTo = $state(null) // template a component/layout was opened from
+  saved = $state(null) // snapshot of the saved texts
   lang = $state(null)
   selectedId = $state(null)
   hoverId = $state(null)
@@ -36,18 +36,18 @@ class EditorStore {
   preview = $state({ html: '', text: '', subject: '', warnings: [], errors: [] })
   loadingPreview = $state(false)
   toast = $state(null)
-  editing = $state(null) // región editable activa en el lienzo
-  selectSource = $state(null) // 'canvas' si la selección viene de un click en el lienzo
-  insertRequest = $state(null) // { src } — inserta un token en la región editable activa
-  lastSentUrl = $state(null) // enlace al último email enviado (p.ej. en Mailpit)
-  previewNonce = $state(0)
-  pdfEngine = $state(null) // motor elegido en la vista PDF (null = el de la plantilla/config)
+  editing = $state(null) // active editable region on the canvas
+  selectSource = $state(null) // 'canvas' when the selection comes from a click on the canvas
+  insertRequest = $state(null) // { src } — inserts a token into the active editable region
+  lastSentUrl = $state(null) // link to the last sent email (e.g. in Mailpit)
+  previewNonce = $state(0) // forces a preview reload (e.g. after editing a layout)
+  pdfEngine = $state(null) // engine chosen in the PDF view (null = the template's/config's)
   pdfEngineUsed = $state(null)
-  pdfValidation = $state(null) // { status: 'running' | 'done' | 'error', result, error, stale } // fuerza recargar la vista previa (p.ej. tras editar un layout)
+  pdfValidation = $state(null) // { status: 'running' | 'done' | 'error', result, error, stale }
   history = $state([])
   future = $state([])
 
-  // ── Derivados ─────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────
   split = $derived(splitFrontmatter(this.doc?.mjml ?? ''))
   frontmatter = $derived.by(() => {
     try { return YAML.parse(this.split.frontmatter || '') || {} } catch { return {} }
@@ -56,10 +56,10 @@ class EditorStore {
   isComponent = $derived(this.kind === 'component')
   isLayout = $derived(this.kind === 'layout')
   isTemplate = $derived(this.kind === 'template')
-  /** Plantilla PDF (`format: pdf` en el frontmatter) */
+  /** PDF template (`format: pdf` in the frontmatter) */
   isPdf = $derived(this.isTemplate && String(this.frontmatter.format || '').toLowerCase() === 'pdf')
   pdfSettings = $derived(this.frontmatter.pdf || {})
-  /** Parámetros declarados en el frontmatter (al editar un componente) */
+  /** Parameters declared in the frontmatter (when editing a component) */
   componentParams = $derived(normalizeParams(this.frontmatter.params))
   isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
   tree = $derived(parse(this.split.body))
@@ -71,13 +71,13 @@ class EditorStore {
   demoData = $derived.by(() => {
     try { return JSON5.parse(this.doc?.data || '{}') } catch { return null }
   })
-  // de un layout solo se guarda el MJML (textos/datos son de la plantilla de vista previa)
+  // only the MJML of a layout is saved (texts/data belong to the preview template)
   dirty = $derived(!!this.doc && !!this.saved && (
     this.doc.mjml !== this.saved.mjml || (!this.isLayout && (this.doc.yml !== this.saved.yml || this.doc.data !== this.saved.data))
   ))
   selected = $derived(this.selectedId != null ? findNode(this.tree, this.selectedId) : null)
 
-  /** Claves usadas en la plantilla que faltan en algún idioma */
+  /** Keys used in the template that are missing in some language */
   missing = $derived.by(() => {
     const keys = new Set()
     for (const m of (this.doc?.mjml || '').matchAll(/\$t\(\s*['"]([^'"]+)['"]\s*\)/g)) keys.add(m[1])
@@ -88,7 +88,7 @@ class EditorStore {
     return out
   })
 
-  // ── Carga / guardado ──────────────────────────────────────
+  // ── Load / save ───────────────────────────────────────────
   async init() {
     this.project = await api.project()
     await this.refreshTemplates()
@@ -109,7 +109,7 @@ class EditorStore {
     try {
       const saved = await api.uploadAsset(file)
       this.assets = await api.assets()
-      this.notify(`Imagen subida: ${saved.path}`)
+      this.notify(`Image uploaded: ${saved.path}`)
       return saved
     } catch (e) {
       this.notify(e.message, 'error')
@@ -117,7 +117,7 @@ class EditorStore {
     }
   }
 
-  /** Resuelve `{{ variable }}` con los datos de demo (para miniaturas en el inspector) */
+  /** Resolves `{{ variable }}` with the demo data (for inspector thumbnails) */
   resolveDemo(value) {
     return String(value ?? '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (m, path) => {
       const v = path.split('.').reduce((o, k) => (o == null ? o : o[k]), this.demoData || {})
@@ -125,7 +125,7 @@ class EditorStore {
     })
   }
 
-  /** Props para los campos de imagen del inspector */
+  /** Props for the inspector image fields */
   get imageProps() {
     return {
       assets: this.assets,
@@ -137,9 +137,9 @@ class EditorStore {
 
   async open(id, kind = 'template') {
     if (this.dirty && !(await confirmDialog({
-      title: 'Cambios sin guardar',
-      message: `Hay cambios sin guardar en ${this.doc.id}. ¿Descartarlos?`,
-      okLabel: 'Descartar', danger: true,
+      title: 'Unsaved changes',
+      message: `${this.doc.id} has unsaved changes. Discard them?`,
+      okLabel: 'Discard', danger: true,
     }))) return false
     const doc = await api.template(id, kind)
     if (kind !== 'template' && this.doc?.kind === 'template') this.returnTo = this.doc.id
@@ -160,7 +160,7 @@ class EditorStore {
     try {
       const doc = await api.save({ kind: this.kind, id: this.doc.id, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data })
       this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
-      this.notify(this.isTemplate ? 'Guardado' : `${this.isLayout ? 'Layout' : 'Componente'} guardado (se aplica en todas las plantillas que lo usan)`)
+      this.notify(this.isTemplate ? 'Saved' : `${this.isLayout ? 'Layout' : 'Component'} saved (applies to every template using it)`)
       await this.refreshTemplates()
     } catch (e) {
       this.notify(e.message, 'error')
@@ -171,14 +171,14 @@ class EditorStore {
     try {
       if (this.dirty) await this.save()
       const r = await api.compile(this.isTemplate ? this.doc?.id : undefined)
-      const warn = r.issues.length ? ` · ${r.issues.length} aviso(s)` : ''
-      this.notify(`Compilado: ${r.files.length} fichero(s) en ${this.project.outDir}/${warn}`, r.issues.length ? 'warn' : 'success')
+      const warn = r.issues.length ? ` · ${r.issues.length} warning(s)` : ''
+      this.notify(`Compiled: ${r.files.length} file(s) in ${this.project.outDir}/${warn}`, r.issues.length ? 'warn' : 'success')
     } catch (e) {
       this.notify(e.message, 'error')
     }
   }
 
-  /** Inserta un token (variable, $link…) en el texto que se está editando, o al final del contenido */
+  /** Inserts a token (variable, $link…) into the text being edited, or at the end of the content */
   insertToken(src) {
     if (this.editing) {
       this.insertRequest = { src, at: Date.now() }
@@ -191,7 +191,7 @@ class EditorStore {
     else this.setContent(this.selectedId, `${node.content.trim()} ${src}`.trim())
   }
 
-  /** Abre la vista previa renderizada (con datos de demo) en una pestaña nueva */
+  /** Opens the rendered preview (with demo data) in a new tab */
   async openPreviewTab() {
     const win = window.open('', '_blank')
     try {
@@ -209,10 +209,10 @@ class EditorStore {
     this.toast = { message, type, link, at: Date.now() }
   }
 
-  // ── Historial ─────────────────────────────────────────────
+  // ── History ───────────────────────────────────────────────
   #lastPush = { at: 0, tag: null }
 
-  /** Aplica un cambio a los textos de la plantilla, registrando historial */
+  /** Applies a change to the template texts, recording history */
   update(patch, tag = null) {
     if (!this.doc) return
     const now = Date.now()
@@ -244,8 +244,8 @@ class EditorStore {
     this.#lastPush = { at: 0, tag: null }
   }
 
-  // ── Árbol MJML ────────────────────────────────────────────
-  /** Muta una copia del árbol y re-serializa el MJML. `fn` puede devolver el nuevo id seleccionado. */
+  // ── MJML tree ────────────────────────────────────────────
+  /** Mutates a copy of the tree and re-serializes the MJML. `fn` may return the new selected id. */
   mutate(fn, tag = null) {
     const tree = clone(this.tree)
     const result = fn(tree)
@@ -297,7 +297,7 @@ class EditorStore {
     this.mutate(tree => moveNode(tree, id, pid, delta > 0 ? target + 1 : target))
   }
 
-  /** Arrastrar y soltar: coloca `id` antes/después/dentro de `targetId` si es válido */
+  /** Drag and drop: places `id` before/after/inside `targetId` when valid */
   drop(id, targetId, where) {
     const target = findNode(this.tree, targetId)
     const node = findNode(this.tree, id)
@@ -321,20 +321,20 @@ class EditorStore {
   }
 
   accepts(parentNodeId, childTag) {
-    if (childTag === undefined) return true // nodos de texto / comandos: libres
+    if (childTag === undefined) return true // text / command nodes: anywhere
     const ptag = this.tagOf(parentNodeId)
     if (ptag === null) return this.isFragment ? canContain(null, childTag) : childTag === 'mjml'
     if (ptag === 'mjml') return ['mj-head', 'mj-body'].includes(childTag)
     return canContain(ptag, childTag)
   }
 
-  /** Inserta un componente nuevo en el lugar más razonable según la selección */
+  /** Inserts a new component at the most sensible place given the selection */
   add(tag) {
     const node = COMPONENTS[tag].create()
     // texto y botones nacen traducibles
     if (COMPONENTS[tag].editable) {
       const key = this.uniqueKey(tag === 'mj-button' ? 'cta' : 'text')
-      this.addMessage(key, tag === 'mj-button' ? 'Botón' : 'Nuevo texto')
+      this.addMessage(key, tag === 'mj-button' ? 'Button' : 'New text')
       node.content = `$t('${key}')`
     }
     const placement = this.findPlacement(tag)
@@ -342,12 +342,12 @@ class EditorStore {
       this.mutate(tree => insertNode(tree, placement.pid, placement.index, node), null)
       return
     }
-    // si no cabe directamente, se envuelve en sección > columna
+    // if it does not fit directly, wrap it in section > column
     let wrapped = node
     if (canContain('mj-column', tag)) wrapped = { ...COMPONENTS['mj-column'].create(), children: [node] }
     if (canContain('mj-section', wrapped.tag)) wrapped = { ...COMPONENTS['mj-section'].create(), children: [wrapped] }
     const p = this.findPlacement(wrapped.tag)
-    if (!p) return this.notify(`No hay dónde insertar ${tag}`, 'error')
+    if (!p) return this.notify(`There is nowhere to insert ${tag}`, 'error')
     this.mutate(tree => {
       const id = insertNode(tree, p.pid, p.index, wrapped)
       let leaf = id
@@ -356,11 +356,11 @@ class EditorStore {
     }, null)
   }
 
-  /** Salto de página (PDF): mj-raw con un div que fuerza página nueva al imprimir */
+  /** Page break (PDF): mj-raw with a div that forces a new page when printing */
   addPageBreak() {
     const node = { type: 'element', tag: 'mj-raw', attrs: [], children: [], content: '<div class="tpl-page-break"></div>' }
     const p = this.findPlacement('mj-section')
-    if (!p) return this.notify('No hay dónde insertar el salto de página', 'error')
+    if (!p) return this.notify('There is nowhere to insert the page break', 'error')
     this.mutate(tree => insertNode(tree, p.pid, p.index, node))
   }
 
@@ -379,7 +379,7 @@ class EditorStore {
     return null
   }
 
-  /** id del contenedor de primer nivel: '' en fragmentos, el mj-body en documentos completos */
+  /** id of the top-level container: '' in fragments, the mj-body in full documents */
   bodyId() {
     if (this.isFragment) return ''
     const mjml = this.tree.children.findIndex(c => c.tag === 'mjml')
@@ -388,8 +388,8 @@ class EditorStore {
     return body === -1 ? null : `${mjml}.${body}`
   }
 
-  // ── Componentes reutilizables ─────────────────────────────
-  /** Info de una instancia de componente ($import) o null */
+  // ── Reusable components ───────────────────────────────────
+  /** Info about a component instance ($import) or null */
   instanceOf(node) {
     const call = importCall(node)
     if (!call) return null
@@ -398,7 +398,7 @@ class EditorStore {
     return { ref, params: call.params, comp, name: comp?.name ?? ref.split('/').pop().replace(/\.mjml$/, '') }
   }
 
-  /** Cambia (o quita, con valor vacío) un parámetro de una instancia */
+  /** Sets (or removes, when empty) a parameter of an instance */
   setParam(id, name, value) {
     const info = this.instanceOf(findNode(this.tree, id))
     if (!info) return
@@ -408,17 +408,17 @@ class EditorStore {
     this.mutate(tree => { findNode(tree, id).value = formatImportCall(info.ref, params) }, `param:${id}:${name}`)
   }
 
-  // ── Declaración de parámetros (frontmatter del componente) ──
+  // ── Parameter declarations (component frontmatter) ──
   #editFrontmatter(fn, tag) {
     const fm = YAML.parseDocument(this.split.frontmatter || '')
-    if (fm.errors.length) return this.notify('El frontmatter tiene errores; corrígelo en la vista Código', 'error')
+    if (fm.errors.length) return this.notify('The frontmatter has errors; fix it in the Code view', 'error')
     if (!fm.contents) fm.contents = fm.createNode({})
     fn(fm)
     const text = fm.toString().trim()
     this.update({ mjml: joinFrontmatter(text === '{}' ? '' : text, this.split.body) }, tag)
   }
 
-  /** Cambia (o quita, con valor vacío) una clave del frontmatter, p.ej. ['pdf', 'size'] */
+  /** Sets (or removes, when empty) a frontmatter key, e.g. ['pdf', 'size'] */
   setFrontmatter(path, value) {
     this.#editFrontmatter(fm => {
       if (value === '' || value == null) { if (fm.hasIn(path)) fm.deleteIn(path) } else fm.setIn(path, value)
@@ -440,15 +440,15 @@ class EditorStore {
 
   addParamDecl(name) {
     name = name.trim()
-    if (!/^[A-Za-z_][\w-]*$/.test(name)) return this.notify('Nombre de parámetro no válido (letras, números, _ y -)', 'error')
-    if (this.componentParams[name]) return this.notify(`El parámetro ${name} ya existe`, 'error')
+    if (!/^[A-Za-z_][\w-]*$/.test(name)) return this.notify('Invalid parameter name (letters, digits, _ and -)', 'error')
+    if (this.componentParams[name]) return this.notify(`Parameter ${name} already exists`, 'error')
     this.#editFrontmatter(fm => fm.setIn(['params', name], fm.createNode({ type: 'text', label: name, default: '' })))
   }
 
   setParamDecl(name, field, value) {
     this.#editFrontmatter(fm => {
       const cur = fm.getIn(['params', name], true)
-      // forma corta (`nombre: valor`) → forma completa
+      // short form (`name: value`) → full form
       if (!YAML.isMap(cur)) fm.setIn(['params', name], fm.createNode({ type: 'text', label: name, default: cur?.value ?? cur ?? '' }))
       if (value === '' || value == null || (Array.isArray(value) && !value.length)) {
         if (field !== 'default' && fm.hasIn(['params', name, field])) fm.deleteIn(['params', name, field])
@@ -456,7 +456,7 @@ class EditorStore {
       } else {
         fm.setIn(['params', name, field], Array.isArray(value) ? fm.createNode(value, { flow: true }) : value)
       }
-      // al pasar a booleano, el valor por defecto se normaliza a true/false
+      // when switching to boolean, the default value is normalized to true/false
       if (field === 'type' && value === 'boolean') fm.setIn(['params', name, 'default'], !!toBoolean(fm.getIn(['params', name, 'default'])))
     }, `pdecl:${name}:${field}`)
   }
@@ -471,7 +471,7 @@ class EditorStore {
   insertComponent(comp) {
     const node = { type: 'text', value: `$import(${comp.importPath})` }
     const p = this.findPlacement(comp.rootTag)
-    if (!p) return this.notify(`No hay dónde insertar ${comp.name}`, 'error')
+    if (!p) return this.notify(`There is nowhere to insert ${comp.name}`, 'error')
     this.mutate(tree => insertNode(tree, p.pid, p.index, node))
   }
 
@@ -491,7 +491,7 @@ class EditorStore {
     await this.open(this.returnTo)
   }
 
-  /** Claves $t usadas dentro de un subárbol */
+  /** $t keys used inside a subtree */
   keysIn(node) {
     const keys = new Set()
     walk(node, (n) => {
@@ -501,7 +501,7 @@ class EditorStore {
     return [...keys]
   }
 
-  /** Convierte el bloque seleccionado en un componente reutilizable y lo sustituye por su instancia */
+  /** Turns the selected block into a reusable component and replaces it with an instance */
   async extractComponent(id, name) {
     const node = findNode(this.tree, id)
     if (!node || node.type !== 'element') return
@@ -521,17 +521,17 @@ class EditorStore {
         findNode(tree, parentId(id)).children.splice(Number(id.split('.').pop()), 1, { type: 'text', value: `$import(${info.importPath})` })
         return id
       })
-      // los textos pasan al componente (salvo que la plantilla los siga usando)
+      // the texts move to the component (unless the template still uses them)
       const stillUsed = new Set(this.keysIn(this.tree))
       const moved = keys.filter(k => !stillUsed.has(k))
       if (moved.length) this.#editYaml(doc => { for (const l of this.langs) for (const k of moved) doc.deleteIn(['messages', l, k]) })
-      this.notify(`Componente «${comp.id}» creado`)
+      this.notify(`Component "${comp.id}" created`)
     } catch (e) {
       this.notify(e.message, 'error')
     }
   }
 
-  /** Sustituye una instancia por una copia editable de su contenido (y copia sus textos a la plantilla) */
+  /** Replaces an instance with an editable copy of its content (and copies its texts to the template) */
   async detach(id) {
     const info = this.instanceOf(findNode(this.tree, id))
     if (!info?.comp) return
@@ -555,7 +555,7 @@ class EditorStore {
   // ── i18n ──────────────────────────────────────────────────
   #editYaml(fn, tag) {
     const doc = YAML.parseDocument(this.doc.yml || '')
-    if (doc.errors.length) return this.notify('El YAML tiene errores; corrígelo en la vista Código', 'error')
+    if (doc.errors.length) return this.notify('The YAML has errors; fix it in the Code view', 'error')
     if (!doc.contents) doc.contents = doc.createNode({})
     fn(doc)
     this.update({ yml: doc.toString() }, tag)
@@ -579,7 +579,7 @@ class EditorStore {
 
   renameKey(oldKey, newKey) {
     if (!newKey || oldKey === newKey) return
-    if (this.langs.some(l => this.i18n.messages?.[l]?.[newKey] != null)) return this.notify(`La clave ${newKey} ya existe`, 'error')
+    if (this.langs.some(l => this.i18n.messages?.[l]?.[newKey] != null)) return this.notify(`Key ${newKey} already exists`, 'error')
     const yml = (() => {
       const doc = YAML.parseDocument(this.doc.yml || '')
       for (const l of this.langs) {
@@ -617,9 +617,9 @@ class EditorStore {
 
   async removeLang(lang) {
     if (!(await confirmDialog({
-      title: `Eliminar idioma «${lang}»`,
-      message: 'Se borrarán todas sus traducciones y su asunto.',
-      okLabel: 'Eliminar', danger: true,
+      title: `Remove language "${lang}"`,
+      message: 'All its translations and its subject will be deleted.',
+      okLabel: 'Remove', danger: true,
     }))) return
     this.#editYaml(doc => {
       doc.deleteIn(['messages', lang])
@@ -628,20 +628,20 @@ class EditorStore {
     if (this.lang === lang) this.lang = this.langs.find(l => l !== lang)
   }
 
-  /** Clave $t si el contenido del nodo es exactamente $t('clave') */
+  /** $t key when the node content is exactly $t('key') */
   keyOf(node) {
     if (node?.content == null) return null
     const inner = splitWrapper(node.content)?.inner ?? node.content
     return inner.trim().match(EXACT_T)?.[1] ?? null
   }
 
-  /** Nivel de encabezado de un mj-text (0 = párrafo) */
+  /** Heading level of an mj-text (0 = paragraph) */
   setHeading(id, level) {
     const node = findNode(this.tree, id)
     this.setContent(id, setHeadingLevel(node.content, level), null)
   }
 
-  /** Edición inline de un contenido literal: conserva el envoltorio <hN>/<p> */
+  /** Inline edit of literal content: keeps the <hN>/<p> wrapper */
   setInner(id, inner) {
     const node = findNode(this.tree, id)
     this.setContent(id, rewrap(node.content, inner))
@@ -663,7 +663,7 @@ class EditorStore {
 
   setLayout(layout) {
     if (!this.isFragment && layout) {
-      return this.notify('Para usar un layout, la plantilla debe ser un fragmento (sin <mjml>). Edítala en la vista Código.', 'error')
+      return this.notify('To use a layout the template must be a fragment (no <mjml>). Edit it in the Code view.', 'error')
     }
     const fm = YAML.parseDocument(this.split.frontmatter || '')
     if (!fm.contents) fm.contents = fm.createNode({})
@@ -671,7 +671,7 @@ class EditorStore {
     else fm.delete('layout')
     const fmText = fm.toString().trim()
     if (!layout && !this.isFragment) return
-    if (!layout) return this.notify('Quitar el layout dejaría la plantilla sin <mjml>; hazlo desde la vista Código.', 'error')
+    if (!layout) return this.notify('Removing the layout would leave the template without <mjml>; do it in the Code view.', 'error')
     this.update({ mjml: joinFrontmatter(fmText === '{}' ? '' : fmText, this.split.body) })
   }
 }
@@ -679,7 +679,7 @@ class EditorStore {
 function setScalar(doc, path, value) {
   const node = doc.getIn(path, true)
   if (node && YAML.isScalar(node)) {
-    // conserva el estilo (p.ej. bloques `>`) salvo que el texto lo impida
+    // keeps the style (e.g. `>` blocks) unless the text prevents it
     node.value = value
     if ((node.type === 'BLOCK_FOLDED' || node.type === 'BLOCK_LITERAL') && !value) node.type = 'PLAIN'
   } else {

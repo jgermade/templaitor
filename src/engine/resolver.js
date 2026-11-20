@@ -10,8 +10,8 @@ export function parseFrontmatter(content) {
 }
 
 /**
- * Ruta absoluta de un $import. Admite fichero (`_partials/x.mjml`) o carpeta de
- * componente (`_components/footer` → `_components/footer/footer.mjml`).
+ * Absolute path of an $import. Accepts a file (`_partials/x.mjml`) or a component
+ * folder (`_components/footer` → `_components/footer/footer.mjml`).
  */
 export function resolveImportPath(baseDir, ref) {
   const clean = String(ref).trim().replace(/^['"]|['"]$/g, '')
@@ -21,28 +21,28 @@ export function resolveImportPath(baseDir, ref) {
   return full
 }
 
-/** Lee el contenido de un $import (sin frontmatter) y su declaración de parámetros */
+/** Reads an $import (without frontmatter) and its parameter declarations */
 export function readImport(baseDir, ref) {
   const full = resolveImportPath(baseDir, ref)
-  if (!fs.existsSync(full)) throw new Error(`$import: no existe ${ref}`)
+  if (!fs.existsSync(full)) throw new Error(`$import: ${ref} does not exist`)
   const { meta, body } = parseFrontmatter(fs.readFileSync(full, 'utf8'))
   return { file: full, content: body, params: meta.params }
 }
 
-/** Contenido de una llamada $import con sus parámetros ya sustituidos */
+/** Content of an $import call with its parameters applied */
 export function expandImport(baseDir, call, warn) {
   const r = readImport(baseDir, call.path)
   return { ...r, content: applyParams(r.content, r.params, call.params, (m) => warn?.(`${call.path}: ${m}`)) }
 }
 
 /**
- * Sustituye recursivamente los $import (con parámetros).
- * `onImport(file)` se llama por cada fichero importado (p.ej. para cargar los textos del componente).
+ * Recursively replaces $import calls (with parameters).
+ * `onImport(file)` is called for every imported file (e.g. to load the component texts).
  */
 export function resolveImports(content, baseDir, { seen = [], onImport, warn } = {}) {
   return replaceImportCalls(content, (call) => {
     const { file, content: partial } = expandImport(baseDir, call, warn)
-    if (seen.includes(file)) throw new Error(`$import circular: ${call.path}`)
+    if (seen.includes(file)) throw new Error(`Circular $import: ${call.path}`)
     onImport?.(file)
     return resolveImports(partial, baseDir, { seen: [...seen, file], onImport, warn })
   })
@@ -50,16 +50,16 @@ export function resolveImports(content, baseDir, { seen = [], onImport, warn } =
 
 export function applyLayout(body, layoutName, { layoutsDir, baseDir, onImport, warn }) {
   const layoutPath = path.resolve(layoutsDir, layoutName)
-  if (!fs.existsSync(layoutPath)) throw new Error(`Layout no encontrado: ${layoutName}`)
+  if (!fs.existsSync(layoutPath)) throw new Error(`Layout not found: ${layoutName}`)
   const layout = fs.readFileSync(layoutPath, 'utf8')
-  if (!layout.includes('$content')) throw new Error(`El layout ${layoutName} no contiene $content`)
+  if (!layout.includes('$content')) throw new Error(`Layout ${layoutName} does not contain $content`)
   const unified = layout.replace('$content', () => body)
   return resolveImports(unified, baseDir, { onImport, warn })
 }
 
 /**
- * Envuelve un fragmento (p.ej. un componente) en un documento MJML usando el
- * <mj-head> y los atributos de <mj-body> de un layout, sin su contenido.
+ * Wraps a fragment (e.g. a component) in an MJML document using the <mj-head>
+ * and the <mj-body> attributes of a layout, without its content.
  */
 export function wrapFragment(body, layoutPath) {
   let head = ''

@@ -1,13 +1,16 @@
-// Anotación del cuerpo MJML para el editor visual (modo diseño).
+// Annotation of the MJML body for the visual editor (design mode).
 //
-// - Cada nodo visual recibe la clase `tpl-node--<id>` (vía css-class), lo que
-//   permite mapear el HTML compilado de vuelta al árbol MJML.
-// - El contenido de mj-text / mj-button se envuelve en una región editable
-//   `data-tpl-edit` = `t:<clave>` (si el contenido es exactamente $t('clave'))
-//   o `c:<id>` (contenido literal).
-// - Los tokens Jinja2 y comandos $ se convierten en "chips" no editables que
-//   guardan su código fuente en `data-tpl-src` (codificado para que ni el
-//   resolvedor de comandos ni Jinja2 lo procesen).
+// - Every visual node gets the class `tpl-node--<id>` (through css-class), which
+//   maps the compiled HTML back to the MJML tree.
+// - The content of mj-text / mj-button is wrapped in an editable region
+//   `data-tpl-edit` = `t:<key>` (when the content is exactly $t('key'))
+//   or `c:<id>` (literal content).
+// - Jinja2 tokens and $ commands become non-editable "chips" that keep their
+//   source in `data-tpl-src` (encoded so that neither the command resolver nor
+//   Jinja2 process it).
+// - Every `$import(...)` (a component instance) is expanded and its top-level
+//   elements get `tpl-node tpl-comp tpl-node--<id>`: the whole instance is
+//   selected as a single block.
 
 import { parse, serialize, walk, importCall } from '../shared/mjml-tree.js'
 import { NON_VISUAL, describe } from '../shared/components.js'
@@ -50,7 +53,7 @@ export function annotateBody(body, ctx) {
     },
     transformContent: (node) => {
       if (!visual(node) || !describe(node.tag).editable) return node.content
-      // encabezado/párrafo envolvente: la región editable va dentro (el envoltorio se conserva)
+      // wrapping heading/paragraph: the editable region goes inside (the wrapper is kept)
       const wrap = node.tag === 'mj-text' ? splitWrapper(node.content) : null
       const inner = wrap ? wrap.inner : node.content
       const open = wrap ? `<${wrap.tag}${wrap.attrs}>` : ''
@@ -60,7 +63,7 @@ export function annotateBody(body, ctx) {
       if (m) {
         const msg = lookupMessage(ctx.messages, m[1])
         const missing = msg === undefined || msg === null ? ' data-tpl-missing="1"' : ''
-        // en un layout los textos son de cada plantilla: se muestran pero no se editan aquí
+        // in a layout the texts belong to each template: shown but not editable here
         const edit = ctx.kind === 'layout' ? '' : ` data-tpl-edit="t:${escapeHtml(m[1])}"${missing}`
         return `${open}<${tagName}${edit}>${chipify(String(msg ?? '').trim(), ctx)}</${tagName}>${close}`
       }
@@ -82,8 +85,8 @@ function annotateInstance(source, id) {
 }
 
 /**
- * Convierte tokens en chips. Con `ctx.params` (al editar un componente), los chips
- * `$param.x` muestran su valor por defecto ya resuelto (con el nombre en el tooltip).
+ * Turns tokens into chips. With `ctx.params` (when editing a component), `$param.x`
+ * chips show their resolved default value (with the name in the tooltip).
  */
 export function chipify(str, ctx = null) {
   return str.replace(CHIP_RE, (src) => {
@@ -91,7 +94,7 @@ export function chipify(str, ctx = null) {
     let title = src
     if (kind === 'param' && ctx?.params) {
       const value = paramPreview(src.slice(7), ctx)
-      if (value) { title = `${src} · por defecto: ${value}`; label = value }
+      if (value) { title = `${src} · default: ${value}`; label = value }
     }
     return `<span class="tpl-chip tpl-chip--${kind}" contenteditable="false" title="${encode(title)}" data-tpl-src="${encode(src)}">${encode(label)}</span>`
   })
@@ -100,7 +103,7 @@ export function chipify(str, ctx = null) {
 function paramPreview(name, ctx) {
   const d = normalizeParams(ctx.params)[name]
   if (!d || d.default === '' || d.default == null) return ''
-  // resuelve $t/$link/... sin avisos y quita etiquetas HTML para mostrarlo como texto
+  // resolves $t/$link/... without warnings and strips HTML tags to show it as text
   const value = resolveCommands(String(d.default), { ...ctx, warnings: [] })
   return value.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }

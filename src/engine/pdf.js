@@ -1,23 +1,23 @@
-// Plantillas PDF: opciones de página, HTML de impresión y motores de render.
+// PDF templates: page options, print HTML and rendering engines.
 //
-// Una plantilla es PDF si su frontmatter tiene `format: pdf`:
+// A template is a PDF document when its frontmatter has `format: pdf`:
 //
 //   ---
 //   format: pdf
 //   layout: document.layout.mjml
 //   pdf:
-//     engine: weasyprint    # opcional: weasyprint · prince · chromium · auto
+//     engine: weasyprint    # optional: weasyprint · prince · chromium · auto
 //     size: A4              # A4 · A5 · A3 · Letter · Legal
 //     orientation: portrait # portrait · landscape
-//     margin: 15mm          # o { top, right, bottom, left }
-//     header: ""            # texto de cabecera ({page}, {pages}, {title})
+//     margin: 15mm          # or { top, right, bottom, left }
+//     header: ""            # header text ({page}, {pages}, {title})
 //     footer: "{page} / {pages}"
 //   ---
 //
-// El HTML compilado es el mismo para todos los motores: usa CSS de paginación
-// estándar (@page con cajas de margen para cabecera/pie), que entienden
-// WeasyPrint, Prince y Chromium ≥ 131. La compilación sigue produciendo HTML con
-// Jinja2; el PDF se genera a partir del HTML ya renderizado con datos.
+// The compiled HTML is the same for every engine: it uses standard paged-media
+// CSS (@page with margin boxes for header/footer), understood by WeasyPrint,
+// Prince and Chromium ≥ 131. Compilation still produces Jinja2 HTML; the PDF is
+// generated from the HTML once rendered with data.
 
 import fs from 'node:fs'
 import os from 'node:os'
@@ -33,14 +33,14 @@ export function isPdf(meta) {
   return String(meta?.format || '').toLowerCase() === 'pdf'
 }
 
-/** Normaliza `pdf:` del frontmatter */
+/** Normalizes the frontmatter `pdf:` options */
 export function pdfOptions(meta = {}) {
   const o = meta.pdf || {}
   const size = PAGE_SIZES[o.size] ? o.size : 'A4'
   const m = typeof o.margin === 'object' && o.margin ? o.margin : { top: o.margin, right: o.margin, bottom: o.margin, left: o.margin }
   const def = o.margin && typeof o.margin !== 'object' ? String(o.margin) : '15mm'
   const margin = { top: m.top || def, right: m.right || def, bottom: m.bottom || def, left: m.left || def }
-  // con cabecera/pie hace falta hueco para ellos
+  // headers/footers need room
   if (o.header && !(typeof o.margin === 'object' && o.margin.top)) margin.top = '22mm'
   if (o.footer && !(typeof o.margin === 'object' && o.margin.bottom)) margin.bottom = '20mm'
   return {
@@ -53,7 +53,7 @@ export function pdfOptions(meta = {}) {
   }
 }
 
-/** Ancho útil de la página en px (96 dpi) para el <mj-body> de los layouts de documento */
+/** Usable page width in px (96 dpi) for the <mj-body> of document layouts */
 export function contentWidthPx(opts) {
   const [w, h] = PAGE_SIZES[opts.size]
   const width = opts.landscape ? h : w
@@ -67,9 +67,9 @@ function toMm(v) {
   return { mm: n, cm: n * 10, in: n * 25.4, px: (n / 96) * 25.4 }[m[2] || 'mm']
 }
 
-// ── HTML de impresión ─────────────────────────────────────────
+// ── Print HTML ────────────────────────────────────────────────
 
-/** Contenido CSS de una caja de margen: "Pág. {page} / {pages}" → "Pág. " counter(page) " / " counter(pages) */
+/** CSS content of a margin box: "Page {page} / {pages}" → "Page " counter(page) " / " counter(pages) */
 export function marginBoxContent(text, title = '') {
   const str = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ')}"`
   const parts = []
@@ -85,7 +85,7 @@ export function marginBoxContent(text, title = '') {
   return parts.join(' ') || '""'
 }
 
-/** CSS de impresión que se inyecta en el HTML compilado */
+/** Print CSS injected into the compiled HTML */
 export function printCss(opts, { title = '', mediaRules = '' } = {}) {
   const { top, right, bottom, left } = opts.margin
   const band = 'font: 9px Helvetica, Arial, sans-serif; color: #4b5563;'
@@ -99,14 +99,14 @@ export function printCss(opts, { title = '', mediaRules = '' } = {}) {
     'body { margin: 0 !important; }',
     '.tpl-page-break { page-break-after: always; break-after: page; height: 0; }',
     'table, tr, img { page-break-inside: avoid; break-inside: avoid; }',
-    // las tablas de maquetación de MJML ocupan todo el ancho en cualquier motor
+    // MJML layout tables take the full width in every engine
     'table[width="100%"] { width: 100% !important; }',
-    // reglas de columnas que MJML pone en @media screen: en papel siempre aplican
+    // column rules MJML puts in @media screen: on paper they always apply
     mediaRules,
   ].filter(Boolean).join('\n')
 }
 
-/** Extrae el contenido de las @media de escritorio de MJML (min-width:480px) */
+/** Extracts the content of MJML desktop @media blocks (min-width:480px) */
 function desktopMediaRules(html) {
   const out = []
   const re = /@media only screen and \(min-width:\s*480px\)\s*\{/g
@@ -129,32 +129,32 @@ export function injectPrintCss(html, opts, { title = '' } = {}) {
   const css = printCss(opts, { title, mediaRules: desktopMediaRules(html) })
   return html
     .replace('</head>', `<style type="text/css" data-tpl-print>\n${css}\n</style>\n</head>`)
-    // en un documento no aplica el rol "email" que añade MJML
+    // the "email" role added by MJML does not apply to a document
     .replace(/\saria-roledescription="email"/, '')
     .replace(/(<div[^>]*?)\srole="article"/, '$1 role="document"')
 }
 
-// ── Motores ───────────────────────────────────────────────────
+// ── Engines ───────────────────────────────────────────────────
 
 /**
- * Motores de PDF, por orden de preferencia para accesibilidad (PDF/UA-1):
- * - weasyprint: libre (BSD), genera PDF/UA-1 (`--pdf-variant pdf/ua-1`).
- * - prince: comercial, referencia en PDF/UA (`--pdf-profile=PDF/UA-1`).
- * - chromium: etiqueta el PDF, pero no cumple PDF/UA-1 (metadatos, artefactos, enlaces).
+ * PDF engines, in order of preference for accessibility (PDF/UA-1):
+ * - weasyprint: free (BSD), produces PDF/UA-1 (`--pdf-variant pdf/ua-1`).
+ * - prince: commercial, the PDF/UA reference (`--pdf-profile=PDF/UA-1`).
+ * - chromium: tags the PDF but does not meet PDF/UA-1 (metadata, artifacts, links).
  */
 export const PDF_ENGINES = {
   weasyprint: {
-    label: 'WeasyPrint', pdfua: true, license: 'Libre (BSD)',
+    label: 'WeasyPrint', pdfua: true, license: 'Free (BSD)',
     install: 'pip install weasyprint  (≥ 58)',
     bin: () => process.env.TEMPLAITOR_WEASYPRINT || 'weasyprint',
   },
   prince: {
-    label: 'Prince', pdfua: true, license: 'Comercial',
+    label: 'Prince', pdfua: true, license: 'Commercial',
     install: 'https://www.princexml.com/download/',
     bin: () => process.env.TEMPLAITOR_PRINCE || 'prince',
   },
   chromium: {
-    label: 'Chromium (Playwright)', pdfua: false, license: 'Libre (Apache 2.0)',
+    label: 'Chromium (Playwright)', pdfua: false, license: 'Free (Apache 2.0)',
     install: 'npm i -D playwright && npx playwright install chromium',
   },
 }
@@ -180,20 +180,20 @@ export function listEngines() {
   return ENGINE_ORDER.map(id => ({ id, ...PDF_ENGINES[id], bin: undefined, available: engineAvailable(id) }))
 }
 
-/** Motor efectivo: el pedido (si está disponible) o el primero disponible por orden de accesibilidad */
+/** Effective engine: the requested one (if available) or the first available in accessibility order */
 export function resolveEngine(requested) {
   const want = String(requested || process.env.TEMPLAITOR_PDF_ENGINE || 'auto').toLowerCase()
   if (want !== 'auto') {
-    if (!PDF_ENGINES[want]) throw httpErr(400, `Motor de PDF desconocido: ${want} (usa ${ENGINE_ORDER.join(', ')} o auto)`)
-    if (!engineAvailable(want)) throw httpErr(501, `El motor ${PDF_ENGINES[want].label} no está instalado: ${PDF_ENGINES[want].install}`)
+    if (!PDF_ENGINES[want]) throw httpErr(400, `Unknown PDF engine: ${want} (use ${ENGINE_ORDER.join(', ')} or auto)`)
+    if (!engineAvailable(want)) throw httpErr(501, `The ${PDF_ENGINES[want].label} engine is not installed: ${PDF_ENGINES[want].install}`)
     return want
   }
   const found = ENGINE_ORDER.find(engineAvailable)
-  if (!found) throw httpErr(501, `No hay ningún motor de PDF instalado. Recomendado (PDF/UA): ${PDF_ENGINES.weasyprint.install}`)
+  if (!found) throw httpErr(501, `No PDF engine is installed. Recommended (PDF/UA): ${PDF_ENGINES.weasyprint.install}`)
   return found
 }
 
-/** Opciones por motor para el backend (se escriben en <nombre>.<locale>.pdf.json) */
+/** Per-engine options for the backend (written to <name>.<locale>.pdf.json) */
 export function engineOptions(opts) {
   return {
     weasyprint: { args: ['--pdf-variant', 'pdf/ua-1'] },
@@ -202,14 +202,14 @@ export function engineOptions(opts) {
   }
 }
 
-/** Opciones para page.pdf() de Chromium (cabecera/pie van en CSS @page: requiere Chromium ≥ 131) */
+/** Options for Chromium page.pdf() (header/footer come from CSS @page: requires Chromium ≥ 131) */
 export function chromiumPdfOptions(opts) {
   return {
     format: opts.size,
     landscape: opts.landscape,
     printBackground: true,
     preferCSSPageSize: true,
-    // PDF etiquetado y marcadores desde los encabezados (no llega a PDF/UA-1)
+    // tagged PDF and bookmarks from headings (does not reach PDF/UA-1)
     tagged: true,
     outline: true,
     margin: opts.margin,
@@ -219,9 +219,9 @@ export function chromiumPdfOptions(opts) {
 // ── Render ─────────────────────────────────────────────────────
 
 /**
- * Renderiza a PDF un HTML ya renderizado con datos.
- * Las rutas `/static/...` se sirven desde `staticDir`; el resto de URLs (fuentes, imágenes externas) se cargan normalmente.
- * Devuelve { pdf: Buffer, engine }.
+ * Renders HTML (already rendered with data) to PDF.
+ * `/static/...` paths are served from `staticDir`; other URLs (fonts, external images) load normally.
+ * Returns { pdf: Buffer, engine }.
  */
 export async function renderPdf(html, opts, { staticDir, engine } = {}) {
   const id = resolveEngine(engine ?? opts.engine)
@@ -236,7 +236,7 @@ async function renderCli(id, html, { staticDir }) {
   try {
     const input = path.join(dir, 'document.html')
     const output = path.join(dir, 'document.pdf')
-    // /static/... → ficheros locales
+    // /static/... → local files
     const local = staticDir ? html.replace(/(["'(])\/static\//g, `$1${pathToFileUrl(staticDir)}/`) : html
     fs.writeFileSync(input, local)
     const base = pathToFileUrl(staticDir || dir) + '/'
@@ -245,7 +245,7 @@ async function renderCli(id, html, { staticDir }) {
       : ['--pdf-profile=PDF/UA-1', '--baseurl', base, input, '-o', output]
     const { code, stderr } = await run(PDF_ENGINES[id].bin(), args, 120000)
     if (code !== 0 || !fs.existsSync(output)) {
-      throw httpErr(500, `${PDF_ENGINES[id].label} falló (${code}): ${stderr.split('\n').filter(l => !/^WARNING/i.test(l)).slice(-5).join(' ').trim()}`)
+      throw httpErr(500, `${PDF_ENGINES[id].label} failed (${code}): ${stderr.split('\n').filter(l => !/^WARNING/i.test(l)).slice(-5).join(' ').trim()}`)
     }
     return fs.readFileSync(output)
   } finally {
@@ -253,14 +253,14 @@ async function renderCli(id, html, { staticDir }) {
   }
 }
 
-// Chromium (Playwright): navegador compartido entre peticiones
+// Chromium (Playwright): browser shared between requests
 let browserPromise = null
 
 function loadPlaywright() {
   for (const name of ['playwright', 'playwright-core']) {
     try { return require(name) } catch {}
   }
-  throw httpErr(501, `Chromium no disponible: ${PDF_ENGINES.chromium.install}`)
+  throw httpErr(501, `Chromium is not available: ${PDF_ENGINES.chromium.install}`)
 }
 
 async function getBrowser() {
@@ -303,7 +303,7 @@ async function renderChromium(html, opts, { staticDir }) {
   }
 }
 
-// ── utilidades ────────────────────────────────────────────────
+// ── utilities ─────────────────────────────────────────────────
 
 export function run(cmd, args, timeout = 60000) {
   return new Promise((resolve) => {

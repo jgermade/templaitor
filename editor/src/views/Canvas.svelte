@@ -13,13 +13,13 @@
 
   const post = (msg) => iframe?.contentWindow?.postMessage({ __tpl: true, ...msg }, '*')
 
-  // contenido
+  // content
   $effect(() => {
     const html = store.preview.html
     if (ready && html) post({ type: 'update', html, mode })
   })
 
-  // selección
+  // selection
   $effect(() => {
     const id = store.selectedId
     const node = id != null ? findNode(store.tree, id) : null
@@ -28,7 +28,7 @@
     if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
   })
 
-  // inserción de variables desde el inspector
+  // variable insertion from the inspector
   $effect(() => {
     const req = store.insertRequest
     if (ready && req) post({ type: 'insert', html: chipify(req.src) })
@@ -78,7 +78,7 @@
 <svelte:window onmessage={onMessage} />
 
 <div class="stage" class:mobile={store.device === 'mobile'}>
-  <iframe bind:this={iframe} title="Lienzo" {srcdoc} sandbox="allow-scripts"></iframe>
+  <iframe bind:this={iframe} title="Canvas" {srcdoc} sandbox="allow-scripts"></iframe>
 </div>
 
 <style>

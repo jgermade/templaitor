@@ -1,24 +1,24 @@
-// Llamadas $import con parámetros (compartido Node/navegador).
+// $import calls with parameters (shared by Node and the browser).
 //
 //   $import(_components/cta-button, url="{{ app_url }}/verify", label="$t('cta')")
 //
-// Los valores van entre comillas dobles o simples (admiten comas, paréntesis y
-// comandos $). Dentro del componente se usan como `$param.nombre`; sus valores
-// por defecto, tipo y etiqueta se declaran en el frontmatter del componente:
+// Values go in double or single quotes (they may contain commas, parentheses and
+// $ commands). Inside the component they are used as `$param.name`; their default
+// value, type and label are declared in the component frontmatter:
 //
 //   ---
 //   params:
-//     url: { type: text, label: Enlace, default: "#" }
-//     label: Botón            # forma corta: solo el valor por defecto
+//     url: { type: text, label: Link, default: "#" }
+//     label: Button           # short form: just the default value
 //     logo: { type: image, default: "{{ assets_url }}/logo.svg" }
 //     show_logo: { type: boolean, default: true }   # → $if($param.show_logo) … $end
 //   ---
 //
-// Tipos: text · color · select (options) · image (URL) · boolean (true/false, compile-time)
+// Types: text · color · select (options) · image (URL) · boolean (true/false, compile time)
 
 const OPEN = '$import('
 
-/** Encuentra las llamadas $import(...) respetando comillas y paréntesis anidados */
+/** Finds $import(...) calls, honouring quotes and nested parentheses */
 export function findImportCalls(text) {
   const calls = []
   let pos = 0
@@ -38,7 +38,7 @@ export function findImportCalls(text) {
         depth--
       }
     }
-    if (i >= text.length) break // sin cerrar
+    if (i >= text.length) break // unterminated
     const raw = text.slice(pos, i + 1)
     calls.push({ start: pos, end: i + 1, raw, ...parseArgs(text.slice(pos + OPEN.length, i)) })
     pos = i + 1
@@ -46,7 +46,7 @@ export function findImportCalls(text) {
   return calls
 }
 
-/** Si `str` es exactamente una llamada $import devuelve { path, params } */
+/** { path, params } when `str` is exactly one $import call */
 export function parseImportCall(str) {
   const s = String(str ?? '').trim()
   if (!s.startsWith(OPEN)) return null
@@ -64,7 +64,7 @@ export function replaceImportCalls(text, fn) {
   return out + text.slice(last)
 }
 
-/** Serializa una llamada; `params` es una lista ordenada de [clave, valor] */
+/** Serializes a call; `params` is an ordered list of [key, value] */
 export function formatImportCall(path, params = []) {
   const args = params
     .filter(([k, v]) => k && v !== undefined && v !== null && v !== '')
@@ -120,9 +120,9 @@ function unquote(s) {
   return t
 }
 
-// ── Declaración y sustitución de parámetros ──────────────────
+// ── Parameter declaration and substitution ───────────────────
 
-/** Normaliza `params` del frontmatter a { nombre: { type, label, default, options } } */
+/** Normalizes frontmatter `params` to { name: { type, label, default, options } } */
 export function normalizeParams(decl) {
   const out = {}
   for (const [name, d] of Object.entries(decl || {})) {
@@ -135,13 +135,13 @@ export function normalizeParams(decl) {
 
 export const PARAM_RE = /\$param\.([A-Za-z_][\w-]*)/g
 
-/** Sustituye `$param.x` por el valor dado, el valor por defecto o '' (con aviso) */
+/** Replaces `$param.x` with the given value, the default value or '' (with a warning) */
 export const PARAM_TYPES = ['text', 'color', 'select', 'image', 'boolean']
 
 const TRUE = new Set(['true', '1', 'yes', 'si', 'sí', 'on'])
 const FALSE = new Set(['false', '0', 'no', 'off', ''])
 
-/** true / false / null (si el valor no es booleano) */
+/** true / false / null (when the value is not boolean) */
 export function toBoolean(value) {
   if (typeof value === 'boolean') return value
   const v = String(value ?? '').trim().toLowerCase()
@@ -159,13 +159,13 @@ export function applyParams(content, decl, given = [], warn) {
     if (name in values) value = values[name]
     else if (d) value = d.default ?? ''
     else {
-      warn?.(`$param.${name} no está declarado ni se ha pasado`)
+      warn?.(`$param.${name} is neither declared nor passed`)
       return ''
     }
     if (d?.type === 'boolean') {
-      // se sustituye por un literal JS para usarlo en $if($param.x) (compile-time)
+      // replaced by a JS literal to be used in $if($param.x) (compile time)
       const b = toBoolean(value)
-      if (b === null) warn?.(`$param.${name} es booleano y recibió "${value}" (se usa false)`)
+      if (b === null) warn?.(`$param.${name} is boolean and got "${value}" (false is used)`)
       return String(!!b)
     }
     return String(value)

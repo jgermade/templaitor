@@ -22,7 +22,7 @@
     store.init().catch((e) => (error = e.message))
   })
 
-  // Vista previa: se recalcula (con debounce) ante cualquier cambio del borrador
+  // Preview: recomputed (debounced) on any change of the draft
   let seq = 0
   $effect(() => {
     if (!store.doc) return
@@ -53,7 +53,7 @@
   const issues = $derived([
     ...(store.preview.errors || []).map(m => ({ level: 'error', m })),
     ...(store.preview.warnings || []).map(m => ({ level: 'warn', m })),
-    ...store.missing.map(x => ({ level: 'warn', m: `Falta $t('${x.key}') en ${x.lang}` })),
+    ...store.missing.map(x => ({ level: 'warn', m: `Missing $t('${x.key}') in ${x.lang}` })),
   ])
 
   function isTyping(e) {
@@ -80,7 +80,7 @@
 
 {#if error}
   <div class="fatal">
-    <h2>No se pudo cargar el proyecto</h2>
+    <h2>Could not load the project</h2>
     <p class="mono">{error}</p>
   </div>
 {:else}
@@ -89,27 +89,27 @@
 
     {#if store.doc && store.view !== 'code'}
       <div class="subject">
-        <span class="label">{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : store.isPdf ? 'Título' : 'Asunto'}</span>
+        <span class="label">{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : store.isPdf ? 'Title' : 'Subject'}</span>
         {#if store.isComponent}
-          <span class="rendered muted">◆ {store.doc.name} — vista previa con el &lt;mj-head&gt; del layout</span>
+          <span class="rendered muted">◆ {store.doc.name} — preview with the layout &lt;mj-head&gt;</span>
         {:else if store.isLayout}
-          <span class="rendered muted">⧉ {store.doc.id} — el hueco discontinuo es <code>$content</code>, donde va cada plantilla</span>
+          <span class="rendered muted">⧉ {store.doc.id} — the dashed slot is <code>$content</code>, where each template goes</span>
         {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}
-            placeholder={store.isPdf ? `Título del documento (${store.lang})` : `Asunto del email (${store.lang})`}
+            placeholder={store.isPdf ? `Document title (${store.lang})` : `Email subject (${store.lang})`}
             oninput={(e) => store.setSubject(store.lang, e.currentTarget.value)}
           />
         {:else}
           <span class="rendered">{store.preview.subject}</span>
         {/if}
-        {#if store.loadingPreview}<span class="spinner" aria-label="Actualizando"></span>{/if}
+        {#if store.loadingPreview}<span class="spinner" aria-label="Updating"></span>{/if}
         <span class="grow"></span>
         {#if store.preview.a11yReport}
           {@const vp = store.view === 'pdf' && store.pdfValidation?.status === 'done' && !store.pdfValidation.stale ? store.pdfValidation.result : null}
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
-          <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Informe de accesibilidad (WCAG 2.1 AA)">
+          <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Accessibility report (WCAG 2.1 AA)">
             ♿ {fails ? `${fails} ✕` : warns ? `${warns} ⚠` : '✓'}
           </button>
         {/if}
@@ -123,7 +123,7 @@
             </ul>
           {/if}
         </div>
-        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Abrir la vista previa en una pestaña nueva">
+        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
         </button>
         {#if !store.isPdf}<label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>{/if}
@@ -134,10 +134,10 @@
       {#if !store.doc}
         <div class="empty-state">
           {#if store.project && !store.templates.length}
-            <p>No hay plantillas en <code>{store.project.templatesDir}/</code>.</p>
-            <button class="primary" onclick={() => (showNew = true)}>Crear la primera plantilla</button>
+            <p>There are no templates in <code>{store.project.templatesDir}/</code>.</p>
+            <button class="primary" onclick={() => (showNew = true)}>Create the first template</button>
           {:else}
-            <p class="muted">Cargando…</p>
+            <p class="muted">Loading…</p>
           {/if}
         </div>
       {:else if store.view === 'code'}

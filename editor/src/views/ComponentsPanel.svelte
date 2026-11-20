@@ -7,21 +7,21 @@
 
   async function extract() {
     const name = await promptDialog({
-      title: 'Convertir en componente',
-      message: 'El bloque seleccionado y sus textos pasarán a un componente reutilizable.',
-      label: 'Nombre del componente', value: store.selected.tag === 'mj-section' ? 'bloque' : store.selected.tag.replace('mj-', ''),
-      okLabel: 'Crear componente', pattern: '[\\w.\\-]+', hint: 'Letras, números, guiones y puntos.',
+      title: 'Turn into a component',
+      message: 'The selected block and its texts will move to a reusable component.',
+      label: 'Component name', value: store.selected.tag === 'mj-section' ? 'block' : store.selected.tag.replace('mj-', ''),
+      okLabel: 'Create component', pattern: '[\\w.\\-]+', hint: 'Letters, digits, hyphens and dots.',
     })
     if (name) await store.extractComponent(store.selectedId, name.trim())
   }
 
   async function create() {
-    const id = await promptDialog({ title: 'Nuevo componente', label: 'Nombre', placeholder: 'header, legal-notice…', okLabel: 'Crear', pattern: '[\\w.\\-]+' })
+    const id = await promptDialog({ title: 'New component', label: 'Name', placeholder: 'header, legal-notice…', okLabel: 'Create', pattern: '[\\w.\\-]+' })
     if (!id) return
     try {
       await api.createComponent({ id: id.trim() })
       await store.refreshTemplates()
-      store.notify(`Componente «${id}» creado`)
+      store.notify(`Component "${id}" created`)
     } catch (e) { store.notify(e.message, 'error') }
   }
 </script>
@@ -29,22 +29,22 @@
 <ul>
   {#each store.components.filter(c => !(store.isComponent && c.id === store.doc.id)) as c (c.id)}
     <li>
-      <button class="ins" onclick={() => store.insertComponent(c)} title="Insertar {c.name} ($import({c.importPath}))">
+      <button class="ins" onclick={() => store.insertComponent(c)} title="Insert {c.name} ($import({c.importPath}))">
         <span class="diamond">◆</span>
         <span class="name">{c.name}</span>
-        <span class="uses" title={c.usedBy.map(u => u.id).join('\n')}>{c.usedBy.length} uso(s)</span>
+        <span class="uses" title={c.usedBy.map(u => u.id).join('\n')}>{c.usedBy.length} use(s)</span>
       </button>
-      <button class="ghost edit" title="Editar componente" onclick={() => store.openComponent(c.id)}>✎</button>
+      <button class="ghost edit" title="Edit component" onclick={() => store.openComponent(c.id)}>✎</button>
     </li>
   {:else}
-    <li class="empty">Aún no hay componentes.</li>
+    <li class="empty">No components yet.</li>
   {/each}
 </ul>
 <div class="actions">
   {#if canExtract}
-    <button onclick={extract} title="Mueve el bloque seleccionado (y sus textos) a un componente reutilizable">◆ Convertir selección en componente</button>
+    <button onclick={extract} title="Moves the selected block (and its texts) to a reusable component">◆ Turn selection into a component</button>
   {/if}
-  <button class="ghost" onclick={create}>＋ Nuevo componente</button>
+  <button class="ghost" onclick={create}>＋ New component</button>
 </div>
 
 <style>

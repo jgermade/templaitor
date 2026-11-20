@@ -42,7 +42,7 @@
     return () => view.destroy()
   })
 
-  // sincroniza cambios externos (p.ej. ediciones visuales, undo)
+  // syncs external changes (e.g. visual edits, undo)
   $effect(() => {
     const v = value
     if (view && v !== view.state.doc.toString()) {

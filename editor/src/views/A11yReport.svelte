@@ -1,11 +1,11 @@
 <script>
-  // Informe de accesibilidad (WCAG 2.1 AA · EN 301 549 · PDF/UA) del borrador actual
+  // Accessibility report (WCAG 2.1 AA · EN 301 549 · PDF/UA) of the current draft
   import { store } from '../stores/editor.svelte.js'
 
   const engines = $derived(store.project?.pdf?.engines || [])
   const usedEngine = $derived(engines.find(e => e.id === store.pdfEngineUsed))
   const validation = $derived(store.view === 'pdf' ? store.pdfValidation : null)
-  // el criterio PDF/UA depende del motor y, si se ha validado, del resultado de veraPDF
+  // the PDF/UA criterion depends on the engine and, once validated, on the veraPDF result
   const report = $derived.by(() => {
     const r = store.preview.a11yReport
     if (!r) return r
@@ -26,30 +26,30 @@
     return c
   })
   const ICON = { pass: '✓', warn: '⚠', fail: '✕', na: '–' }
-  const LABEL = { pass: 'Cumple', warn: 'Revisar', fail: 'No cumple', na: 'No aplica' }
+  const LABEL = { pass: 'Pass', warn: 'Review', fail: 'Fail', na: 'Not applicable' }
 
   let open = $state({})
   const isOpen = (c) => open[c.id] ?? (c.status !== 'pass' || (c.id === 'pdf-ua' && store.view === 'pdf'))
 </script>
 
-<aside class="report" aria-label="Informe de accesibilidad">
+<aside class="report" aria-label="Accessibility report">
   <header>
-    <h2>♿ Accesibilidad</h2>
+    <h2>♿ Accessibility</h2>
     {#if report}
       <p class="std">{report.standard}</p>
       <div class="score" class:ok={!counts.fail && !counts.warn} class:bad={counts.fail}>
         {#if counts.fail}
-          <b>{counts.fail} criterio(s) no cumplen</b>
+          <b>{counts.fail} criteria fail</b>
         {:else if counts.warn}
-          <b>Cumple, con {counts.warn} aviso(s)</b>
+          <b>Passes, with {counts.warn} warning(s)</b>
         {:else}
-          <b>Cumple todos los criterios comprobados</b>
+          <b>Passes every checked criterion</b>
         {/if}
         <span>{counts.pass} ✓ · {counts.warn} ⚠ · {counts.fail} ✕</span>
       </div>
-      <p class="scope">Idioma: <b>{store.lang}</b>. Comprobación automática del HTML compilado; revisa también el orden de lectura y el sentido de los textos.</p>
+      <p class="scope">Language: <b>{store.lang}</b>. Automated check of the compiled HTML; also review the reading order and that the texts make sense.</p>
     {:else}
-      <p class="std">Calculando…</p>
+      <p class="std">Checking…</p>
     {/if}
   </header>
 
@@ -85,7 +85,7 @@
                 {/if}
               {:else if c.id === 'images'}
                 {#each report.inventory.images as img}
-                  <p class="inv"><code>{img.src.split('/').pop() || img.src}</code> — {img.alt === null ? 'sin alt' : img.alt === '' ? 'decorativa (alt="")' : `«${img.alt}»`}</p>
+                  <p class="inv"><code>{img.src.split('/').pop() || img.src}</code> — {img.alt === null ? 'no alt' : img.alt === '' ? 'decorative (alt="")' : `«${img.alt}»`}</p>
                 {/each}
               {:else if c.id === 'links'}
                 {#each report.inventory.links as l}
@@ -93,8 +93,8 @@
                 {/each}
               {:else if c.id === 'contrast'}
                 <table>
-                  <caption class="sr">Pares de color de texto y fondo</caption>
-                  <thead><tr><th scope="col">Muestra</th><th scope="col">Ratio</th><th scope="col">Mín.</th></tr></thead>
+                  <caption class="sr">Text and background color pairs</caption>
+                  <thead><tr><th scope="col">Sample</th><th scope="col">Ratio</th><th scope="col">Min.</th></tr></thead>
                   <tbody>
                     {#each report.inventory.contrast as p}
                       <tr class:fail={!p.pass}>
@@ -107,21 +107,21 @@
                 </table>
               {:else if c.id === 'pdf-ua'}
                 {#if usedEngine}
-                  <p class="inv">Motor: <b>{usedEngine.label}</b> — {usedEngine.pdfua ? 'genera PDF/UA-1 (etiquetado, idioma, título, marcadores).' : 'etiqueta el PDF pero no cumple PDF/UA-1. Usa WeasyPrint o Prince.'}</p>
+                  <p class="inv">Engine: <b>{usedEngine.label}</b> — {usedEngine.pdfua ? 'produces PDF/UA-1 (tags, language, title, bookmarks).' : 'tags the PDF but does not meet PDF/UA-1. Use WeasyPrint or Prince.'}</p>
                 {/if}
                 {#if store.view !== 'pdf'}
-                  <p class="inv">Abre la vista <b>PDF</b> para validarlo con veraPDF.</p>
+                  <p class="inv">Open the <b>PDF</b> view to validate it with veraPDF.</p>
                 {:else if !validation}
-                  <p class="inv">Pulsa «Validar PDF/UA (veraPDF)» en la barra del PDF.</p>
+                  <p class="inv">Click "Validate PDF/UA (veraPDF)" in the PDF toolbar.</p>
                 {:else if validation.status === 'running'}
-                  <p class="inv">Validando con veraPDF…</p>
+                  <p class="inv">Validating with veraPDF…</p>
                 {:else if validation.status === 'error'}
                   <div class="issue error"><p>{validation.error}</p></div>
                 {:else}
                   {@const v = validation.result}
                   <div class="vp" class:pass={v.compliant}>
-                    <b>{v.compliant ? '✓ Cumple' : '✕ No cumple'} {v.profile.replace(' validation profile', '')}</b>
-                    <span>{v.passedRules} reglas ✓ · {v.failedRules} ✕ · {v.validator}{validation.engine ? ` · ${validation.engine}` : ''}{validation.stale ? ' · desactualizado: vuelve a validar' : ''}</span>
+                    <b>{v.compliant ? '✓ Compliant' : '✕ Not compliant'} {v.profile.replace(' validation profile', '')}</b>
+                    <span>{v.passedRules} rules ✓ · {v.failedRules} ✕ · {v.validator}{validation.engine ? ` · ${validation.engine}` : ''}{validation.stale ? ' · outdated: validate again' : ''}</span>
                   </div>
                   {#each v.rules as r}
                     <div class="issue error">

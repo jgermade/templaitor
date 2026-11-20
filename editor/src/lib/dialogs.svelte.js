@@ -1,13 +1,13 @@
-// Modales propios (sobre <dialog>) en lugar de prompt()/confirm() del navegador.
+// Own modals (built on <dialog>) instead of the browser prompt()/confirm().
 //
-//   if (await confirmDialog({ title: '¿Eliminar?', danger: true })) …
-//   const name = await promptDialog({ title: 'Nuevo componente', label: 'Nombre' })  // null si se cancela
+//   if (await confirmDialog({ title: 'Delete?', danger: true })) …
+//   const name = await promptDialog({ title: 'New component', label: 'Name' })  // null when cancelled
 
 class Dialogs {
   current = $state(null) // { type, title, message, label, value, placeholder, okLabel, danger, inputType, pattern, hint, resolve }
 
   open(opts) {
-    // si había uno abierto, se cancela
+    // cancels the one already open, if any
     this.current?.resolve(opts.type === 'confirm' ? false : null)
     return new Promise((resolve) => { this.current = { ...opts, resolve } })
   }
@@ -21,12 +21,12 @@ class Dialogs {
 
 export const dialogs = new Dialogs()
 
-export function confirmDialog({ title, message = '', okLabel = 'Aceptar', cancelLabel = 'Cancelar', danger = false } = {}) {
+export function confirmDialog({ title, message = '', okLabel = 'OK', cancelLabel = 'Cancel', danger = false } = {}) {
   return dialogs.open({ type: 'confirm', title, message, okLabel, cancelLabel, danger })
 }
 
 export function promptDialog({
-  title, message = '', label = '', value = '', placeholder = '', okLabel = 'Aceptar', cancelLabel = 'Cancelar',
+  title, message = '', label = '', value = '', placeholder = '', okLabel = 'OK', cancelLabel = 'Cancel',
   inputType = 'text', pattern = null, hint = '',
 } = {}) {
   return dialogs.open({ type: 'prompt', title, message, label, value, placeholder, okLabel, cancelLabel, inputType, pattern, hint })

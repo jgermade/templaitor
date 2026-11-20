@@ -1,18 +1,18 @@
 .PHONY: install i test up build mailpit down verapdf pdf-tools
 
-# Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
+# Project opened by `make up` (override: make up PROJECT=path/to/project)
 PROJECT  ?= examples/demo
 
-# Mailpit local (docker compose): SMTP en :1025 y bandeja en /mailpit/ del editor
-# (http://localhost:5180/mailpit/, también a través de GATE)
-#   make up MAILPIT=0   → no arrancarlo
+# Local Mailpit (docker compose): SMTP on :1025 and inbox under /mailpit/ of the editor
+# (http://localhost:5180/mailpit/, also through GATE)
+#   make up MAILPIT=0   → do not start it
 MAILPIT  ?= 1
 DEV_PORT ?= 5180
 
-# Exposición pública opcional con intergate (https://jgermade.github.io/intergate/):
-#   make up GATE=templaitor.gate.example.com          (puerto SSH por defecto: 2222)
-#   make up GATE=templaitor.gate.example.com:2223     (puerto SSH explícito)
-# → túnel SSH: ssh -p 2222 -R templaitor:80:localhost:$(DEV_PORT) gate.example.com
+# Optional public exposure with intergate (https://jgermade.github.io/intergate/):
+#   make up GATE=templaitor.gate.example.com          (default SSH port: 2222)
+#   make up GATE=templaitor.gate.example.com:2223     (explicit SSH port)
+# → SSH tunnel: ssh -p 2222 -R templaitor:80:localhost:$(DEV_PORT) gate.example.com
 GATE           ?=
 GATE_SSH_PORT  ?= 2222
 GATE_KEY       ?=
@@ -22,7 +22,7 @@ GATE_SUBDOMAIN  = $(firstword $(subst ., ,$(GATE_HOST)))
 GATE_SERVER     = $(patsubst $(GATE_SUBDOMAIN).%,%,$(GATE_HOST))
 GATE_SSH_OPTS   = -N -p $(GATE_PORT) -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 $(if $(GATE_KEY),-i $(GATE_KEY) -o IdentitiesOnly=yes)
 
-# Se reinstala solo si cambian package.json / package-lock.json
+# Reinstalls only when package.json / package-lock.json change
 node_modules: package.json package-lock.json
 	npm install
 	@touch node_modules
@@ -36,17 +36,17 @@ i: install
 test: node_modules
 	npm test
 
-# Desarrollo local en un solo puerto: Vite (recarga en caliente) con la API del motor montada
-# como middleware (+ túnel intergate si GATE=...). Ctrl+C para parar todo.
+# Local development on a single port: Vite (hot reload) with the engine API mounted as
+# middleware (+ intergate tunnel when GATE=...). Ctrl+C stops everything.
 up: node_modules mailpit
 	@if [ -n "$(GATE)" ]; then \
-		command -v ssh >/dev/null || { echo "✗ GATE requiere ssh instalado"; exit 1; }; \
-		echo "⇄ intergate: https://$(GATE_HOST) → localhost:$(DEV_PORT) (vía $(GATE_SERVER):$(GATE_PORT))"; \
+		command -v ssh >/dev/null || { echo "✗ GATE requires ssh"; exit 1; }; \
+		echo "⇄ intergate: https://$(GATE_HOST) → localhost:$(DEV_PORT) (via $(GATE_SERVER):$(GATE_PORT))"; \
 		( trap 'kill $$SSH_PID 2>/dev/null; exit 0' TERM; \
 		  while true; do \
 			ssh $(GATE_SSH_OPTS) -R $(GATE_SUBDOMAIN):80:localhost:$(DEV_PORT) $(GATE_SERVER) & SSH_PID=$$!; \
 			wait $$SSH_PID; \
-			echo "⇄ intergate: túnel caído, reintentando en 3s..."; sleep 3; \
+			echo "⇄ intergate: tunnel down, retrying in 3s..."; sleep 3; \
 		  done ) & TUNNEL_PID=$$!; \
 		trap 'kill $$TUNNEL_PID 2>/dev/null; exit 0' INT TERM EXIT; \
 	fi; \
@@ -58,23 +58,23 @@ mailpit:
 		if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
 			if docker compose up -d --quiet-pull mailpit >/dev/null 2>&1; then \
 				echo "✉ Mailpit → http://localhost:$(DEV_PORT)/mailpit/ (SMTP localhost:1025)"; \
-			else echo "⚠ No se pudo arrancar Mailpit (docker compose up mailpit)"; fi; \
+			else echo "⚠ Could not start Mailpit (docker compose up mailpit)"; fi; \
 		else \
-			echo "⚠ Docker no disponible: se arranca sin Mailpit (make up MAILPIT=0 oculta este aviso)"; \
+			echo "⚠ Docker is not available: starting without Mailpit (make up MAILPIT=0 hides this warning)"; \
 		fi; \
 	fi
 
 down:
 	docker compose down
 
-# Validador PDF/UA (veraPDF) en Docker
+# PDF/UA validator (veraPDF) in Docker
 verapdf:
 	docker pull verapdf/cli:latest
 
-# Herramientas de PDF: motor accesible (WeasyPrint) + validador
+# PDF tools: accessible engine (WeasyPrint) + validator
 pdf-tools: verapdf
 	@command -v weasyprint >/dev/null 2>&1 && weasyprint --version || \
-		echo "→ Instala WeasyPrint (motor PDF/UA recomendado): pip install weasyprint"
+		echo "→ Install WeasyPrint (recommended PDF/UA engine): pip install weasyprint"
 	@node bin/templaitor.js engines --cwd $(PROJECT)
 
 build: node_modules

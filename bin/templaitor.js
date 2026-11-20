@@ -7,21 +7,21 @@ import { compileProject, renderDraftPdf } from '../src/engine/pipeline.js'
 import { closePdfBrowser, listEngines, resolveEngine } from '../src/engine/pdf.js'
 import { validatePdf, verapdfRunner } from '../src/engine/verapdf.js'
 
-const HELP = `templaitor — plantillas MJML → HTML/TXT con Jinja2
+const HELP = `templaitor — MJML templates → HTML/TXT with Jinja2, and PDF documents
 
-Uso:
-  templaitor compile [plantilla] [--watch]   Compila todas (o una) las plantillas a outDir
-                     [--pdf]                 …y genera PDF de muestra (datos de demo) de las plantillas PDF
-  templaitor pdf <plantilla> [--lang es] [--data datos.json5] [-o salida.pdf] [--engine weasyprint] [--validate]
-                                              Genera el PDF de una plantilla PDF (y lo valida con veraPDF)
-  templaitor validate <fichero.pdf> [--flavour ua1]
-                                              Valida un PDF con veraPDF (PDF/UA-1 por defecto)
-  templaitor engines                          Motores de PDF y validador disponibles
-  templaitor editor [--port 3333] [--open]    Abre el editor visual
-  templaitor new <grupo/nombre> [--layout x]  Crea una plantilla nueva
+Usage:
+  templaitor compile [template] [--watch]    Compile all templates (or one) to outDir
+                     [--pdf] [--validate]    …also render sample PDFs (demo data) and validate them
+  templaitor pdf <template> [--lang es] [--data data.json5] [-o out.pdf] [--engine weasyprint] [--validate]
+                                              Render a PDF template (and validate it with veraPDF)
+  templaitor validate <file.pdf> [--flavour ua1]
+                                              Validate a PDF with veraPDF (PDF/UA-1 by default)
+  templaitor engines                          Available PDF engines and validator
+  templaitor editor [--port 3333] [--open]    Open the visual editor
+  templaitor new <group/name> [--layout x]    Create a new template
 
-Opciones globales:
-  --cwd <dir>     Directorio del proyecto (donde está templaitor.config.yml)
+Global options:
+  --cwd <dir>     Project directory (where templaitor.config.yml lives)
 `
 
 const args = process.argv.slice(2)
@@ -42,15 +42,15 @@ async function main() {
   if (cmd === 'compile') {
     const run = async () => {
       const { files, issues } = await compileProject(project, { target, samplePdf: !!flag('pdf') || !!flag('validate'), validate: !!flag('validate') })
-      console.log(`\n${files.length} fichero(s) en ${path.relative(process.cwd(), project.outDir) || '.'}` +
-        (issues.length ? ` · ${issues.length} aviso(s)` : ''))
+      console.log(`\n${files.length} file(s) in ${path.relative(process.cwd(), project.outDir) || '.'}` +
+        (issues.length ? ` · ${issues.length} warning(s)` : ''))
       return issues
     }
     const issues = await run()
     if (!flag('watch')) await closePdfBrowser()
     if (flag('watch')) {
       const { default: chokidar } = await import('chokidar')
-      console.log('\n[watch] Esperando cambios...')
+      console.log('\n[watch] Waiting for changes...')
       chokidar.watch(project.templatesDir, { ignoreInitial: true }).on('all', (_, file) => {
         console.log(`\n[watch] ${path.relative(project.templatesDir, file)}`)
         run().catch(console.error)
@@ -62,7 +62,7 @@ async function main() {
   }
 
   if (cmd === 'pdf') {
-    if (!target) throw new Error('Indica la plantilla: templaitor pdf grupo/nombre')
+    if (!target) throw new Error('Missing template: templaitor pdf group/name')
     const tpl = readTemplate(project, target)
     const dataFile = flag('data')
     const data = typeof dataFile === 'string' ? fs.readFileSync(path.resolve(dataFile), 'utf8') : tpl.data
@@ -80,7 +80,7 @@ async function main() {
   }
 
   if (cmd === 'validate') {
-    if (!target) throw new Error('Indica el PDF: templaitor validate fichero.pdf')
+    if (!target) throw new Error('Missing PDF: templaitor validate file.pdf')
     const flavour = typeof flag('flavour') === 'string' ? flag('flavour') : 'ua1'
     process.exitCode = printValidation(await validatePdf(fs.readFileSync(path.resolve(target)), { flavour })) ? 0 : 1
     return
@@ -89,13 +89,13 @@ async function main() {
   if (cmd === 'engines') {
     let def = '—'
     try { def = resolveEngine(project.config.pdf?.engine) } catch {}
-    console.log('Motores de PDF (por orden de preferencia para accesibilidad):')
+    console.log('PDF engines (in order of preference for accessibility):')
     for (const e of listEngines()) {
-      console.log(`  ${e.available ? '✓' : '·'} ${e.id.padEnd(11)} ${e.label.padEnd(22)} ${e.pdfua ? 'PDF/UA-1' : 'sin PDF/UA'}  ${e.license}${e.available ? '' : `  → ${e.install}`}`)
+      console.log(`  ${e.available ? '✓' : '·'} ${e.id.padEnd(11)} ${e.label.padEnd(22)} ${e.pdfua ? 'PDF/UA-1' : 'no PDF/UA'}  ${e.license}${e.available ? '' : `  → ${e.install}`}`)
     }
-    console.log(`  Por defecto: ${def}${project.config.pdf?.engine ? ` (config: ${project.config.pdf.engine})` : ' (auto)'}`)
+    console.log(`  Default: ${def}${project.config.pdf?.engine ? ` (config: ${project.config.pdf.engine})` : ' (auto)'}`)
     const v = verapdfRunner()
-    console.log(`Validador: ${v ? `✓ ${v.label}` : '· veraPDF no disponible (make verapdf)'}`)
+    console.log(`Validator: ${v ? `✓ ${v.label}` : '· veraPDF not available (make verapdf)'}`)
     return
   }
 
@@ -106,9 +106,9 @@ async function main() {
   }
 
   if (cmd === 'new') {
-    if (!target) throw new Error('Indica el id: templaitor new grupo/nombre')
+    if (!target) throw new Error('Missing id: templaitor new group/name')
     const t = createTemplate(project, target, { layout: flag('layout') === true ? undefined : flag('layout') })
-    console.log(`✓ Plantilla creada: ${t.id}`)
+    console.log(`✓ Template created: ${t.id}`)
     return
   }
 
@@ -117,7 +117,7 @@ async function main() {
 }
 
 function printValidation(v) {
-  console.log(`${v.compliant ? '✓ Cumple' : '✕ No cumple'} ${v.profile} — ${v.passedRules} reglas ✓ · ${v.failedRules} ✕ (${v.validator})`)
+  console.log(`${v.compliant ? '✓ Compliant' : '✕ Not compliant'} ${v.profile} — ${v.passedRules} rules ✓ · ${v.failedRules} ✕ (${v.validator})`)
   for (const r of v.rules) console.log(`  ✕ ${r.id} (${r.checks}×) ${r.hint || r.description}`)
   return v.compliant
 }

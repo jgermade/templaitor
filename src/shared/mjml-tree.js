@@ -1,8 +1,8 @@
-// Parser / serializador MJML sin pérdidas relevantes, usable en Node y navegador.
+// Near-lossless MJML parser / serializer, usable in Node and in the browser.
 //
-// Preserva todo lo que no es una etiqueta MJML como nodos `text` (comandos $,
-// bloques Jinja2 {% %}, $import(...), etc.) y el contenido de las etiquetas
-// "ending" (mj-text, mj-button, mj-raw...) como HTML en crudo.
+// Keeps everything that is not an MJML tag as `text` nodes ($ commands,
+// Jinja2 {% %} blocks, $import(...), etc.) and the content of "ending" tags
+// (mj-text, mj-button, mj-raw...) as raw HTML.
 //
 import { findImportCalls, parseImportCall } from './imports.js'
 
@@ -12,9 +12,9 @@ import { findImportCalls, parseImportCall } from './imports.js'
 //   { type: 'text', value }
 //   { type: 'comment', value }
 //
-// Los ids son rutas de índices ("0.2.1") calculadas por `assignIds`; son
-// deterministas, de modo que cliente y servidor obtienen los mismos ids al
-// parsear el mismo texto.
+// Ids are index paths ("0.2.1") computed by `assignIds`; they are
+// deterministic, so client and server get the same ids when parsing the
+// same text.
 
 export const ENDING_TAGS = new Set([
   'mj-text', 'mj-button', 'mj-raw', 'mj-table', 'mj-navbar-link',
@@ -59,7 +59,7 @@ export function parse(source) {
   const pushText = (end) => {
     if (end <= textStart) return
     const value = source.slice(textStart, end)
-    // cada $import (instancia de componente) y cada bloque separado por línea en blanco es un nodo
+    // every $import (component instance) and every blank-line separated block is a node
     let last = 0
     const pushParts = (str) => {
       for (const part of str.split(/\n\s*\n/)) if (part.trim()) top().children.push({ type: 'text', value: part.trim() })
@@ -95,7 +95,7 @@ export function parse(source) {
     i = textStart = lt + full.length
 
     if (closing) {
-      // cerrar hasta encontrar la etiqueta correspondiente (tolerante)
+      // close up to the matching tag (lenient)
       for (let s = stack.length - 1; s > 0; s--) {
         if (stack[s].tag === tag) { stack.length = s; break }
       }
@@ -177,7 +177,7 @@ export function serialize(root, { indent = '  ', extraAttrs, transformContent, t
     out.push(`${pad}</${node.tag}>`)
   }
   root.children.forEach((c, idx) => {
-    // línea en blanco entre bloques de primer nivel para legibilidad
+    // blank line between top-level blocks for readability
     if (idx > 0 && c.type === 'element') out.push('')
     walk(c, 0)
   })
@@ -186,13 +186,13 @@ export function serialize(root, { indent = '  ', extraAttrs, transformContent, t
 
 // ── Tree helpers ─────────────────────────────────────────────
 
-/** Si el nodo es exactamente un `$import(ruta, ...)` devuelve { path, params } */
+/** { path, params } when the node is exactly an `$import(path, ...)` */
 export function importCall(node) {
   if (node?.type !== 'text') return null
   return parseImportCall(node.value)
 }
 
-/** Ruta del `$import` si el nodo es una instancia de componente/parcial */
+/** Path of the `$import` when the node is a component/partial instance */
 export function importRef(node) {
   return importCall(node)?.path ?? null
 }
@@ -237,7 +237,7 @@ export function clone(node) {
   return JSON.parse(JSON.stringify(node))
 }
 
-/** Elimina el nodo `id` y lo devuelve */
+/** Removes node `id` and returns it */
 export function removeNode(root, id) {
   const parent = findNode(root, parentId(id))
   const idx = Number(String(id).split('.').pop())
@@ -246,7 +246,7 @@ export function removeNode(root, id) {
   return removed
 }
 
-/** Inserta `node` dentro de `parentNodeId` en la posición `index` */
+/** Inserts `node` into `parentNodeId` at position `index` */
 export function insertNode(root, parentNodeId, index, node) {
   const parent = findNode(root, parentNodeId)
   parent.children.splice(index, 0, node)
@@ -254,7 +254,7 @@ export function insertNode(root, parentNodeId, index, node) {
   return node.id
 }
 
-/** Mueve `id` a (parentNodeId, index) gestionando el desplazamiento de índices */
+/** Moves `id` to (parentNodeId, index), handling index shifts */
 export function moveNode(root, id, targetParentId, index) {
   const node = findNode(root, id)
   const parent = findNode(root, targetParentId)

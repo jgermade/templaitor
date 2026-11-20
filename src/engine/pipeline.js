@@ -17,7 +17,7 @@ import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, import
 
 const CONTENT_SLOT = `<mj-section css-class="tpl-slot" padding="16px 24px">
   <mj-column border="2px dashed #a5b4fc" border-radius="8px" padding="28px 0">
-    <mj-text align="center" color="#6366f1" font-size="13px" font-weight="600">⧉ Contenido de la plantilla</mj-text>
+    <mj-text align="center" color="#6366f1" font-size="13px" font-weight="600">⧉ Template content</mj-text>
   </mj-column>
 </mj-section>`
 
@@ -30,7 +30,7 @@ const HTML_TO_TEXT_OPTS = {
   ],
 }
 
-/** Idiomas definidos en el .yml (claves de `messages`), o el idioma por defecto */
+/** Languages defined in the .yml (keys of `messages`), or the default language */
 export function langsOf(project, i18n) {
   const keys = Object.keys(i18n?.messages || {})
   return keys.length ? keys : [project.defaultLocale]
@@ -44,8 +44,8 @@ export function subjectFor(i18n, langKey) {
 }
 
 /**
- * Compila una plantilla (texto fuente) para un idioma.
- * Devuelve HTML/TXT/subject con los tokens Jinja2 intactos.
+ * Compiles a template (source text) for one language.
+ * Returns HTML/TXT/subject with Jinja2 tokens intact.
  */
 export async function compileSource(project, { mjml, i18n = {}, links = {}, langKey, design = false, kind = 'template' }) {
   const locale = toLocale(project, langKey)
@@ -56,7 +56,7 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const warn = (m) => { if (!warnings.includes(m)) warnings.push(m) }
   const ctx = {
     lang: locale, country, langKey, kind, messages: i18n.messages?.[langKey] || {}, links, warnings,
-    // (modo diseño) lectura de $import para pintar instancias de componentes seleccionables
+    // (design mode) reads $import calls to draw selectable component instances
     expandImport: (call) => {
       const r = expandImport(project.templatesDir, call, warn)
       onImport(r.file)
@@ -67,15 +67,15 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 1. Frontmatter
   const { meta, body: rawBody } = parseFrontmatter(mjml)
 
-  // 2. (modo diseño) anotar nodos para el editor visual
+  // 2. (design mode) annotate nodes for the visual editor
   if (kind === 'component') ctx.params = meta.params
   let body = design ? annotateBody(rawBody, ctx) : rawBody
-  // un componente editado/previsualizado suelto usa los valores por defecto de sus parámetros
+  // a component edited/previewed on its own uses the default values of its parameters
   if (kind === 'component') body = applyParams(body, meta.params, [], warn)
-  // un layout se previsualiza con un hueco en lugar de $content
+  // a layout is previewed with a slot instead of $content
   if (kind === 'layout') body = body.replace('$content', () => CONTENT_SLOT)
 
-  // 3. $import + layout (un componente suelto se envuelve con el <mj-head> del layout de vista previa)
+  // 3. $import + layout (a standalone component is wrapped with the <mj-head> of the preview layout)
   const withImports = resolveImports(body, project.templatesDir, { onImport, warn })
   let unified = withImports
   if (meta.layout) {
@@ -84,43 +84,43 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
     unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport, warn })
   }
 
-  // Textos de los componentes importados (por defecto; la plantilla los sobrescribe)
+  // Texts of the imported components (defaults; the template overrides them)
   ctx.messages = { ...importedMessages(imported)[langKey], ...ctx.messages }
 
-  // 4. Comandos $ (compile-time)
+  // 4. $ commands (compile time)
   const resolved = resolveCommands(unified, ctx)
 
-  // 5. Proteger Jinja2 del compilador MJML
+  // 5. Protect Jinja2 from the MJML compiler
   const { content: guarded, map } = obfuscate(resolved)
 
   // 6. MJML → HTML
   const result = await mjml2html(guarded, { validationLevel: 'soft', minify: false })
   const errors = (result.errors || []).map(e => e.formattedMessage || e.message)
 
-  // 7. Restaurar Jinja2
+  // 7. Restore Jinja2
   let html = restore(result.html, map)
   const subjectRaw = resolveCommands(subjectFor(i18n, langKey), ctx).trim()
-  // PDF: CSS de impresión (@page) y título del documento
+  // PDF: print CSS (@page) and document title
   const format = isPdf(meta) ? 'pdf' : 'email'
   const pdf = format === 'pdf' ? pdfOptions(meta) : null
   if (pdf) {
     pdf.engine = pdf.engine || project.config.pdf?.engine || null
     html = injectPrintCss(html, pdf, { title: subjectRaw })
   }
-  // título del documento (lo leen los lectores de pantalla y se usa como título del PDF)
+  // document title (read by screen readers and used as the PDF title)
   if (subjectRaw && !/<title>[^<]+<\/title>/.test(html)) html = html.replace(/<title>\s*<\/title>/, `<title>${escapeHtml(subjectRaw)}</title>`)
-  // (el .txt también se protege: el wordwrap no debe partir tokens Jinja2)
+  // (the .txt is protected too: word-wrap must not split Jinja2 tokens)
   const textGuard = obfuscate(html)
   const text = restore(htmlToText(textGuard.content, HTML_TO_TEXT_OPTS), textGuard.map)
   const subject = subjectRaw
 
-  // 8. Accesibilidad (WCAG 2.1 AA)
+  // 8. Accessibility (WCAG 2.1 AA)
   const a11yReport = accessibilityReport(html, { format, sourceImages: imagesWithoutAlt(resolved) })
 
   return { locale, langKey, html, text, subject, meta, format, pdf, warnings, errors, a11y: a11yReport.issues, a11yReport }
 }
 
-/** Compila una plantilla del proyecto y escribe los ficheros en outDir */
+/** Compiles a project template and writes the files to outDir */
 export async function compileTemplate(project, id, { log = console.log, samplePdf = false, validate = false } = {}) {
   const tpl = readTemplate(project, id)
   const i18n = tpl.yml ? YAML.parse(tpl.yml) || {} : {}
@@ -137,7 +137,7 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
     fs.writeFileSync(`${base}.html`, r.html)
     files.push(`${base}.html`)
     if (r.format === 'pdf') {
-      // opciones para el renderizador (Chromium page.pdf) del backend
+      // options for the backend renderer
       fs.writeFileSync(`${base}.pdf.json`, `${JSON.stringify({
         title: r.subject,
         engine: r.pdf.engine || 'auto',
@@ -153,7 +153,7 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
         log?.(`  ✓ ${p.name}.${r.locale}.sample.pdf (${engine})`)
         if (validate) {
           const v = await validatePdf(sample)
-          log?.(`    ${v.compliant ? '✓' : '✕'} ${v.profile} · ${v.passedRules} reglas ✓ · ${v.failedRules} ✕`)
+          log?.(`    ${v.compliant ? '✓' : '✕'} ${v.profile} · ${v.passedRules} rules ✓ · ${v.failedRules} ✕`)
           for (const rule of v.rules) issues.push({ level: 'pdfua', template: p.id, locale: r.locale, message: `${rule.id} (${rule.checks}×) ${rule.hint || rule.description}` })
         }
         files.push(`${base}.sample.pdf`)
@@ -184,8 +184,8 @@ export async function compileProject(project, { target, log = console.log, sampl
 }
 
 /**
- * Vista previa de un borrador (sin guardar).
- * mode: 'design' → HTML anotado para el WYSIWYG · 'preview' → renderizado con datos de demo · 'raw' → salida Jinja2
+ * Preview of a draft (unsaved).
+ * mode: 'design' → annotated HTML for the WYSIWYG · 'preview' → rendered with demo data · 'raw' → Jinja2 output
  */
 export async function previewDraft(project, { mjml, yml = '', data = '{}', langKey, mode = 'preview', kind = 'template' }) {
   const warnings = []
@@ -210,13 +210,13 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
 }
 
 /**
- * PDF de un borrador renderizado con sus datos de demo (vista PDF del editor, `templaitor pdf`).
- * `engine`: motor a usar (si no, el de la plantilla / config / el primero disponible).
+ * PDF of a draft rendered with its demo data (editor PDF view, `templaitor pdf`).
+ * `engine`: engine to use (otherwise the template's / config's / the first available).
  */
 export async function renderDraftPdf(project, draft, { engine } = {}) {
   const r = await previewDraft(project, { ...draft, mode: 'preview' })
   if (r.format !== 'pdf') {
-    const err = new Error('La plantilla no es PDF (añade `format: pdf` al frontmatter)')
+    const err = new Error('The template is not a PDF document (add `format: pdf` to its frontmatter)')
     err.status = 400
     throw err
   }
@@ -224,7 +224,7 @@ export async function renderDraftPdf(project, draft, { engine } = {}) {
   return { pdf: out.pdf, engine: out.engine, result: r }
 }
 
-/** Renderiza y valida con veraPDF (PDF/UA-1) */
+/** Renders and validates with veraPDF (PDF/UA-1) */
 export async function validateDraftPdf(project, draft, opts = {}) {
   const { pdf, engine, result } = await renderDraftPdf(project, draft, opts)
   return { engine, locale: result.locale, validation: await validatePdf(pdf, { flavour: opts.flavour || 'ua1' }) }

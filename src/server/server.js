@@ -1,4 +1,4 @@
-// Servidor del editor: API JSON + ficheros estáticos del SPA (dist/editor)
+// Editor server: JSON API + static files of the SPA (dist/editor)
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,7 +41,7 @@ export function createHandler(project) {
         ...(fs.existsSync(project.linksFile) ? [rel(project, project.linksFile)] : []),
       ],
       links: readLinks(project),
-      smtp: project.smtp ? { label: project.smtp.label || 'Enviar', web: project.smtp.web || null } : null,
+      smtp: project.smtp ? { label: project.smtp.label || 'Send', web: project.smtp.web || null } : null,
       componentsDir: rel(project, project.componentsDir),
       assetsUrl: project.assetsUrl,
       pdf: pdfInfo(project),
@@ -51,25 +51,25 @@ export function createHandler(project) {
 
     'GET /api/components': () => listComponents(project),
 
-    // imágenes del directorio static (servidas en /static/)
+    // images from the static directory (served at /static/)
     'GET /api/assets': () => listAssets(project),
 
     'GET /api/layouts': () => listLayouts(project),
 
-    // validación PDF/UA-1 con veraPDF del PDF del borrador
+    // PDF/UA-1 validation (veraPDF) of the draft's PDF
     'POST /api/pdf/validate': ({ body }) => validateDraftPdf(project, {
       mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
     }, { engine: body.engine }),
 
     'POST /api/layouts': ({ body }) => createLayout(project, body.id),
 
-    // `kind`: 'template' (por defecto) | 'component' | 'layout'
+    // `kind`: 'template' (default) | 'component' | 'layout'
     'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
       ? readLayout(project, query.get('id'))
       : readTemplate(project, query.get('id'), kindOf(query.get('kind')))),
 
     'PUT /api/template': ({ body }) => {
-      // de un layout solo se guarda el MJML (textos y datos son de la plantilla de vista previa)
+      // only the MJML of a layout is saved (texts and data belong to the preview template)
       if (body.kind === 'layout') return writeLayout(project, body.id, body)
       validateDraft(body)
       return writeTemplate(project, body.id, body, kindOf(body.kind))
@@ -116,7 +116,7 @@ export function createHandler(project) {
     },
 
     'POST /api/send': async ({ body }) => {
-      if (!project.smtp) throw httpError(400, 'SMTP no configurado (añade `smtp` a templaitor.config.yml)')
+      if (!project.smtp) throw httpError(400, 'SMTP is not configured (add `smtp` to templaitor.config.yml)')
       const { default: nodemailer } = await import('nodemailer')
       const i18n = YAML.parse(body.yml || '') || {}
       const data = JSON5.parse(body.data || '{}')
@@ -136,7 +136,7 @@ export function createHandler(project) {
         text: renderJinja(r.text, data),
       }).catch((err) => {
         const where = `${project.smtp.host || 'localhost'}:${project.smtp.port || 1025}`
-        throw httpError(502, /ECONNREFUSED/.test(`${err.code} ${err.message}`) ? `No hay servidor SMTP en ${where} (¿Mailpit arrancado? make up)` : err.message)
+        throw httpError(502, /ECONNREFUSED/.test(`${err.code} ${err.message}`) ? `No SMTP server at ${where} (is Mailpit running? make up)` : err.message)
       })
       return { ok: true, messageId: info.messageId }
     },
@@ -146,11 +146,11 @@ export function createHandler(project) {
     const url = new URL(req.url, 'http://localhost')
     try {
       if (url.pathname === '/api/assets' && req.method === 'POST') {
-        // subida de imagen: cuerpo binario, nombre en ?name=
+        // image upload: binary body, name in ?name=
         return sendJson(res, saveAsset(project, url.searchParams.get('name'), await readRaw(req, 5 * 1024 * 1024 + 1)))
       }
       if (url.pathname === '/api/pdf' && req.method === 'POST') {
-        // PDF del borrador con los datos de demo
+        // PDF of the draft with the demo data
         const body = await readJson(req)
         const { pdf, result, engine } = await renderDraftPdf(project, {
           mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
@@ -165,7 +165,7 @@ export function createHandler(project) {
       }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]
-        if (!route) throw httpError(404, 'Ruta no encontrada')
+        if (!route) throw httpError(404, 'Route not found')
         const body = ['POST', 'PUT'].includes(req.method) ? await readJson(req) : null
         return sendJson(res, await route({ query: url.searchParams, body }))
       }
@@ -186,7 +186,7 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
     server.listen(port, host, () => {
       const url = `http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`
       console.log(`\n✎ templaitor · ${project.name} → ${url}\n`)
-      if (!fs.existsSync(EDITOR_DIST)) console.log('  (aviso) dist/editor no existe: ejecuta `npm run build` o usa `npm run dev`)\n')
+      if (!fs.existsSync(EDITOR_DIST)) console.log('  (warning) dist/editor does not exist: run `npm run build` or use `npm run dev`\n')
       if (open) import('node:child_process').then(({ exec }) => exec(`${process.platform === 'darwin' ? 'open' : 'xdg-open'} ${url}`))
       resolve(server)
     })
@@ -211,12 +211,12 @@ function rel(project, file) {
 }
 
 function validateDraft(body) {
-  if (!body?.id) throw httpError(400, 'Falta id')
+  if (!body?.id) throw httpError(400, 'Missing id')
   if (body.yml) {
-    try { YAML.parse(body.yml) } catch (e) { throw httpError(400, `YAML no válido: ${e.message.split('\n')[0]}`) }
+    try { YAML.parse(body.yml) } catch (e) { throw httpError(400, `Invalid YAML: ${e.message.split('\n')[0]}`) }
   }
   if (body.data) {
-    try { JSON5.parse(body.data) } catch (e) { throw httpError(400, `JSON5 no válido: ${e.message}`) }
+    try { JSON5.parse(body.data) } catch (e) { throw httpError(400, `Invalid JSON5: ${e.message}`) }
   }
 }
 
@@ -226,7 +226,7 @@ function readRaw(req, limit) {
     let size = 0
     req.on('data', (c) => {
       size += c.length
-      if (size > limit) { reject(httpError(413, 'La imagen supera 5 MB')); req.destroy() } else chunks.push(c)
+      if (size > limit) { reject(httpError(413, 'The image is larger than 5 MB')); req.destroy() } else chunks.push(c)
     })
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
@@ -236,8 +236,8 @@ function readRaw(req, limit) {
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let data = ''
-    req.on('data', c => { data += c; if (data.length > 5e6) reject(httpError(413, 'Demasiado grande')) })
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}) } catch { reject(httpError(400, 'JSON no válido')) } })
+    req.on('data', c => { data += c; if (data.length > 5e6) reject(httpError(413, 'Payload too large')) })
+    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}) } catch { reject(httpError(400, 'Invalid JSON')) } })
     req.on('error', reject)
   })
 }
@@ -249,13 +249,13 @@ function sendJson(res, data, status = 200) {
 
 function serveFile(res, rootDir, relPath, spaFallback = false) {
   let file = path.resolve(rootDir, decodeURIComponent(relPath))
-  if (file !== rootDir && !file.startsWith(rootDir + path.sep)) throw httpError(403, 'Prohibido')
+  if (file !== rootDir && !file.startsWith(rootDir + path.sep)) throw httpError(403, 'Forbidden')
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-    if (!spaFallback) throw httpError(404, 'No encontrado')
+    if (!spaFallback) throw httpError(404, 'Not found')
     file = path.join(rootDir, 'index.html')
     if (!fs.existsSync(file)) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' })
-      return res.end('Editor no compilado: ejecuta `npm run build`')
+      return res.end('The editor is not built: run `npm run build`')
     }
   }
   res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' })

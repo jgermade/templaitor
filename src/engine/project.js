@@ -1,15 +1,15 @@
-// Proyecto templaitor: configuración + acceso a ficheros de plantillas.
+// templaitor project: configuration + access to template files.
 //
-// Estructura (por defecto):
+// Layout (defaults):
 //   templaitor.config.yml
 //   templates/
 //     _layouts/*.mjml
-//     _partials/*.mjml           (opcional, vía $import)
+//     _partials/*.mjml           (optional, via $import)
 //     _shared/links.yml
-//     <grupo>/<nombre>/<nombre>.mjml   plantilla
-//                      <nombre>.yml    subject + messages por idioma
-//                      <nombre>.json5  datos de demo para la vista previa
-//   dist/                         salida compilada (Jinja2)
+//     <group>/<name>/<name>.mjml   template
+//                    <name>.yml    subject + messages per language
+//                    <name>.json5  demo data for the preview
+//   dist/                         compiled output (Jinja2)
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -55,22 +55,22 @@ export function loadProject(cwd = process.cwd(), overrides = {}) {
     defaultLocale: config.defaultLocale || Object.keys(config.locales || { en: 1 })[0],
     output: { text: true, subject: true, ...(config.output || {}) },
     smtp: config.smtp || null,
-    // prefijo con el que el editor inserta imágenes de `static` (se resuelve en runtime)
+    // prefix the editor uses when inserting images from `static` (resolved at runtime)
     assetsUrl: config.assetsUrl ?? '{{ assets_url }}',
   }
-  // layout cuyo <mj-head> se usa para previsualizar componentes sueltos
+  // layout whose <mj-head> is used to preview standalone components
   const layouts = listMjmlFiles(p.layoutsDir)
   const previewLayout = config.previewLayout ?? layouts[0]
   p.previewLayoutFile = previewLayout ? path.resolve(p.layoutsDir, previewLayout) : null
   return p
 }
 
-/** Directorio raíz según el tipo de documento: plantillas o componentes */
+/** Root directory for a document kind: templates or components */
 export function baseDir(project, kind = 'template') {
   return kind === 'component' ? project.componentsDir : project.templatesDir
 }
 
-/** Ruta para $import de un componente, relativa a la raíz de plantillas */
+/** $import path of a component, relative to the templates root */
 export function componentImportPath(project, id) {
   return `${path.relative(project.templatesDir, project.componentsDir).split(path.sep).join('/')}/${id}`
 }
@@ -79,7 +79,7 @@ export function toLocale(project, langKey) {
   return project.locales[langKey] || langKey
 }
 
-// ── Plantillas ────────────────────────────────────────────────
+// ── Templates ─────────────────────────────────────────────────
 
 function walkDocs(root) {
   const out = []
@@ -110,7 +110,7 @@ export function listTemplates(project) {
   return walkDocs(project.templatesDir).map(t => ({ ...t, kind: 'template' }))
 }
 
-/** Componentes reutilizables (con dónde se usan y su etiqueta raíz para el editor) */
+/** Reusable components (with where they are used and their root tag for the editor) */
 export function listComponents(project) {
   const sources = [
     ...listTemplates(project).map(t => ({ ref: t.id, kind: 'template', file: templatePaths(project, t.id).mjml })),
@@ -150,7 +150,7 @@ export function templatePaths(project, id, kind = 'template') {
 
 export function readTemplate(project, id, kind = 'template') {
   const p = templatePaths(project, id, kind)
-  if (!fs.existsSync(p.mjml)) throw httpError(404, `${kind === 'component' ? 'Componente' : 'Plantilla'} no encontrado: ${id}`)
+  if (!fs.existsSync(p.mjml)) throw httpError(404, `${kind === 'component' ? 'Component' : 'Template'} not found: ${id}`)
   return {
     kind,
     id: p.id,
@@ -172,7 +172,7 @@ export function writeTemplate(project, id, { mjml, yml, data }, kind = 'template
 
 export function createTemplate(project, id, { layout, langs, format } = {}) {
   const p = templatePaths(project, id)
-  if (fs.existsSync(p.mjml)) throw httpError(409, `Ya existe la plantilla ${p.id}`)
+  if (fs.existsSync(p.mjml)) throw httpError(409, `Template ${p.id} already exists`)
   const langKeys = langs?.length ? langs : Object.keys(project.config.locales || { en: 1 })
   const body = [
     '<mj-section background-color="#ffffff" padding="24px">',
@@ -192,7 +192,7 @@ export function createTemplate(project, id, { layout, langs, format } = {}) {
   const mjml = layout
     ? `---\n${fm}\n---\n\n${body}`
     : `${fm ? `---\n${fm}\n---\n\n` : ''}<mjml lang="$lang">\n  <mj-body>\n${body.split('\n').map(l => (l ? `    ${l}` : l)).join('\n')}  </mj-body>\n</mjml>\n`
-  // hereda lo que necesita el layout: variables Jinja2 y claves $t (con valores de otras plantillas)
+  // inherits what the layout needs: Jinja2 variables and $t keys (with values from other templates)
   const { vars, keys } = layout ? layoutNeeds(project, layout) : { vars: [], keys: [] }
   const known = knownValues(project)
   const messages = Object.fromEntries(langKeys.map(l => [l, {
@@ -224,8 +224,8 @@ function layoutNeeds(project, layout) {
 }
 
 /**
- * Textos que aportan los ficheros importados (componentes con su propio .yml),
- * por idioma. Sirven de valores por defecto: la plantilla puede sobrescribirlos.
+ * Texts provided by imported files (components with their own .yml), per
+ * language. They are defaults: the template can override them.
  */
 export function importedMessages(files) {
   const out = {}
@@ -238,7 +238,7 @@ export function importedMessages(files) {
 
 export function createComponent(project, id, { mjml, messages, data } = {}) {
   const p = templatePaths(project, id, 'component')
-  if (fs.existsSync(p.mjml)) throw httpError(409, `Ya existe el componente ${p.id}`)
+  if (fs.existsSync(p.mjml)) throw httpError(409, `Component ${p.id} already exists`)
   const langKeys = Object.keys(project.config.locales || { en: 1 })
   const body = mjml ?? [
     '<mj-section padding="16px 24px">',
@@ -256,7 +256,7 @@ export function createComponent(project, id, { mjml, messages, data } = {}) {
   }, 'component')
 }
 
-/** Valores ya usados en otras plantillas (datos de demo y mensajes) para reutilizarlos */
+/** Values already used by other templates (demo data and messages), to reuse them */
 function knownValues(project) {
   const data = {}
   const messages = {}
@@ -277,11 +277,11 @@ function knownValues(project) {
 const LAYOUT_ID = /^[\w.-]+\.mjml$/
 
 function layoutFile(project, id) {
-  if (!LAYOUT_ID.test(String(id || ''))) throw httpError(400, `Layout no válido: ${id}`)
+  if (!LAYOUT_ID.test(String(id || ''))) throw httpError(400, `Invalid layout: ${id}`)
   return path.join(project.layoutsDir, id)
 }
 
-/** Layouts con las plantillas que los usan (frontmatter `layout:`) */
+/** Layouts with the templates that use them (frontmatter `layout:`) */
 export function listLayouts(project) {
   const templates = listTemplates(project).map((t) => {
     const { meta } = parseFrontmatter(fs.readFileSync(templatePaths(project, t.id).mjml, 'utf8'))
@@ -296,12 +296,12 @@ export function listLayouts(project) {
 }
 
 /**
- * Documento de layout para el editor. Como un layout no tiene textos ni datos
- * propios, la vista previa usa los de la primera plantilla que lo usa (no se guardan).
+ * Layout document for the editor. A layout has no texts or data of its own, so
+ * the preview uses those of the first template using it (they are not saved).
  */
 export function readLayout(project, id) {
   const file = layoutFile(project, id)
-  if (!fs.existsSync(file)) throw httpError(404, `Layout no encontrado: ${id}`)
+  if (!fs.existsSync(file)) throw httpError(404, `Layout not found: ${id}`)
   const from = listLayouts(project).find(l => l.id === id)?.usedBy[0]?.id ?? null
   const tpl = from ? readTemplate(project, from) : null
   return {
@@ -317,7 +317,7 @@ export function readLayout(project, id) {
 
 export function writeLayout(project, id, { mjml }) {
   const file = layoutFile(project, id)
-  if (!mjml?.includes('$content')) throw httpError(400, 'El layout debe contener $content (donde va cada plantilla)')
+  if (!mjml?.includes('$content')) throw httpError(400, 'The layout must contain $content (where each template goes)')
   fs.writeFileSync(file, mjml)
   return readLayout(project, id)
 }
@@ -325,7 +325,7 @@ export function writeLayout(project, id, { mjml }) {
 export function createLayout(project, id) {
   const name = String(id || '').trim().replace(/\.mjml$/, '')
   const file = layoutFile(project, `${name}.mjml`)
-  if (fs.existsSync(file)) throw httpError(409, `Ya existe el layout ${name}.mjml`)
+  if (fs.existsSync(file)) throw httpError(409, `Layout ${name}.mjml already exists`)
   fs.mkdirSync(project.layoutsDir, { recursive: true })
   fs.writeFileSync(file, [
     '<mjml lang="$lang">',
@@ -347,12 +347,12 @@ export function createLayout(project, id) {
 export function deleteLayout(project, id) {
   const file = layoutFile(project, id)
   const used = listLayouts(project).find(l => l.id === id)?.usedBy || []
-  if (used.length) throw httpError(409, `El layout se usa en: ${used.map(u => u.id).join(', ')}`)
-  if (!fs.existsSync(file)) throw httpError(404, `Layout no encontrado: ${id}`)
+  if (used.length) throw httpError(409, `The layout is used by: ${used.map(u => u.id).join(', ')}`)
+  if (!fs.existsSync(file)) throw httpError(404, `Layout not found: ${id}`)
   fs.rmSync(file)
 }
 
-// ── Imágenes (directorio static) ─────────────────────────────
+// ── Images (static directory) ─────────────────────────────
 
 export const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i
 
@@ -373,8 +373,8 @@ export function listAssets(project) {
 
 export function saveAsset(project, name, buffer) {
   const clean = String(name || '').toLowerCase().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')
-  if (!clean || !IMAGE_EXT.test(clean)) throw httpError(400, 'Solo se admiten imágenes png, jpg, gif, webp o svg')
-  if (buffer.length > 5 * 1024 * 1024) throw httpError(413, 'La imagen supera 5 MB')
+  if (!clean || !IMAGE_EXT.test(clean)) throw httpError(400, 'Only png, jpg, gif, webp or svg images are allowed')
+  if (buffer.length > 5 * 1024 * 1024) throw httpError(413, 'The image is larger than 5 MB')
   fs.mkdirSync(project.staticDir, { recursive: true })
   let file = clean
   const ext = path.extname(clean)
@@ -389,9 +389,9 @@ export function readLinks(project) {
 
 export function deleteTemplate(project, id, kind = 'template') {
   const p = templatePaths(project, id, kind)
-  if (!fs.existsSync(p.mjml)) throw httpError(404, `Plantilla no encontrada: ${id}`)
+  if (!fs.existsSync(p.mjml)) throw httpError(404, `Template not found: ${id}`)
   for (const f of [p.mjml, p.yml, p.data]) if (fs.existsSync(f)) fs.rmSync(f)
-  // limpia carpetas vacías (plantilla y grupos) hasta la raíz de plantillas
+  // removes empty folders (template and groups) up to the templates root
   let dir = p.dir
   const root = baseDir(project, kind)
   while (dir.startsWith(root + path.sep) && !fs.readdirSync(dir).length) {
@@ -400,7 +400,7 @@ export function deleteTemplate(project, id, kind = 'template') {
   }
 }
 
-// ── Layouts / parciales / links ───────────────────────────────
+// ── Layouts / partials / links ───────────────────────────────
 
 export function listMjmlFiles(dir) {
   if (!fs.existsSync(dir)) return []
@@ -412,18 +412,18 @@ export function readYaml(file) {
   return YAML.parse(fs.readFileSync(file, 'utf8'))
 }
 
-/** Lectura/escritura de ficheros auxiliares (layouts, parciales, links) dentro del directorio de plantillas */
+/** Read/write auxiliary files (layouts, partials, links) inside the templates directory */
 export function resolveAuxFile(project, rel) {
   const full = path.resolve(project.templatesDir, rel)
-  if (!full.startsWith(project.templatesDir + path.sep)) throw httpError(400, 'Ruta no permitida')
-  if (!/\.(mjml|ya?ml|json5?)$/.test(full)) throw httpError(400, 'Tipo de fichero no permitido')
+  if (!full.startsWith(project.templatesDir + path.sep)) throw httpError(400, 'Path not allowed')
+  if (!/\.(mjml|ya?ml|json5?)$/.test(full)) throw httpError(400, 'File type not allowed')
   return full
 }
 
 function sanitizeId(id) {
   const clean = String(id || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
   if (!clean || clean.split('/').some(s => !s || s === '..' || s === '.' || s.startsWith('_') || !/^[\w.-]+$/.test(s))) {
-    throw httpError(400, `Id de plantilla no válido: ${id}`)
+    throw httpError(400, `Invalid template id: ${id}`)
   }
   return clean
 }

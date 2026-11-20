@@ -1,6 +1,6 @@
 <script>
-  // Campo de imagen: URL + miniatura + galería de imágenes del proyecto + subida.
-  // Store-agnostic: recibe la lista de imágenes y las funciones por props.
+  // Image field: URL + thumbnail + gallery of project images + upload.
+  // Store-agnostic: receives the image list and the callbacks as props.
   let {
     value = '', placeholder = '', onchange,
     assets = [], assetsUrl = '', resolve = (v) => v, onupload,
@@ -30,10 +30,10 @@
 
 <div class="image-field">
   <div class="row">
-    <button type="button" class="thumb" class:empty={!src} onclick={() => (open = !open)} title="Elegir imagen">
+    <button type="button" class="thumb" class:empty={!src} onclick={() => (open = !open)} title="Choose an image">
       {#if src}<img src={src} alt="" />{:else}🖼{/if}
     </button>
-    <input type="text" class="mono" {value} placeholder={placeholder || 'https://… o {{ variable }}'} oninput={(e) => onchange(e.currentTarget.value)} />
+    <input type="text" class="mono" {value} placeholder={placeholder || 'https://… or {{ variable }}'} oninput={(e) => onchange(e.currentTarget.value)} />
   </div>
   {#if open}
     <div class="gallery">
@@ -43,11 +43,11 @@
           <span>{a.path}</span>
         </button>
       {:else}
-        <p class="muted">No hay imágenes en el proyecto.</p>
+        <p class="muted">There are no images in the project.</p>
       {/each}
       {#if onupload}
         <button type="button" class="item upload" disabled={busy} onclick={() => input.click()}>
-          <span class="plus">{busy ? '…' : '＋'}</span><span>Subir imagen</span>
+          <span class="plus">{busy ? '…' : '＋'}</span><span>Upload image</span>
         </button>
         <input bind:this={input} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden onchange={upload} />
       {/if}

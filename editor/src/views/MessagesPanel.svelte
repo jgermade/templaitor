@@ -29,11 +29,11 @@
     {@const locale = store.project?.locales?.[l] || l}
     <span class="lang" class:active={store.lang === l}>
       <button class="ghost" onclick={() => (store.lang = l)} title={locale}>{flagOf(locale) ?? ''} <span class="mono">{l}</span></button>
-      {#if store.langs.length > 1}<button class="ghost x" title="Eliminar idioma {l}" onclick={() => store.removeLang(l)}>✕</button>{/if}
+      {#if store.langs.length > 1}<button class="ghost x" title="Remove language {l}" onclick={() => store.removeLang(l)}>✕</button>{/if}
     </span>
   {/each}
   <form onsubmit={(e) => { e.preventDefault(); store.addLang(newLang.trim(), store.lang); newLang = '' }}>
-    <input class="mono" placeholder="+ idioma" bind:value={newLang} list="tpl-langs" size="6" />
+    <input class="mono" placeholder="+ language" bind:value={newLang} list="tpl-langs" size="6" />
     <datalist id="tpl-langs">
       {#each Object.keys(store.project?.locales || {}).filter(l => !store.langs.includes(l)) as l}<option value={l}></option>{/each}
     </datalist>
@@ -45,17 +45,17 @@
     {@const msg = store.messages[key]}
     <li class:missing={msg == null}>
       <div class="k">
-        <code title={used.has(key) ? 'Usada en la plantilla' : 'No se usa en la plantilla'} class:unused={!used.has(key)}>{key}</code>
-        {#if msg == null}<span class="warn">sin traducción</span>{/if}
-        <button class="ghost x" title="Eliminar la clave en todos los idiomas" onclick={() => store.removeKey(key)}>✕</button>
+        <code title={used.has(key) ? 'Used by the template' : 'Not used by the template'} class:unused={!used.has(key)}>{key}</code>
+        {#if msg == null}<span class="warn">missing translation</span>{/if}
+        <button class="ghost x" title="Remove the key in every language" onclick={() => store.removeKey(key)}>✕</button>
       </div>
       <textarea rows="1" use:autosize={msg} value={msg == null ? '' : String(msg).trim()} oninput={(e) => store.setMessage(store.lang, key, e.currentTarget.value)}></textarea>
     </li>
   {/each}
 </ul>
 <form class="add" onsubmit={add}>
-  <input class="mono" placeholder="nueva_clave" bind:value={newKey} />
-  <button type="submit" disabled={!newKey.trim()}>Añadir</button>
+  <input class="mono" placeholder="new_key" bind:value={newKey} />
+  <button type="submit" disabled={!newKey.trim()}>Add</button>
 </form>
 
 <style>

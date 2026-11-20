@@ -1,4 +1,4 @@
-// Bandera emoji a partir del locale (es-ES → 🇪🇸). Sin región: se devuelve null.
+// Flag emoji from a locale (es-ES → 🇪🇸). Without a region: null.
 const SPECIAL = { 'ca-ES': '🏴󠁥󠁳󠁣󠁴󠁿', 'eu-ES': '🏴', 'gl-ES': '🏴', 'en-GB': '🇬🇧' }
 
 export function flagOf(locale) {

@@ -9,7 +9,7 @@
   {#each store.tree.children as node (node.id)}
     <OutlineNode {node} {drag} />
   {:else}
-    <div class="empty">Vacío. Añade una sección desde «Bloques».</div>
+    <div class="empty">Empty. Add a section from "Blocks".</div>
   {/each}
 </div>
 

@@ -17,7 +17,7 @@ import YAML from 'yaml'
 
 const DEMO = path.resolve(import.meta.dirname, '../examples/demo')
 
-test('parser: round-trip conserva comandos, Jinja2 y contenido', () => {
+test('parser: round-trip keeps commands, Jinja2 and content', () => {
   const src = `<mj-section padding="0">
   <mj-column>
     <mj-text color="#111">$t('title') <b>{{ name }}</b></mj-text>
@@ -39,7 +39,7 @@ $import(_partials/footer.mjml)
   assert.equal(tree.children[3].type, 'comment')
 })
 
-test('parser: moveNode reasigna ids', () => {
+test('parser: moveNode reassigns ids', () => {
   const tree = parse('<mj-section><mj-column><mj-text>a</mj-text><mj-text>b</mj-text></mj-column></mj-section>')
   moveNode(tree, '0.0.1', '0.0', 0)
   assert.equal(findNode(tree, '0.0.0').content, 'b')
@@ -52,30 +52,30 @@ test('frontmatter', () => {
   assert.equal(body, '<mj-section />')
 })
 
-test('comandos $: t, link, if, lang, recursivos', () => {
+test('$ commands: t, link, if, lang, recursive', () => {
   const ctx = {
     lang: 'es-ES', country: 'ES', warnings: [],
-    messages: { a: "Hola $t('b')", b: 'mundo', nested: { k: 'anidado' } },
+    messages: { a: "Hello $t('b')", b: 'world', nested: { k: 'nested' } },
     links: { home: 'https://x.y' },
   }
-  assert.equal(resolveCommands("$t('a')", ctx), 'Hola mundo')
-  assert.equal(resolveCommands("$t('nested.k')", ctx), 'anidado')
+  assert.equal(resolveCommands("$t('a')", ctx), 'Hello world')
+  assert.equal(resolveCommands("$t('nested.k')", ctx), 'nested')
   assert.equal(resolveCommands('$link{ home, label: Inicio }', ctx), '<a href="https://x.y">Inicio</a>')
-  assert.equal(resolveCommands("$if($lang === 'es-ES')sí$else no$end", ctx), 'sí')
+  assert.equal(resolveCommands("$if($lang === 'es-ES')yes$else no$end", ctx), 'yes')
   assert.equal(resolveCommands("$t('nope')", ctx), '')
   assert.equal(ctx.warnings.length, 1)
 })
 
-test('guard: protege {{ }}, {% %} y {# #}', () => {
+test('guard: protects {{ }}, {% %} and {# #}', () => {
   const src = '<a href="{{ u }}">{% if a %}x{# c #}{% endif %}</a>'
   const { content, map } = obfuscate(src)
   assert.doesNotMatch(content, /[{}]/)
   assert.equal(restore(content, map), src)
 })
 
-test('modo diseño: anota nodos y crea regiones editables con chips', () => {
+test('design mode: annotates nodes and creates editable regions with chips', () => {
   const out = annotateBody("<mj-section><mj-column><mj-text>$t('hi')</mj-text><mj-text>Hola {{ n }}</mj-text></mj-column></mj-section>", {
-    messages: { hi: 'Hola {{ name }}' },
+    messages: { hi: 'Hello {{ name }}' },
   })
   assert.match(out, /css-class="tpl-node tpl-node--0"/)
   assert.match(out, /data-tpl-edit="t:hi"/)
@@ -84,11 +84,11 @@ test('modo diseño: anota nodos y crea regiones editables con chips', () => {
   assert.match(chipify('{{ a }}'), /tpl-chip--var/)
 })
 
-test('compilación del proyecto demo: Jinja2 intacto en HTML/TXT/subject', async () => {
+test('demo project compilation: Jinja2 intact in HTML/TXT/subject', async () => {
   const project = loadProject(DEMO, { outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-')) })
   const { files, issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0, JSON.stringify(issues))
-  // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (por idioma)
+  // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (per language)
   const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0)
   assert.equal(files.length, expected)
   const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
@@ -97,25 +97,25 @@ test('compilación del proyecto demo: Jinja2 intacto en HTML/TXT/subject', async
   assert.match(html, /href="\{\{ tracking_url \}\}"/)
   assert.match(html, /lang="es-ES"/)
   const txt = fs.readFileSync(`${base}.txt`, 'utf8')
-  for (const tok of txt.match(/\{\{[\s\S]*?\}\}/g)) assert.doesNotMatch(tok, /\n/, 'el wordwrap no debe partir tokens')
+  for (const tok of txt.match(/\{\{[\s\S]*?\}\}/g)) assert.doesNotMatch(tok, /\n/, 'word-wrap must not split tokens')
   assert.equal(fs.readFileSync(`${base}.subject.txt`, 'utf8'), 'Pedido #{{ order_id }} confirmado')
 })
 
-test('vista previa: renderiza con datos de demo', async () => {
+test('preview: renders with demo data', async () => {
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'orders/order-confirmation')
   const r = await previewDraft(project, { ...tpl, langKey: 'en' })
   assert.equal(r.subject, 'Order #A-1042 confirmed')
-  assert.match(r.html, /Teclado mecánico/)
+  assert.match(r.html, /Mechanical keyboard/)
   assert.deepEqual(r.warnings, [])
 })
 
-test('createTemplate: genera una plantilla que compila', async () => {
+test('createTemplate: creates a template that compiles', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-'))
   fs.writeFileSync(path.join(dir, 'templaitor.config.yml'), 'locales:\n  es: es-ES\n  en: en-US\n')
   const project = loadProject(dir)
   createTemplate(project, 'misc/hello')
-  assert.throws(() => createTemplate(project, '../evil'), /no válido/)
+  assert.throws(() => createTemplate(project, '../evil'), /Invalid template id/)
   const { issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0)
   assert.ok(fs.existsSync(path.join(dir, 'dist/misc/hello/hello.en-US.html')))
@@ -127,7 +127,7 @@ function stripIds(node) {
   return rest
 }
 
-test('componentes: $import de carpeta, textos propios y sobrescritura desde la plantilla', async () => {
+test('components: folder $import, own texts and overrides from the template', async () => {
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'customers/email-verification')
   const r = await previewDraft(project, { ...tpl, langKey: 'en' })
@@ -139,7 +139,7 @@ test('componentes: $import de carpeta, textos propios y sobrescritura desde la p
   assert.doesNotMatch(r2.text, /The Acme team/)
 })
 
-test('componentes: listado con usos y modo diseño selecciona la instancia entera', async () => {
+test('components: listing with usages, and design mode selects the whole instance', async () => {
   const project = loadProject(DEMO)
   const comps = Object.fromEntries(listComponents(project).map(c => [c.id, c]))
   assert.deepEqual(comps.signature.usedBy.map(u => u.id).sort(), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
@@ -150,22 +150,22 @@ test('componentes: listado con usos y modo diseño selecciona la instancia enter
   const c = readTemplate(project, 'legal-notice', 'component')
   const cp = await previewDraft(project, { ...c, kind: 'component' })
   assert.deepEqual(cp.errors, [])
-  assert.match(cp.html, /Inter/, 'usa el <mj-head> del layout')
+  assert.match(cp.html, /Inter/, 'uses the layout <mj-head>')
 })
 
-test('imports: parámetros con comillas, comas y paréntesis', () => {
+test('imports: parameters with quotes, commas and parentheses', () => {
   const t = `x $import(_components/cta, url="{{ a }}/v?x=1,y", label="$t('cta')", note='di "hola"') y`
   const [call] = findImportCalls(t)
   assert.equal(call.path, '_components/cta')
   assert.deepEqual(call.params, [['url', '{{ a }}/v?x=1,y'], ['label', "$t('cta')"], ['note', 'di "hola"']])
   assert.deepEqual(parseImportCall(formatImportCall(call.path, call.params)).params, call.params)
   assert.equal(applyParams('$param.a|$param.b|$param.c', { a: 'A', b: { default: 'B' } }, [['b', 'X']]), 'A|X|')
-  // el parser trata cada $import (aunque lleve paréntesis en los argumentos) como un nodo
+  // the parser treats every $import (even with parentheses in its arguments) as one node
   const tree = parse(`<mj-section />\n${t.slice(2, -2)}\n<mj-section />`)
   assert.equal(tree.children[1].value, t.slice(2, -2))
 })
 
-test('componentes con parámetros: valores por instancia, por defecto y Jinja2 intacto', async () => {
+test('components with parameters: per-instance values, defaults and intact Jinja2', async () => {
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'orders/order-confirmation')
   const r = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
@@ -182,11 +182,11 @@ test('componentes con parámetros: valores por instancia, por defecto y Jinja2 i
   assert.equal(comps['cta-button'].usedBy.length, 2)
 })
 
-test('parámetros image y boolean', async () => {
+test('image and boolean parameters', async () => {
   assert.equal(applyParams('$if($param.show)S$end', { show: { type: 'boolean', default: true } }, [['show', 'no']]), '$if(false)S$end')
   assert.equal(applyParams('$param.show', { show: { type: 'boolean', default: 'yes' } }), 'true')
   const warnings = []
-  assert.equal(applyParams('$param.show', { show: { type: 'boolean' } }, [['show', 'quizá']], w => warnings.push(w)), 'false')
+  assert.equal(applyParams('$param.show', { show: { type: 'boolean' } }, [['show', 'maybe']], w => warnings.push(w)), 'false')
   assert.equal(warnings.length, 1)
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'orders/order-confirmation')
@@ -196,10 +196,10 @@ test('parámetros image y boolean', async () => {
   const without = await previewDraft(project, { ...tpl, mjml: tpl.mjml.replace('show_caption="true"', 'show_caption="false"'), langKey: 'es' })
   assert.doesNotMatch(without.text, /Tu pedido ya está en preparación/)
   const raw = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
-  assert.match(raw.html, /src="\{\{ assets_url \}\}\/banner-order\.svg"/, 'la URL de la imagen conserva el Jinja2')
+  assert.match(raw.html, /src="\{\{ assets_url \}\}\/banner-order\.svg"/, 'the image URL keeps its Jinja2')
 })
 
-test('layouts: listado con usos, vista previa con hueco y textos no editables', async () => {
+test('layouts: listing with usages, preview with a slot and non-editable texts', async () => {
   const project = loadProject(DEMO)
   const [base] = listLayouts(project)
   assert.equal(base.id, 'base.layout.mjml')
@@ -208,19 +208,19 @@ test('layouts: listado con usos, vista previa con hueco y textos no editables', 
   assert.equal(doc.previewFrom, base.usedBy[0].id)
   const d = await previewDraft(project, { ...doc, kind: 'layout', mode: 'design' })
   assert.deepEqual(d.errors, [])
-  assert.match(d.html, /Contenido de la plantilla/)
+  assert.match(d.html, /Template content/)
   assert.doesNotMatch(d.html, /data-tpl-edit="t:/)
   assert.throws(() => writeLayout(project, base.id, { mjml: '<mjml><mj-body></mj-body></mjml>' }), /\$content/)
-  assert.throws(() => readLayout(project, '../x.mjml'), /no válido/)
+  assert.throws(() => readLayout(project, '../x.mjml'), /Invalid layout/)
 })
 
-test('accesibilidad: detecta incidencias y el demo cumple WCAG 2.1 AA', async () => {
+test('accessibility: detects issues and the demo meets WCAG 2.1 AA', async () => {
   const bad = `<!doctype html><html lang="und"><head><title></title></head><body style="background-color:#f4f4f5">
-    <div style="color:#9ca3af;font-size:11px">Texto gris</div><img src="x.png"><a href="/x">aquí</a><a href="/y"><img src="y.png" alt=""></a>
+    <div style="color:#9ca3af;font-size:11px">Grey text</div><img src="x.png"><a href="/x">aquí</a><a href="/y"><img src="y.png" alt=""></a>
     <table><tr><td>a</td><td>b</td></tr></table></body></html>`
   const rules = accessibilityReport(bad).issues.map(i => i.rule)
   for (const r of ['lang', 'title', 'headings', 'img-alt', 'link-vague', 'link-name', 'table-headers', 'contrast', 'font-size']) {
-    assert.ok(rules.includes(r), `debería detectar ${r}`)
+    assert.ok(rules.includes(r), `should detect ${r}`)
   }
   assert.equal(Math.round(contrast(parseColor('#ffffff'), parseColor('#000')) * 10) / 10, 21)
   const project = loadProject(DEMO)
@@ -228,37 +228,37 @@ test('accesibilidad: detecta incidencias y el demo cumple WCAG 2.1 AA', async ()
     const tpl = readTemplate(project, t.id)
     for (const lang of t.langs) {
       const r = await previewDraft(project, { ...tpl, langKey: lang })
-      assert.deepEqual(r.a11y, [], `${t.id} (${lang}) no cumple: ${r.a11y.map(i => i.message).join('; ')}`)
+      assert.deepEqual(r.a11y, [], `${t.id} (${lang}) does not comply: ${r.a11y.map(i => i.message).join('; ')}`)
     }
   }
 })
 
-test('semántica: títulos que heredan el estilo y se pueden quitar', () => {
+test('semantics: headings inherit the style and can be removed', () => {
   const h = setHeadingLevel("$t('title')", 1)
   assert.match(h, /^<h1 style="margin:0;font:inherit/)
   assert.equal(headingLevel(h), 1)
   assert.equal(headingLevel(setHeadingLevel(h, 2)), 2)
   assert.equal(setHeadingLevel(h, 0), "$t('title')")
-  assert.equal(rewrap(h, 'Hola'), h.replace("$t('title')", 'Hola'))
+  assert.equal(rewrap(h, 'Hello'), h.replace("$t('title')", 'Hello'))
 })
 
-test('PDF: opciones de página y HTML de impresión común a todos los motores', async () => {
+test('PDF: page options and print HTML shared by every engine', async () => {
   const o = pdfOptions({ pdf: { size: 'A4', margin: '15mm', footer: '{page} / {pages}' } })
   assert.equal(contentWidthPx(o), 680)
   assert.equal(o.margin.bottom, '20mm')
-  assert.equal(marginBoxContent('Pág. {page} de {pages}'), '"Pág. " counter(page) " de " counter(pages)')
+  assert.equal(marginBoxContent('Page {page} of {pages}'), '"Page " counter(page) " of " counter(pages)')
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'documents/invoice')
   const r = await previewDraft(project, { ...tpl, langKey: 'es' })
   assert.equal(r.format, 'pdf')
   assert.match(r.html, /@page \{ size: A4 portrait/)
   assert.match(r.html, /@bottom-center \{ content: counter\(page\) " \/ " counter\(pages\)/)
-  assert.match(r.html, /\.mj-column-per-50 \{ width:50% !important/, 'columnas de escritorio fuera de @media')
+  assert.match(r.html, /\.mj-column-per-50 \{ width:50% !important/, 'desktop columns outside @media')
   assert.match(r.html, /<title>Factura 2026-0042 · Acme<\/title>/)
   assert.doesNotMatch(r.html, /aria-roledescription="email"/)
 })
 
-test('PDF: cada motor disponible renderiza; veraPDF confirma PDF/UA-1 en los motores que lo soportan', { timeout: 240000 }, async () => {
+test('PDF: every available engine renders; veraPDF confirms PDF/UA-1 for the engines that support it', { timeout: 240000 }, async () => {
   const { renderDraftPdf } = await import('../src/engine/pipeline.js')
   const { closePdfBrowser, listEngines } = await import('../src/engine/pdf.js')
   const { validatePdf, verapdfRunner } = await import('../src/engine/verapdf.js')
@@ -274,8 +274,8 @@ test('PDF: cada motor disponible renderiza; veraPDF confirma PDF/UA-1 en los mot
     assert.ok(raw.startsWith('%PDF'), e.id)
     if (canValidate) {
       const v = await validatePdf(pdf)
-      if (e.pdfua) assert.ok(v.compliant, `${e.id} debería cumplir PDF/UA-1: ${v.rules.map(r => r.id).join(', ')}`)
-      else assert.equal(v.compliant, false, `${e.id} está marcado como sin PDF/UA`)
+      if (e.pdfua) assert.ok(v.compliant, `${e.id} should meet PDF/UA-1: ${v.rules.map(r => r.id).join(', ')}`)
+      else assert.equal(v.compliant, false, `${e.id} is flagged as not PDF/UA`)
     }
   }
   await closePdfBrowser()

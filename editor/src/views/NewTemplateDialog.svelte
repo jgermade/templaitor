@@ -23,7 +23,7 @@
       id = ''
       await store.refreshTemplates()
       await store.open(t.id)
-      store.notify(`Plantilla ${t.id} creada`)
+      store.notify(`Template ${t.id} created`)
     } catch (err) {
       error = err.message
     }
@@ -32,33 +32,33 @@
 
 <dialog bind:this={dialog} onclose={() => (open = false)}>
   <form onsubmit={submit}>
-    <h3>Nueva plantilla</h3>
+    <h3>New template</h3>
     <label class="field">
-      <span>Identificador (carpeta/nombre)</span>
+      <span>Id (folder/name)</span>
       <input class="mono" placeholder="customers/welcome" bind:value={id} required pattern="[\w.\-]+(/[\w.\-]+)*" />
     </label>
     <label class="field">
-      <span>Formato</span>
+      <span>Format</span>
       <select bind:value={format} onchange={() => {
-        // propone un layout acorde al formato (los de documento suelen llamarse document*)
+        // suggests a layout matching the format (document layouts are usually called document*)
         const ls = store.project?.layouts || []
         layout = (format === 'pdf' ? ls.find(l => /document|pdf/i.test(l)) : ls.find(l => !/document|pdf/i.test(l))) || ls[0] || ''
       }}>
         <option value="email">Email</option>
-        <option value="pdf">Documento PDF</option>
+        <option value="pdf">PDF document</option>
       </select>
     </label>
     <label class="field">
       <span>Layout</span>
       <select bind:value={layout}>
         {#each store.project?.layouts || [] as l}<option value={l}>{l}</option>{/each}
-        <option value="">Ninguno (documento MJML completo)</option>
+        <option value="">None (full MJML document)</option>
       </select>
     </label>
     {#if error}<p class="error">{error}</p>{/if}
     <div class="actions">
-      <button type="button" onclick={() => (open = false)}>Cancelar</button>
-      <button type="submit" class="primary">Crear</button>
+      <button type="button" onclick={() => (open = false)}>Cancel</button>
+      <button type="submit" class="primary">Create</button>
     </div>
   </form>
 </dialog>

@@ -14,7 +14,7 @@
     ['mjml', `${name}.mjml`],
     ['yml', `${name}.yml`],
     ['data', `${name}.json5`],
-    ['files', 'Layouts y compartidos'],
+    ['files', 'Layouts and shared files'],
   ])
 
   $effect(() => {
@@ -22,7 +22,7 @@
   })
 
   async function openAux(path) {
-    if (aux.content !== aux.saved && !(await confirmDialog({ title: 'Cambios sin guardar', message: `Hay cambios sin guardar en ${auxPath}. ¿Descartarlos?`, okLabel: 'Descartar', danger: true }))) return
+    if (aux.content !== aux.saved && !(await confirmDialog({ title: 'Unsaved changes', message: `${auxPath} has unsaved changes. Discard them?`, okLabel: 'Discard', danger: true }))) return
     const f = await api.file(path)
     auxPath = path
     aux = { content: f.content, saved: f.content }
@@ -32,7 +32,7 @@
     try {
       await api.saveFile(auxPath, aux.content)
       aux = { ...aux, saved: aux.content }
-      store.notify(`Guardado ${auxPath}`)
+      store.notify(`Saved ${auxPath}`)
       store.previewNonce++
       if (auxPath.endsWith('.yml')) store.refreshTemplates()
     } catch (e) { store.notify(e.message, 'error') }
@@ -61,7 +61,7 @@
             {#each store.project?.files || [] as f}<option value={f}>{f}</option>{/each}
           </select>
           <span class="grow"></span>
-          <button class="primary" disabled={aux.content === aux.saved} onclick={saveAux}>Guardar fichero</button>
+          <button class="primary" disabled={aux.content === aux.saved} onclick={saveAux}>Save file</button>
         </div>
         {#key auxPath}
           {#if auxPath}

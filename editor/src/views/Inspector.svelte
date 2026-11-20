@@ -18,11 +18,11 @@
     return parts.map((_, i) => {
       const id = parts.slice(0, i + 1).join('.')
       const n = findNode(store.tree, id)
-      return { id, label: n?.tag ? describe(n.tag).label : store.instanceOf(n)?.name ?? 'Código' }
+      return { id, label: n?.tag ? describe(n.tag).label : store.instanceOf(n)?.name ?? 'Code' }
     })
   })
 
-  // variables disponibles: claves de los datos de demo (hasta 2 niveles) + links
+  // available variables: demo data keys (up to 2 levels) + links
   const variables = $derived.by(() => {
     const out = []
     const walk = (obj, prefix, depth) => {
@@ -45,7 +45,7 @@
   {#if node}
     <div class="head">
       <nav class="crumbs">
-        <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Plantilla'}</button>
+        <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : 'Template'}</button>
         {#each crumbs as c}
           <span class="muted">›</span>
           <button class="ghost" class:cur={c.id === store.selectedId} onclick={() => (store.selectedId = c.id)}>{c.label}</button>
@@ -53,27 +53,27 @@
       </nav>
       <div class="title">
         <span class="ic" class:comp={instance}>{def?.icon ?? (instance ? '◆' : '$')}</span>
-        <b>{def?.label ?? (instance ? instance.name : 'Código')}</b>
+        <b>{def?.label ?? (instance ? instance.name : 'Code')}</b>
         {#if node.tag}<code class="muted">&lt;{node.tag}&gt;</code>{/if}
         <span class="grow"></span>
         {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
-          <button class="ghost" title="Duplicar" onclick={() => store.duplicate(node.id)}>⧉</button>
-          <button class="ghost danger" title="Eliminar (Supr)" onclick={() => store.removeSelected()}>🗑</button>
+          <button class="ghost" title="Duplicate" onclick={() => store.duplicate(node.id)}>⧉</button>
+          <button class="ghost danger" title="Delete (Del)" onclick={() => store.removeSelected()}>🗑</button>
         {/if}
-        <button class="ghost" title="Cerrar (Esc)" onclick={() => (store.selectedId = null)}>✕</button>
+        <button class="ghost" title="Close (Esc)" onclick={() => (store.selectedId = null)}>✕</button>
       </div>
     </div>
 
     <div class="body">
       {#if instance}
         <section class="comp">
-          <div class="panel-title">Componente reutilizable</div>
+          <div class="panel-title">Reusable component</div>
           {#if instance.comp}
-            <p>Este bloque es una instancia de <b>◆ {instance.comp.name}</b>, usado en {instance.comp.usedBy.length} sitio(s). Los cambios en el componente se aplican en todos.</p>
+            <p>This block is an instance of <b>◆ {instance.comp.name}</b>, used in {instance.comp.usedBy.length} place(s). Changes to the component apply everywhere.</p>
             {@const decl = instance.comp.params}
             {@const given = Object.fromEntries(instance.params)}
             {#if Object.keys(decl).length || instance.params.length}
-              <div class="panel-title">Parámetros</div>
+              <div class="panel-title">Parameters</div>
               {#each Object.entries(decl) as [name, d] (name)}
                 <AttrField
                   def={{ name, label: d.label, type: d.type, options: ['', ...(d.options || [])] }}
@@ -85,76 +85,76 @@
               {/each}
               {#each instance.params.filter(([k]) => !decl[k]) as [k, v] (k)}
                 <div class="extra">
-                  <input class="mono" value={k} disabled title="Parámetro no declarado en el componente" />
+                  <input class="mono" value={k} disabled title="Parameter not declared by the component" />
                   <input class="mono" value={v} oninput={(e) => store.setParam(node.id, k, e.currentTarget.value)} />
-                  <button class="ghost" title="Quitar" onclick={() => store.setParam(node.id, k, '')}>✕</button>
+                  <button class="ghost" title="Remove" onclick={() => store.setParam(node.id, k, '')}>✕</button>
                 </div>
               {/each}
-              <p class="hint muted">Vacío = valor por defecto del componente. Admiten <code>{'{{ variables }}'}</code> y <code>$t('clave')</code>.</p>
+              <p class="hint muted">Empty = the component default. Values accept <code>{'{{ variables }}'}</code> and <code>$t('key')</code>.</p>
             {/if}
             <div class="btns">
-              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Editar componente</button>
-              <button onclick={() => store.detach(node.id)} title="Sustituye la instancia por una copia editable solo en esta plantilla">Desvincular (copiar aquí)</button>
+              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Edit component</button>
+              <button onclick={() => store.detach(node.id)} title="Replaces the instance with a copy editable only in this template">Detach (copy here)</button>
             </div>
           {:else}
-            <p class="muted">Parcial importado: <code>{instance.ref}</code>. Edítalo en la vista Código.</p>
+            <p class="muted">Imported partial: <code>{instance.ref}</code>. Edit it in the Code view.</p>
           {/if}
         </section>
       {:else if node.type === 'text' && node.value.trim() === '$content'}
         <section>
-          <div class="panel-title">Contenido de la plantilla</div>
-          <p class="muted slotp">Aquí se inserta cada plantilla que usa este layout. Muévelo en «Estructura» para cambiar dónde va; no lo elimines (el layout debe contener <code>$content</code>).</p>
+          <div class="panel-title">Template content</div>
+          <p class="muted slotp">Every template using this layout is inserted here. Move it in "Structure" to change where it goes; do not delete it (the layout must contain <code>$content</code>).</p>
         </section>
       {:else if node.type === 'text'}
         <label class="field">
-          <span>Código (comandos $, bloques Jinja2…)</span>
+          <span>Code ($ commands, Jinja2 blocks…)</span>
           <textarea class="mono" rows="6" value={node.value} oninput={(e) => store.mutate(t => { findNode(t, node.id).value = e.currentTarget.value }, `text:${node.id}`)}></textarea>
         </label>
       {:else if node.content != null}
         <section>
-          <div class="panel-title">Contenido</div>
+          <div class="panel-title">Content</div>
           {#if node.tag === 'mj-text'}
             {@const level = headingLevel(node.content)}
             <label class="field">
-              <span>Semántica (accesibilidad)</span>
+              <span>Semantics (accessibility)</span>
               <select value={String(level)} onchange={(e) => store.setHeading(node.id, Number(e.currentTarget.value))}>
-                <option value="0">Párrafo</option>
-                <option value="1">Título 1 (principal)</option>
-                <option value="2">Título 2</option>
-                <option value="3">Título 3</option>
+                <option value="0">Paragraph</option>
+                <option value="1">Heading 1 (main)</option>
+                <option value="2">Heading 2</option>
+                <option value="3">Heading 3</option>
               </select>
             </label>
           {/if}
           {#if key}
             <div class="keyrow">
-              <span class="muted">Traducción</span>
+              <span class="muted">Translation</span>
               {#if renaming !== null}
                 <input class="mono" bind:value={renaming} onkeydown={(e) => { if (e.key === 'Enter') { store.renameKey(key, renaming.trim()); renaming = null } if (e.key === 'Escape') renaming = null }} onblur={() => { store.renameKey(key, renaming.trim()); renaming = null }} />
               {:else}
-                <button class="chip" title="Renombrar clave" onclick={() => (renaming = key)}>$t('{key}')</button>
+                <button class="chip" title="Rename key" onclick={() => (renaming = key)}>$t('{key}')</button>
               {/if}
             </div>
             {#each store.langs as l}
               {@const msg = store.i18n.messages?.[l]?.[key]}
               <label class="field">
-                <span class="mono" class:missing={msg == null}>{l}{msg == null ? ' · sin traducción' : ''}</span>
+                <span class="mono" class:missing={msg == null}>{l}{msg == null ? ' · missing translation' : ''}</span>
                 <textarea rows="3" value={msg == null ? '' : String(msg).trim()} oninput={(e) => store.setMessage(l, key, e.currentTarget.value)}></textarea>
               </label>
             {/each}
-            <button class="ghost small" onclick={() => store.inlineTranslation(node.id)}>Convertir en texto literal</button>
+            <button class="ghost small" onclick={() => store.inlineTranslation(node.id)}>Convert to literal text</button>
           {:else}
             <label class="field">
-              <span>{def?.editable ? 'HTML (también editable en el lienzo)' : 'HTML / Jinja2'}</span>
+              <span>{def?.editable ? 'HTML (also editable on the canvas)' : 'HTML / Jinja2'}</span>
               <textarea class="mono" rows={def?.editable ? 4 : 10} value={node.content} oninput={(e) => store.setContent(node.id, e.currentTarget.value)}></textarea>
             </label>
             {#if def?.editable}
-              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}>🌐 Hacer traducible ($t)</button>
+              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}>🌐 Make translatable ($t)</button>
             {/if}
           {/if}
 
           {#if variables.length || links.length || (store.isComponent && Object.keys(store.componentParams).length)}
             <div class="vars">
-              <span class="muted">Insertar {store.editing ? 'en el cursor' : 'al final'}:</span>
+              <span class="muted">Insert {store.editing ? 'at the cursor' : 'at the end'}:</span>
               {#each variables as v}
                 <button class="chip" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`{{ ${v} }}`)}>{v}</button>
               {/each}
@@ -173,7 +173,7 @@
 
       {#if node.type === 'element'}
         <section>
-          <div class="panel-title">Atributos</div>
+          <div class="panel-title">Attributes</div>
           {#each def.attrs as a (a.name)}
             <AttrField def={a} value={getAttr(node, a.name)} image={store.imageProps} onchange={(v) => store.setAttr(node.id, a.name, v)} />
           {/each}
@@ -181,14 +181,14 @@
             <div class="extra">
               <input class="mono" value={k} onchange={(e) => store.renameAttr(node.id, k, e.currentTarget.value.trim())} />
               <input class="mono" value={v} oninput={(e) => store.setAttr(node.id, k, e.currentTarget.value)} />
-              <button class="ghost" title="Quitar" onclick={() => store.setAttr(node.id, k, null)}>✕</button>
+              <button class="ghost" title="Remove" onclick={() => store.setAttr(node.id, k, null)}>✕</button>
             </div>
           {/each}
           <form class="extra" onsubmit={(e) => { e.preventDefault(); if (newAttr.trim()) { store.setAttr(node.id, newAttr.trim(), ' '); newAttr = '' } }}>
-            <input class="mono" placeholder="nuevo-atributo" bind:value={newAttr} />
-            <button type="submit">Añadir</button>
+            <input class="mono" placeholder="new-attribute" bind:value={newAttr} />
+            <button type="submit">Add</button>
           </form>
-          <p class="hint muted">Los valores admiten <code>{'{{ variables }}'}</code> Jinja2 y comandos <code>$t</code> / <code>$link</code>{store.isComponent ? ' / $param.nombre' : ''}.</p>
+          <p class="hint muted">Values accept Jinja2 <code>{'{{ variables }}'}</code> and <code>$t</code> / <code>$link</code> commands{store.isComponent ? ' / $param.name' : ''}.</p>
         </section>
       {/if}
     </div>
