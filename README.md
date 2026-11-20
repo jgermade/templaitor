@@ -15,11 +15,14 @@ plantilla.mjml + plantilla.yml (textos por idioma) ──► dist/<id>/<nombre>.
 ## Uso rápido
 
 ```bash
-npm install            # instala y compila el editor (dist/editor)
-npm run editor         # abre el proyecto de ejemplo en http://127.0.0.1:3333
-npm run compile        # compila examples/demo → examples/demo/dist
-npm test
+make install           # instala dependencias y compila el editor (dist/editor)
+make up                # desarrollo local: editor en http://localhost:5180 (API en :3333)
+make test              # tests
+make build             # compila el editor a dist/editor
 ```
+
+`make up` abre `examples/demo` por defecto; para otro proyecto: `make up PROJECT=ruta/al/proyecto`.
+Sin `make`: `npm run editor` (editor ya compilado en http://127.0.0.1:3333) y `npm run compile`.
 
 En otro proyecto:
 
@@ -29,11 +32,6 @@ npx templaitor compile --cwd ruta/al/proyecto    # compilar (--watch, --strict)
 npx templaitor new grupo/nombre --layout base.layout.mjml
 ```
 
-Desarrollo del propio editor (Vite con recarga en caliente en http://localhost:5180):
-
-```bash
-npm run dev
-```
 
 # Project Specs
 
