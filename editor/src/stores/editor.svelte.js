@@ -11,7 +11,7 @@ import {
   parse, serialize, splitFrontmatter, joinFrontmatter, findNode, parentId, clone,
   removeNode, insertNode, moveNode, getAttr, setAttr, importCall, walk,
 } from '@shared/mjml-tree.js'
-import { formatImportCall, normalizeParams } from '@shared/imports.js'
+import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
 
@@ -21,6 +21,7 @@ class EditorStore {
   project = $state(null)
   templates = $state([])
   components = $state([])
+  assets = $state([]) // imágenes del directorio static
   doc = $state(null) // { kind, id, name, mjml, yml, data }
   returnTo = $state(null) // plantilla desde la que se abrió un componente
   saved = $state(null) // snapshot de lo guardado
@@ -86,7 +87,37 @@ class EditorStore {
   }
 
   async refreshTemplates() {
-    ;[this.templates, this.components, this.project] = await Promise.all([api.templates(), api.components(), api.project()])
+    ;[this.templates, this.components, this.project, this.assets] = await Promise.all([api.templates(), api.components(), api.project(), api.assets()])
+  }
+
+  async uploadAsset(file) {
+    try {
+      const saved = await api.uploadAsset(file)
+      this.assets = await api.assets()
+      this.notify(`Imagen subida: ${saved.path}`)
+      return saved
+    } catch (e) {
+      this.notify(e.message, 'error')
+      return null
+    }
+  }
+
+  /** Resuelve `{{ variable }}` con los datos de demo (para miniaturas en el inspector) */
+  resolveDemo(value) {
+    return String(value ?? '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (m, path) => {
+      const v = path.split('.').reduce((o, k) => (o == null ? o : o[k]), this.demoData || {})
+      return v == null ? m : String(v)
+    })
+  }
+
+  /** Props para los campos de imagen del inspector */
+  get imageProps() {
+    return {
+      assets: this.assets,
+      assetsUrl: this.project?.assetsUrl ?? '',
+      resolve: (v) => this.resolveDemo(v),
+      onupload: (file) => this.uploadAsset(file),
+    }
   }
 
   async open(id, kind = 'template') {
@@ -378,6 +409,8 @@ class EditorStore {
       } else {
         fm.setIn(['params', name, field], Array.isArray(value) ? fm.createNode(value, { flow: true }) : value)
       }
+      // al pasar a booleano, el valor por defecto se normaliza a true/false
+      if (field === 'type' && value === 'boolean') fm.setIn(['params', name, 'default'], !!toBoolean(fm.getIn(['params', name, 'default'])))
     }, `pdecl:${name}:${field}`)
   }
 

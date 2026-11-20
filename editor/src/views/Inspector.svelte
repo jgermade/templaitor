@@ -75,9 +75,10 @@
               <div class="panel-title">Parámetros</div>
               {#each Object.entries(decl) as [name, d] (name)}
                 <AttrField
-                  def={{ name, label: d.label, type: d.type === 'select' ? 'select' : d.type === 'color' ? 'color' : 'text', options: ['', ...(d.options || [])] }}
+                  def={{ name, label: d.label, type: d.type, options: ['', ...(d.options || [])] }}
                   value={given[name] ?? ''}
                   placeholder={String(d.default ?? '')}
+                  image={store.imageProps}
                   onchange={(v) => store.setParam(node.id, name, v)}
                 />
               {/each}
@@ -156,7 +157,7 @@
         <section>
           <div class="panel-title">Atributos</div>
           {#each def.attrs as a (a.name)}
-            <AttrField def={a} value={getAttr(node, a.name)} onchange={(v) => store.setAttr(node.id, a.name, v)} />
+            <AttrField def={a} value={getAttr(node, a.name)} image={store.imageProps} onchange={(v) => store.setAttr(node.id, a.name, v)} />
           {/each}
           {#each extraAttrs as [k, v] (k)}
             <div class="extra">

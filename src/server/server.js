@@ -7,7 +7,7 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import {
   listTemplates, readTemplate, writeTemplate, createTemplate, deleteTemplate,
-  listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent,
+  listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
 } from '../engine/project.js'
 import { previewDraft, compileProject, compileSource, langsOf } from '../engine/pipeline.js'
 import { readLinks } from '../engine/project.js'
@@ -40,11 +40,15 @@ export function createHandler(project) {
       links: readLinks(project),
       smtp: project.smtp ? { label: project.smtp.label || 'Enviar', web: project.smtp.web || null } : null,
       componentsDir: rel(project, project.componentsDir),
+      assetsUrl: project.assetsUrl,
     }),
 
     'GET /api/templates': () => listTemplates(project),
 
     'GET /api/components': () => listComponents(project),
+
+    // imágenes del directorio static (servidas en /static/)
+    'GET /api/assets': () => listAssets(project),
 
     // `kind`: 'template' (por defecto) | 'component'
     'GET /api/template': ({ query }) => readTemplate(project, query.get('id'), kindOf(query.get('kind'))),
@@ -123,6 +127,10 @@ export function createHandler(project) {
   return async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost')
     try {
+      if (url.pathname === '/api/assets' && req.method === 'POST') {
+        // subida de imagen: cuerpo binario, nombre en ?name=
+        return sendJson(res, saveAsset(project, url.searchParams.get('name'), await readRaw(req, 5 * 1024 * 1024 + 1)))
+      }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]
         if (!route) throw httpError(404, 'Ruta no encontrada')
@@ -169,6 +177,19 @@ function validateDraft(body) {
   if (body.data) {
     try { JSON5.parse(body.data) } catch (e) { throw httpError(400, `JSON5 no válido: ${e.message}`) }
   }
+}
+
+function readRaw(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let size = 0
+    req.on('data', (c) => {
+      size += c.length
+      if (size > limit) { reject(httpError(413, 'La imagen supera 5 MB')); req.destroy() } else chunks.push(c)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
 }
 
 function readJson(req) {

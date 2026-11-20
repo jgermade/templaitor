@@ -137,10 +137,15 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
     color: { type: color, label: Color, default: "#4F46E5" }
     align: { type: select, options: [left, center, right], default: center }
     label: $t('cta')          # forma corta: solo el valor por defecto
+    logo: { type: image, default: "{{ assets_url }}/logo.svg" }
+    show_note: { type: boolean, default: false }
   ---
   <mj-section>
     <mj-column>
       <mj-button href="$param.url" background-color="$param.color" align="$param.align">$param.label</mj-button>
+      $if($param.show_note)
+      <mj-text>…</mj-text>
+      $end
     </mj-column>
   </mj-section>
   ```
@@ -149,8 +154,13 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
   $import(_components/cta-button, url="{{ app_url }}/verify?token={{ token }}", label="$t('cta')", color="#059669")
   ```
 
+  Tipos: `text`, `color`, `select` (con `options`), `image` (URL; en el editor, miniatura, galería de las
+  imágenes de `static` y subida de ficheros, que se insertan como `{{ assets_url }}/fichero`, configurable con
+  `assetsUrl`) y `boolean` (`true`/`false`, para `$if($param.x) … $end`; se evalúa al compilar, así que para
+  condiciones en runtime usa `{% if %}`).
+
   Los valores (entre comillas dobles o simples) admiten Jinja2 y comandos `$`. En el editor, el inspector
-  de una instancia muestra un formulario con los parámetros declarados (texto, color o lista), y al editar
+  de una instancia muestra un formulario con los parámetros declarados, y al editar
   el componente el panel **Parámetros** permite declararlos y añadir `$param.x` como chip en los textos.
 - **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
 - **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
@@ -201,6 +211,5 @@ examples/demo/             proyecto de ejemplo
 - [ ] Integrar en `doomus-rs`: sustituir `emails/_engine` por `templaitor compile` y leer `*.subject.txt` en el backend.
 - [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
 - [ ] Edición visual de layouts (hoy solo en la vista Código).
-- [ ] Subida de imágenes a `_shared/` desde el inspector.
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.

@@ -43,7 +43,7 @@ export const COMPONENTS = {
   },
   'mj-image': {
     label: 'Imagen', icon: '🖼',
-    attrs: [{ name: 'src', type: 'text', label: 'URL' }, { name: 'alt', type: 'text', label: 'Texto alternativo' }, { name: 'href', type: 'text', label: 'Enlace' }, { name: 'width', type: 'size', label: 'Ancho' }, { name: 'height', type: 'size', label: 'Alto' }, ALIGN, RADIUS, PADDING, CSS_CLASS],
+    attrs: [{ name: 'src', type: 'image', label: 'Imagen' }, { name: 'alt', type: 'text', label: 'Texto alternativo' }, { name: 'href', type: 'text', label: 'Enlace' }, { name: 'width', type: 'size', label: 'Ancho' }, { name: 'height', type: 'size', label: 'Alto' }, ALIGN, RADIUS, PADDING, CSS_CLASS],
     create: () => el('mj-image', [['src', 'https://placehold.co/600x200/e5e7eb/6b7280?text=Imagen'], ['alt', '']], []),
   },
   'mj-divider': {

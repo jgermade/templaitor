@@ -1,0 +1,32 @@
+---
+params:
+  image:
+    type: image
+    label: Imagen
+    default: "{{ assets_url }}/banner-order.svg"
+  alt:
+    type: text
+    label: Texto alternativo
+    default: ""
+  href:
+    type: text
+    label: Enlace
+    default: ""
+  show_caption:
+    type: boolean
+    label: Mostrar pie de foto
+    default: false
+  caption:
+    type: text
+    label: Pie de foto
+    default: $t('caption')
+---
+
+<mj-section background-color="#ffffff" padding="16px 24px 0">
+  <mj-column>
+    <mj-image src="$param.image" alt="$param.alt" href="$param.href" border-radius="12px" padding="0" />
+    $if($param.show_caption)
+    <mj-text font-size="12px" color="#6b7280" align="center" padding="8px 0 0">$param.caption</mj-text>
+    $end
+  </mj-column>
+</mj-section>

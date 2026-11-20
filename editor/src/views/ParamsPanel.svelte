@@ -1,8 +1,10 @@
 <script>
+  import ImageField from '../components/ImageField.svelte'
   import { store } from '../stores/editor.svelte.js'
+  import { PARAM_TYPES, toBoolean } from '@shared/imports.js'
 
   let newName = $state('')
-  const TYPES = ['text', 'color', 'select']
+  const TYPES = PARAM_TYPES
   const params = $derived(Object.entries(store.componentParams))
   const used = $derived(new Set([...(store.split.body || '').matchAll(/\$param\.([A-Za-z_][\w-]*)/g)].map(m => m[1])))
 </script>
@@ -23,7 +25,20 @@
     </div>
     <div class="grid">
       <label><span>Etiqueta</span><input value={d.label === name ? '' : d.label} placeholder={name} oninput={(e) => store.setParamDecl(name, 'label', e.currentTarget.value)} /></label>
-      <label><span>Por defecto</span><input class="mono" value={d.default ?? ''} oninput={(e) => store.setParamDecl(name, 'default', e.currentTarget.value)} /></label>
+      {#if d.type === 'boolean'}
+        <label class="check"><span>Por defecto</span>
+          <span><input type="checkbox" checked={!!toBoolean(d.default)} onchange={(e) => store.setParamDecl(name, 'default', e.currentTarget.checked)} /> {toBoolean(d.default) ? 'sí' : 'no'}</span>
+        </label>
+      {:else if d.type === 'image'}
+        <div class="full img"><span>Por defecto</span>
+          <ImageField value={d.default ?? ''} onchange={(v) => store.setParamDecl(name, 'default', v)} {...store.imageProps} />
+        </div>
+      {:else}
+        <label><span>Por defecto</span><input class="mono" value={d.default ?? ''} oninput={(e) => store.setParamDecl(name, 'default', e.currentTarget.value)} /></label>
+      {/if}
+      {#if d.type === 'boolean'}
+        <p class="full tip">Úsalo para mostrar u ocultar partes: <code>$if($param.{name}) … $end</code></p>
+      {/if}
       {#if d.type === 'select'}
         <label class="full"><span>Opciones (separadas por comas)</span>
           <input class="mono" value={(d.options || []).join(', ')} onchange={(e) => store.setParamDecl(name, 'options', e.currentTarget.value.split(',').map(o => o.trim()).filter(Boolean))} />
@@ -52,6 +67,9 @@
   .grid label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
   .grid .full { grid-column: 1 / -1; }
   .grid input { font-size: 12px; color: var(--text); }
+  .img { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+  .check span:last-child { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 12px; height: 28px; }
+  .tip { margin: 0; font-size: 11px; color: var(--muted); }
   .empty { color: var(--muted); font-size: 12px; margin: 0 14px 8px; }
   .add { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 0 14px; }
 </style>

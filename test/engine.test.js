@@ -176,3 +176,20 @@ test('componentes con parámetros: valores por instancia, por defecto y Jinja2 i
   assert.equal(comps['cta-button'].params.align.type, 'select')
   assert.equal(comps['cta-button'].usedBy.length, 2)
 })
+
+test('parámetros image y boolean', async () => {
+  assert.equal(applyParams('$if($param.show)S$end', { show: { type: 'boolean', default: true } }, [['show', 'no']]), '$if(false)S$end')
+  assert.equal(applyParams('$param.show', { show: { type: 'boolean', default: 'yes' } }), 'true')
+  const warnings = []
+  assert.equal(applyParams('$param.show', { show: { type: 'boolean' } }, [['show', 'quizá']], w => warnings.push(w)), 'false')
+  assert.equal(warnings.length, 1)
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'orders/order-confirmation')
+  const withCaption = await previewDraft(project, { ...tpl, langKey: 'es' })
+  assert.match(withCaption.text, /Tu pedido ya está en preparación/)
+  assert.match(withCaption.html, /src="\/static\/banner-order\.svg"/)
+  const without = await previewDraft(project, { ...tpl, mjml: tpl.mjml.replace('show_caption="true"', 'show_caption="false"'), langKey: 'es' })
+  assert.doesNotMatch(without.text, /Tu pedido ya está en preparación/)
+  const raw = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
+  assert.match(raw.html, /src="\{\{ assets_url \}\}\/banner-order\.svg"/, 'la URL de la imagen conserva el Jinja2')
+})

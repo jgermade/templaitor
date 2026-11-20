@@ -55,6 +55,8 @@ export function loadProject(cwd = process.cwd(), overrides = {}) {
     defaultLocale: config.defaultLocale || Object.keys(config.locales || { en: 1 })[0],
     output: { text: true, subject: true, ...(config.output || {}) },
     smtp: config.smtp || null,
+    // prefijo con el que el editor inserta imágenes de `static` (se resuelve en runtime)
+    assetsUrl: config.assetsUrl ?? '{{ assets_url }}',
   }
   // layout cuyo <mj-head> se usa para previsualizar componentes sueltos
   const layouts = listMjmlFiles(p.layoutsDir)
@@ -262,6 +264,37 @@ function knownValues(project) {
     }
   }
   return { data, messages }
+}
+
+// ── Imágenes (directorio static) ─────────────────────────────
+
+export const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i
+
+export function listAssets(project) {
+  const out = []
+  const walk = (dir, rel = '') => {
+    if (!fs.existsSync(dir)) return
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue
+      const r = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) walk(path.join(dir, e.name), r)
+      else if (IMAGE_EXT.test(e.name)) out.push({ path: r, size: fs.statSync(path.join(dir, e.name)).size })
+    }
+  }
+  walk(project.staticDir)
+  return out.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+export function saveAsset(project, name, buffer) {
+  const clean = String(name || '').toLowerCase().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')
+  if (!clean || !IMAGE_EXT.test(clean)) throw httpError(400, 'Solo se admiten imágenes png, jpg, gif, webp o svg')
+  if (buffer.length > 5 * 1024 * 1024) throw httpError(413, 'La imagen supera 5 MB')
+  fs.mkdirSync(project.staticDir, { recursive: true })
+  let file = clean
+  const ext = path.extname(clean)
+  for (let i = 2; fs.existsSync(path.join(project.staticDir, file)); i++) file = `${path.basename(clean, ext)}-${i}${ext}`
+  fs.writeFileSync(path.join(project.staticDir, file), buffer)
+  return { path: file, size: buffer.length }
 }
 
 export function readLinks(project) {

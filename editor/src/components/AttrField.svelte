@@ -1,11 +1,23 @@
 <script>
-  let { def, value = '', onchange, placeholder = null } = $props()
+  import ImageField from './ImageField.svelte'
+
+  // `image`: props extra para ImageField (assets, assetsUrl, resolve, onupload)
+  let { def, value = '', onchange, placeholder = null, image = {} } = $props()
+  const boolLabel = (v) => (v === 'true' || v === true ? 'sí' : 'no')
   const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v || '')
 </script>
 
-<label class="field">
+<svelte:element this={def.type === 'image' ? 'div' : 'label'} class="field">
   <span>{def.label || def.name}</span>
-  {#if def.type === 'select'}
+  {#if def.type === 'boolean'}
+    <select value={value === true ? 'true' : value === false ? 'false' : value || ''} onchange={(e) => onchange(e.currentTarget.value)}>
+      <option value="">{placeholder !== null ? `— por defecto: ${boolLabel(placeholder)} —` : '— por defecto —'}</option>
+      <option value="true">Sí</option>
+      <option value="false">No</option>
+    </select>
+  {:else if def.type === 'image'}
+    <ImageField {value} placeholder={placeholder ?? ''} {onchange} {...image} />
+  {:else if def.type === 'select'}
     <select value={value || ''} onchange={(e) => onchange(e.currentTarget.value)}>
       {#each def.options as opt}
         <option value={opt}>{opt || (placeholder ? `— por defecto: ${placeholder} —` : '— por defecto —')}</option>
@@ -20,7 +32,7 @@
   {:else}
     <input type="text" class:mono={def.type !== 'text'} value={value || ''} placeholder={placeholder ?? (def.type === 'spacing' ? 'p.ej. 16px 24px' : def.type === 'size' ? 'p.ej. 14px' : '')} oninput={(e) => onchange(e.currentTarget.value)} />
   {/if}
-</label>
+</svelte:element>
 
 <style>
   .row { display: grid; grid-template-columns: 32px 1fr; gap: 6px; }

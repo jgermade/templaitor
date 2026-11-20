@@ -10,7 +10,11 @@
 //   params:
 //     url: { type: text, label: Enlace, default: "#" }
 //     label: Botón            # forma corta: solo el valor por defecto
+//     logo: { type: image, default: "{{ assets_url }}/logo.svg" }
+//     show_logo: { type: boolean, default: true }   # → $if($param.show_logo) … $end
 //   ---
+//
+// Tipos: text · color · select (options) · image (URL) · boolean (true/false, compile-time)
 
 const OPEN = '$import('
 
@@ -132,13 +136,38 @@ export function normalizeParams(decl) {
 export const PARAM_RE = /\$param\.([A-Za-z_][\w-]*)/g
 
 /** Sustituye `$param.x` por el valor dado, el valor por defecto o '' (con aviso) */
+export const PARAM_TYPES = ['text', 'color', 'select', 'image', 'boolean']
+
+const TRUE = new Set(['true', '1', 'yes', 'si', 'sí', 'on'])
+const FALSE = new Set(['false', '0', 'no', 'off', ''])
+
+/** true / false / null (si el valor no es booleano) */
+export function toBoolean(value) {
+  if (typeof value === 'boolean') return value
+  const v = String(value ?? '').trim().toLowerCase()
+  if (TRUE.has(v)) return true
+  if (FALSE.has(v)) return false
+  return null
+}
+
 export function applyParams(content, decl, given = [], warn) {
   const declared = normalizeParams(decl)
   const values = Object.fromEntries(given)
   return content.replace(PARAM_RE, (_, name) => {
-    if (name in values) return values[name]
-    if (name in declared) return String(declared[name].default ?? '')
-    warn?.(`$param.${name} no está declarado ni se ha pasado`)
-    return ''
+    const d = declared[name]
+    let value
+    if (name in values) value = values[name]
+    else if (d) value = d.default ?? ''
+    else {
+      warn?.(`$param.${name} no está declarado ni se ha pasado`)
+      return ''
+    }
+    if (d?.type === 'boolean') {
+      // se sustituye por un literal JS para usarlo en $if($param.x) (compile-time)
+      const b = toBoolean(value)
+      if (b === null) warn?.(`$param.${name} es booleano y recibió "${value}" (se usa false)`)
+      return String(!!b)
+    }
+    return String(value)
   })
 }

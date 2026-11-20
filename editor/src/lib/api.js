@@ -23,6 +23,13 @@ export const api = {
   preview: (draft) => request('POST', '/api/preview', draft),
   compile: (id) => request('POST', '/api/compile', { id }),
   send: (draft) => request('POST', '/api/send', draft),
+  assets: () => request('GET', '/api/assets'),
+  uploadAsset: async (file) => {
+    const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })
+    const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`)
+    return data
+  },
   file: (path) => request('GET', `/api/file?${q({ path })}`),
   saveFile: (path, content) => request('PUT', '/api/file', { path, content }),
 }
