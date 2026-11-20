@@ -20,12 +20,15 @@
 </script>
 
 <aside>
-  <div class="data" style="height: {dataHeight}px" title="Demo data ({store.doc.name}.json5)">
-    {#key store.doc.kind + store.doc.id}
-      <CodeEditor lang="json5" dark gutters={false} value={store.doc.data} onchange={(v) => store.update({ data: v }, 'code:data')} onsave={() => store.save()} />
-    {/key}
-    {#if store.demoData === null}<span class="bad">Invalid JSON5</span>{/if}
-  </div>
+  <!-- demo data only matters where it is rendered (Preview / PDF); it is still editable in the Code view -->
+  {#if !design}
+    <div class="data" style="height: {dataHeight}px" title="Demo data ({store.doc.name}.json5)">
+      {#key store.doc.kind + store.doc.id}
+        <CodeEditor lang="json5" dark gutters={false} value={store.doc.data} onchange={(v) => store.update({ data: v }, 'code:data')} onsave={() => store.save()} />
+      {/key}
+      {#if store.demoData === null}<span class="bad">Invalid JSON5</span>{/if}
+    </div>
+  {/if}
 
   <div class="sections">
     {#if store.isLayout}
