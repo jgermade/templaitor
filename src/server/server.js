@@ -69,7 +69,7 @@ export function createHandler(project) {
       return writeTemplate(project, body.id, body, kindOf(body.kind))
     },
 
-    'POST /api/templates': ({ body }) => createTemplate(project, body.id, { layout: body.layout, langs: body.langs }),
+    'POST /api/templates': ({ body }) => createTemplate(project, body.id, { layout: body.layout, langs: body.langs, format: body.format }),
 
     'POST /api/components': ({ body }) => {
       if (body.yml) validateDraft({ id: body.id, yml: body.yml })

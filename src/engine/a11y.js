@@ -139,7 +139,7 @@ export function accessibilityReport(html, { format = 'email', sourceImages = [] 
   })
   if (format === 'pdf') {
     checks.push({
-      id: 'pdf-ua', wcag: 'PDF/UA', title: 'PDF etiquetado (estructura, idioma, título y marcadores)', rules: [], issues: [],
+      id: 'pdf-ua', wcag: 'PDF/UA', title: 'PDF etiquetado y navegable', rules: [], issues: [],
       status: checks.find(c => c.id === 'lang').status === 'fail' || checks.find(c => c.id === 'title').status === 'fail' ? 'warn' : 'pass',
     })
   }

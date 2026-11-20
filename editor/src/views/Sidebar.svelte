@@ -60,6 +60,9 @@
             {@const d = describe(tag)}
             <button onclick={() => store.add(tag)} title="Añadir {d.label} ({tag})"><span class="ic">{d.icon}</span>{d.label}</button>
           {/each}
+          {#if store.isPdf}
+            <button onclick={() => store.addPageBreak()} title="Fuerza una página nueva en el PDF"><span class="ic">⤓</span>Salto de página</button>
+          {/if}
         </div>
       </Section>
 

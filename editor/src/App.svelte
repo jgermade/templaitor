@@ -5,6 +5,8 @@
   import Canvas from './views/Canvas.svelte'
   import Inspector from './views/Inspector.svelte'
   import CodeView from './views/CodeView.svelte'
+  import PdfView from './views/PdfView.svelte'
+  import A11yReport from './views/A11yReport.svelte'
   import NewTemplateDialog from './views/NewTemplateDialog.svelte'
   import Toast from './components/Toast.svelte'
   import DialogHost from './components/DialogHost.svelte'
@@ -87,7 +89,7 @@
 
     {#if store.doc && store.view !== 'code'}
       <div class="subject">
-        <span class="label">{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : 'Asunto'}</span>
+        <span class="label">{store.isComponent ? 'Componente' : store.isLayout ? 'Layout' : store.isPdf ? 'Título' : 'Asunto'}</span>
         {#if store.isComponent}
           <span class="rendered muted">◆ {store.doc.name} — vista previa con el &lt;mj-head&gt; del layout</span>
         {:else if store.isLayout}
@@ -95,7 +97,7 @@
         {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}
-            placeholder="Asunto del email ({store.lang})"
+            placeholder={store.isPdf ? `Título del documento (${store.lang})` : `Asunto del email (${store.lang})`}
             oninput={(e) => store.setSubject(store.lang, e.currentTarget.value)}
           />
         {:else}
@@ -103,6 +105,13 @@
         {/if}
         {#if store.loadingPreview}<span class="spinner" aria-label="Actualizando"></span>{/if}
         <span class="grow"></span>
+        {#if store.preview.a11yReport}
+          {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length}
+          {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
+          <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Informe de accesibilidad (WCAG 2.1 AA)">
+            ♿ {fails ? `${fails} ✕` : warns ? `${warns} ⚠` : '✓'}
+          </button>
+        {/if}
         <div class="issues-wrap">
           <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
             {issues.length ? `⚠ ${issues.length}` : '✓'}
@@ -116,7 +125,7 @@
         <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Abrir la vista previa en una pestaña nueva">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
         </button>
-        <label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>
+        {#if !store.isPdf}<label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>{/if}
       </div>
     {/if}
 
@@ -133,16 +142,21 @@
       {:else if store.view === 'code'}
         <CodeView />
       {:else}
-        <div class="layout" class:with-inspector={store.view === 'design' && store.selected && !showText}>
+        {@const report = store.view === 'preview' || store.view === 'pdf'}
+        <div class="layout" class:with-inspector={(store.view === 'design' && store.selected && !showText) || report}>
           <Sidebar />
           <div class="center">
-            {#if showText}
+            {#if store.view === 'pdf'}
+              <PdfView />
+            {:else if showText && !store.isPdf}
               <pre class="text">{store.preview.text}</pre>
             {:else}
               <Canvas mode={store.view === 'design' ? 'design' : 'preview'} />
             {/if}
           </div>
-          {#if store.view === 'design' && store.selected && !showText}
+          {#if report}
+            <A11yReport />
+          {:else if store.view === 'design' && store.selected && !showText}
             <Inspector />
           {/if}
         </div>
@@ -159,7 +173,10 @@
   .app { display: flex; flex-direction: column; height: 100vh; }
   main { flex: 1; min-height: 0; }
   .layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; min-height: 0; }
-  .layout.with-inspector { grid-template-columns: 400px minmax(0, 1fr) 320px; }
+  .layout.with-inspector { grid-template-columns: 400px minmax(0, 1fr) 340px; }
+  .a11y { font-size: 12px; padding: 2px 8px; color: var(--ok); font-weight: 600; }
+  .a11y.warn { color: var(--warn); }
+  .a11y.bad { color: var(--danger); }
   .center { min-width: 0; min-height: 0; overflow: auto; background: #f4f4f5; }
   .subject {
     display: flex; align-items: center; gap: 14px; height: 52px; padding: 0 20px; flex: none;

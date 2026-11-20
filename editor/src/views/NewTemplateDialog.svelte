@@ -6,18 +6,19 @@
   let dialog = $state()
   let id = $state('')
   let layout = $state('')
+  let format = $state('email')
   let error = $state('')
 
   $effect(() => {
     if (!dialog) return
-    if (open && !dialog.open) { error = ''; layout = store.project?.layouts?.[0] || ''; dialog.showModal() }
+    if (open && !dialog.open) { error = ''; format = 'email'; layout = store.project?.layouts?.[0] || ''; dialog.showModal() }
     if (!open && dialog.open) dialog.close()
   })
 
   async function submit(e) {
     e.preventDefault()
     try {
-      const t = await api.create(id.trim(), layout || undefined)
+      const t = await api.create(id.trim(), layout || undefined, format)
       open = false
       id = ''
       await store.refreshTemplates()
@@ -35,6 +36,17 @@
     <label class="field">
       <span>Identificador (carpeta/nombre)</span>
       <input class="mono" placeholder="customers/welcome" bind:value={id} required pattern="[\w.\-]+(/[\w.\-]+)*" />
+    </label>
+    <label class="field">
+      <span>Formato</span>
+      <select bind:value={format} onchange={() => {
+        // propone un layout acorde al formato (los de documento suelen llamarse document*)
+        const ls = store.project?.layouts || []
+        layout = (format === 'pdf' ? ls.find(l => /document|pdf/i.test(l)) : ls.find(l => !/document|pdf/i.test(l))) || ls[0] || ''
+      }}>
+        <option value="email">Email</option>
+        <option value="pdf">Documento PDF</option>
+      </select>
     </label>
     <label class="field">
       <span>Layout</span>

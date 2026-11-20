@@ -9,11 +9,12 @@
   let { onnew } = $props()
   let picking = $state(false)
 
-  const VIEWS = [
+  const VIEWS = $derived([
     ['design', 'Diseño'],
     ['preview', 'Vista previa'],
+    ...(store.isPdf ? [['pdf', 'PDF']] : []),
     ['code', 'Código'],
-  ]
+  ])
 
   const draft = () => ({ kind: store.kind, mjml: store.doc.mjml, yml: store.doc.yml, data: store.doc.data, lang: store.lang })
 
@@ -87,10 +88,12 @@
       <button class:active={store.view === v} onclick={() => (store.view = v)}>{label}</button>
     {/each}
   </div>
+  {#if !store.isPdf}
   <div class="seg" role="group" aria-label="Dispositivo">
     <button class:active={store.device === 'desktop'} onclick={() => (store.device = 'desktop')} title="Escritorio">🖥</button>
     <button class:active={store.device === 'mobile'} onclick={() => (store.device = 'mobile')} title="Móvil">📱</button>
   </div>
+  {/if}
   <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Deshacer (Ctrl+Z)">↶</button>
   <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Rehacer (Ctrl+Shift+Z)">↷</button>
   <button class="ghost" onclick={() => store.compile()} title="Compilar a {store.project?.outDir}/">⚙ Compilar</button>
@@ -107,7 +110,7 @@
     {/each}
   </div>
 
-  {#if store.project?.smtp}
+  {#if store.project?.smtp && !store.isPdf}
     <button class="send" onclick={sendTest} title="Enviar prueba por SMTP">{store.project.smtp.label} <span class="arrow">➤</span></button>
   {/if}
   {#if store.project?.smtp?.web}

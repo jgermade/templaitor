@@ -19,12 +19,20 @@ export const api = {
   createLayout: (id) => request('POST', '/api/layouts', { id }),
   template: (id, kind = 'template') => request('GET', `/api/template?${q({ id, kind })}`),
   save: (doc) => request('PUT', '/api/template', doc),
-  create: (id, layout) => request('POST', '/api/templates', { id, layout }),
+  create: (id, layout, format) => request('POST', '/api/templates', { id, layout, format }),
   createComponent: (comp) => request('POST', '/api/components', comp),
   remove: (id, kind = 'template') => request('DELETE', `/api/template?${q({ id, kind })}`),
   preview: (draft) => request('POST', '/api/preview', draft),
   compile: (id) => request('POST', '/api/compile', { id }),
   send: (draft) => request('POST', '/api/send', draft),
+  pdf: async (draft) => {
+    const res = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    return res.blob()
+  },
   assets: () => request('GET', '/api/assets'),
   uploadAsset: async (file) => {
     const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })

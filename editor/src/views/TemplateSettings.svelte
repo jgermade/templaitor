@@ -42,6 +42,38 @@
       </div>
     {:else}
       <label class="field">
+        <span>Formato</span>
+        <select value={store.isPdf ? 'pdf' : 'email'} onchange={(e) => store.setFormat(e.currentTarget.value)}>
+          <option value="email">Email</option>
+          <option value="pdf">Documento PDF</option>
+        </select>
+      </label>
+      {#if store.isPdf}
+        <div class="pdfgrid">
+          <label class="field"><span>Tamaño</span>
+            <select value={store.pdfSettings.size || 'A4'} onchange={(e) => store.setFrontmatter(['pdf', 'size'], e.currentTarget.value)}>
+              {#each ['A4', 'A5', 'A3', 'Letter', 'Legal'] as s}<option value={s}>{s}</option>{/each}
+            </select>
+          </label>
+          <label class="field"><span>Orientación</span>
+            <select value={store.pdfSettings.orientation || 'portrait'} onchange={(e) => store.setFrontmatter(['pdf', 'orientation'], e.currentTarget.value)}>
+              <option value="portrait">Vertical</option>
+              <option value="landscape">Horizontal</option>
+            </select>
+          </label>
+          <label class="field"><span>Márgenes</span>
+            <input class="mono" value={typeof store.pdfSettings.margin === 'object' ? '' : store.pdfSettings.margin ?? ''} placeholder="15mm" oninput={(e) => store.setFrontmatter(['pdf', 'margin'], e.currentTarget.value)} />
+          </label>
+          <label class="field full"><span>Cabecera</span>
+            <input value={store.pdfSettings.header ?? ''} placeholder="{'{title}'}" oninput={(e) => store.setFrontmatter(['pdf', 'header'], e.currentTarget.value)} />
+          </label>
+          <label class="field full"><span>Pie de página</span>
+            <input value={store.pdfSettings.footer ?? ''} placeholder="{'{page} / {pages}'}" oninput={(e) => store.setFrontmatter(['pdf', 'footer'], e.currentTarget.value)} />
+          </label>
+          <p class="full muted tip">Variables: <code>{'{page}'}</code> <code>{'{pages}'}</code> <code>{'{title}'}</code> <code>{'{date}'}</code>. El ancho del layout debe caber en la página (A4 con 15 mm de margen: 680px).</p>
+        </div>
+      {/if}
+      <label class="field">
         <span>Layout</span>
         <div class="layrow">
           <select value={store.frontmatter.layout || ''} onchange={(e) => store.setLayout(e.currentTarget.value)} disabled={!store.isFragment}>
@@ -80,6 +112,9 @@
   .help li { margin-bottom: 4px; }
   kbd { font: 11px var(--mono); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; }
   .del { width: 100%; }
+  .pdfgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+  .pdfgrid .full { grid-column: 1 / -1; }
+  .tip { margin: 0 0 8px; font-size: 11px; }
   .layrow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
   .uselink { display: block; padding: 2px 0; font-size: 12px; color: #2563eb; }
 </style>

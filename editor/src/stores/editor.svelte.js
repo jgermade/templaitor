@@ -53,6 +53,9 @@ class EditorStore {
   isComponent = $derived(this.kind === 'component')
   isLayout = $derived(this.kind === 'layout')
   isTemplate = $derived(this.kind === 'template')
+  /** Plantilla PDF (`format: pdf` en el frontmatter) */
+  isPdf = $derived(this.isTemplate && String(this.frontmatter.format || '').toLowerCase() === 'pdf')
+  pdfSettings = $derived(this.frontmatter.pdf || {})
   /** Parámetros declarados en el frontmatter (al editar un componente) */
   componentParams = $derived(normalizeParams(this.frontmatter.params))
   isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
@@ -350,6 +353,14 @@ class EditorStore {
     }, null)
   }
 
+  /** Salto de página (PDF): mj-raw con un div que fuerza página nueva al imprimir */
+  addPageBreak() {
+    const node = { type: 'element', tag: 'mj-raw', attrs: [], children: [], content: '<div class="tpl-page-break"></div>' }
+    const p = this.findPlacement('mj-section')
+    if (!p) return this.notify('No hay dónde insertar el salto de página', 'error')
+    this.mutate(tree => insertNode(tree, p.pid, p.index, node))
+  }
+
   findPlacement(tag) {
     const bodyId = this.bodyId()
     let cur = this.selectedId ?? null
@@ -402,6 +413,26 @@ class EditorStore {
     fn(fm)
     const text = fm.toString().trim()
     this.update({ mjml: joinFrontmatter(text === '{}' ? '' : text, this.split.body) }, tag)
+  }
+
+  /** Cambia (o quita, con valor vacío) una clave del frontmatter, p.ej. ['pdf', 'size'] */
+  setFrontmatter(path, value) {
+    this.#editFrontmatter(fm => {
+      if (value === '' || value == null) { if (fm.hasIn(path)) fm.deleteIn(path) } else fm.setIn(path, value)
+    }, `fm:${path.join('.')}`)
+  }
+
+  setFormat(format) {
+    this.#editFrontmatter(fm => {
+      if (format === 'pdf') {
+        fm.set('format', 'pdf')
+        if (!fm.has('pdf')) fm.set('pdf', fm.createNode({ size: 'A4', orientation: 'portrait', margin: '15mm', footer: '{page} / {pages}' }))
+      } else {
+        fm.delete('format')
+        fm.delete('pdf')
+      }
+    })
+    if (format !== 'pdf' && this.view === 'pdf') this.view = 'preview'
   }
 
   addParamDecl(name) {

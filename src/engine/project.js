@@ -170,7 +170,7 @@ export function writeTemplate(project, id, { mjml, yml, data }, kind = 'template
   return readTemplate(project, id, kind)
 }
 
-export function createTemplate(project, id, { layout, langs } = {}) {
+export function createTemplate(project, id, { layout, langs, format } = {}) {
   const p = templatePaths(project, id)
   if (fs.existsSync(p.mjml)) throw httpError(409, `Ya existe la plantilla ${p.id}`)
   const langKeys = langs?.length ? langs : Object.keys(project.config.locales || { en: 1 })
@@ -183,9 +183,15 @@ export function createTemplate(project, id, { layout, langs } = {}) {
     '</mj-section>',
     '',
   ].join('\n')
+  const pdf = format === 'pdf'
+  const fm = [
+    pdf ? 'format: pdf' : '',
+    layout ? `layout: ${layout}` : '',
+    pdf ? 'pdf:\n  size: A4\n  orientation: portrait\n  margin: 15mm\n  footer: "{page} / {pages}"' : '',
+  ].filter(Boolean).join('\n')
   const mjml = layout
-    ? `---\nlayout: ${layout}\n---\n\n${body}`
-    : `<mjml lang="$lang">\n  <mj-body>\n${body.split('\n').map(l => (l ? `    ${l}` : l)).join('\n')}  </mj-body>\n</mjml>\n`
+    ? `---\n${fm}\n---\n\n${body}`
+    : `${fm ? `---\n${fm}\n---\n\n` : ''}<mjml lang="$lang">\n  <mj-body>\n${body.split('\n').map(l => (l ? `    ${l}` : l)).join('\n')}  </mj-body>\n</mjml>\n`
   // hereda lo que necesita el layout: variables Jinja2 y claves $t (con valores de otras plantillas)
   const { vars, keys } = layout ? layoutNeeds(project, layout) : { vars: [], keys: [] }
   const known = knownValues(project)

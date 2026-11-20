@@ -167,6 +167,51 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
 - **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
 - **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
 
+## Documentos PDF
+
+Una plantilla es un documento PDF si su frontmatter lleva `format: pdf`. Usa lo mismo que los emails
+(MJML, `$t`, componentes, layouts y el WYSIWYG) y añade opciones de página:
+
+```
+---
+format: pdf
+layout: document.layout.mjml      # layout de documento: <mj-body width="680px"> (A4 con 15 mm de margen)
+pdf:
+  size: A4                        # A4 · A5 · A3 · Letter · Legal
+  orientation: portrait           # portrait · landscape
+  margin: 15mm                    # o { top, right, bottom, left }
+  header: ""                      # {page} {pages} {title} {date}
+  footer: "{page} / {pages}"
+---
+```
+
+- `templaitor compile` genera `<nombre>.<locale>.html` (Jinja2 + `@page`) y `<nombre>.<locale>.pdf.json`
+  (opciones para `page.pdf()` de Chromium) para que el backend renderice el PDF con sus datos en runtime.
+  `compile --pdf` añade `<nombre>.<locale>.sample.pdf` con los datos de demo.
+- `templaitor pdf grupo/nombre [--lang es] [--data datos.json5] [-o salida.pdf]` genera un PDF.
+- En el editor: vista **PDF** (el PDF real, se regenera al editar, con descarga), formato y opciones de
+  página en «Plantilla», bloque «Salto de página» y el subject como **título** del documento.
+- Requiere Playwright (dependencia opcional): `npm i -D playwright && npx playwright install chromium`
+  (o `TEMPLAITOR_CHROMIUM=/ruta/a/chrome`).
+
+## Accesibilidad
+
+Emails y PDF se comprueban contra **WCAG 2.1 AA / EN 301 549** (la norma que exige la Directiva Europea de
+Accesibilidad) y los PDF se generan **etiquetados (PDF/UA)**: estructura de encabezados, tablas y
+texto alternativo, idioma, título y marcadores.
+
+Cada compilación y vista previa revisa: idioma (`lang`), título, estructura de encabezados, texto
+alternativo de imágenes, enlaces sin texto o poco descriptivos, tablas de datos (`<th scope>`),
+contraste de color (4.5:1, 3:1 en texto grande) y tamaño mínimo de texto.
+
+- En el editor, el indicador **♿** de la barra del asunto resume el estado y la **Vista previa** (y la
+  vista PDF) muestra el informe completo: criterio a criterio, con cómo arreglar cada incidencia,
+  esquema de encabezados, inventario de imágenes y enlaces y todos los pares de contraste.
+- Los textos tienen **Semántica** (Párrafo / Título 1–3) en el inspector: envuelve el contenido en
+  `<hN>` que hereda el estilo del `mj-text`, así la estructura no cambia el diseño.
+- `templaitor compile` muestra las incidencias (`a11y-error` / `a11y-warn`) y con `--strict` falla si hay alguna.
+- Es una comprobación automática: revisa también el orden de lectura y que los textos tengan sentido.
+
 ## Layouts
 
 Un layout (`_layouts/<nombre>.mjml`) es un documento MJML completo con `$content` donde va cada plantilla
@@ -230,3 +275,5 @@ examples/demo/             proyecto de ejemplo
 - [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.
+- [ ] Adjuntar un PDF (plantilla PDF) a un email al enviar la prueba.
+- [ ] Comprobación de accesibilidad sobre el PDF generado (veraPDF) además de sobre el HTML.
