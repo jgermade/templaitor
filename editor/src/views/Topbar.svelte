@@ -3,6 +3,7 @@
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { flagOf } from '../lib/flags.js'
+  import logo from '../../../assets/brand/logo.svg'
 
   let { onnew } = $props()
   let picking = $state(false)
@@ -56,8 +57,8 @@
 
 <header>
   <div class="brand" title={store.project?.name}>
-    <svg width="20" height="20" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="16" fill="#4F46E5"/><path d="M20 24h32v6H39v20h-6V30H20z" fill="#fff"/></svg>
-    <b>templaitor</b>
+    <img src={logo} width="22" height="22" alt="" />
+    <b>templ<span class="ai">ai</span>tor</b>
   </div>
 
   <div class="path">
@@ -120,7 +121,8 @@
     height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 0 0 14px;
     background: var(--panel); border-bottom: 3px solid #d4d4d8; flex: none;
   }
-  .brand { display: flex; align-items: center; gap: 6px; margin-right: 10px; font-size: 14px; }
+  .brand { display: flex; align-items: center; gap: 7px; margin-right: 10px; font-size: 15px; letter-spacing: -.2px; }
+  .brand .ai { background: linear-gradient(90deg, #8b5cf6, #ec4899); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .path { position: relative; min-width: 0; }
   .link { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 2px 4px; min-width: 0; }
   .at {

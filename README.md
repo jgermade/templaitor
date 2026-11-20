@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/brand/logo.svg" width="112" alt="templaitor" /></p>
+
 # templaitor
 
 Editor genérico de plantillas de email **MJML → HTML/TXT con Jinja2**, con editor visual (WYSIWYG).
@@ -196,6 +198,13 @@ layout) y sus `$t` se muestran pero no se editan ahí. Se pueden crear layouts n
 - Deshacer/rehacer, `Ctrl+S`, vista móvil, compilar y enviar prueba por SMTP.
 
 Las ediciones visuales reescriben el MJML con un formato normalizado (indentación de 2 espacios).
+
+## Marca
+
+`assets/brand/`: `logo.svg` (color), `logo-mono.svg` (una tinta, impresión), `favicon.svg` (versión
+simplificada para 16–48 px) y exportaciones PNG (`logo-128/256/512.png`, `favicon-32.png`,
+`logo-mono-256.png`). Los SVG solo usan trazados y degradados lineales (sin filtros, máscaras ni
+fuentes), así que se incrustan como vectores en PDF; en emails usa los PNG (Gmail/Outlook no muestran SVG).
 
 ## Arquitectura
 
