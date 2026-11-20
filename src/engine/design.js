@@ -11,7 +11,8 @@
 
 import { parse, serialize, walk, importCall } from '../shared/mjml-tree.js'
 import { NON_VISUAL, describe } from '../shared/components.js'
-import { lookupMessage, parseAttrs } from './commands.js'
+import { lookupMessage, parseAttrs, resolveCommands } from './commands.js'
+import { normalizeParams } from '../shared/imports.js'
 
 const NO_CLASS = new Set(['mj-raw', 'mj-body', 'mjml'])
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
@@ -55,9 +56,9 @@ export function annotateBody(body, ctx) {
         const missing = msg === undefined || msg === null ? ' data-tpl-missing="1"' : ''
         // en un layout los textos son de cada plantilla: se muestran pero no se editan aquí
         const edit = ctx.kind === 'layout' ? '' : ` data-tpl-edit="t:${escapeHtml(m[1])}"${missing}`
-        return `<${tagName}${edit}>${chipify(String(msg ?? '').trim())}</${tagName}>`
+        return `<${tagName}${edit}>${chipify(String(msg ?? '').trim(), ctx)}</${tagName}>`
       }
-      return `<${tagName} data-tpl-edit="c:${node.id}">${chipify(node.content)}</${tagName}>`
+      return `<${tagName} data-tpl-edit="c:${node.id}">${chipify(node.content, ctx)}</${tagName}>`
     },
   })
 }
@@ -74,11 +75,28 @@ function annotateInstance(source, id) {
   })
 }
 
-export function chipify(str) {
+/**
+ * Convierte tokens en chips. Con `ctx.params` (al editar un componente), los chips
+ * `$param.x` muestran su valor por defecto ya resuelto (con el nombre en el tooltip).
+ */
+export function chipify(str, ctx = null) {
   return str.replace(CHIP_RE, (src) => {
-    const { kind, label } = chipInfo(src)
-    return `<span class="tpl-chip tpl-chip--${kind}" contenteditable="false" data-tpl-src="${encode(src)}">${encode(label)}</span>`
+    let { kind, label } = chipInfo(src)
+    let title = src
+    if (kind === 'param' && ctx?.params) {
+      const value = paramPreview(src.slice(7), ctx)
+      if (value) { title = `${src} · por defecto: ${value}`; label = value }
+    }
+    return `<span class="tpl-chip tpl-chip--${kind}" contenteditable="false" title="${encode(title)}" data-tpl-src="${encode(src)}">${encode(label)}</span>`
   })
+}
+
+function paramPreview(name, ctx) {
+  const d = normalizeParams(ctx.params)[name]
+  if (!d || d.default === '' || d.default == null) return ''
+  // resuelve $t/$link/... sin avisos y quita etiquetas HTML para mostrarlo como texto
+  const value = resolveCommands(String(d.default), { ...ctx, warnings: [] })
+  return value.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
 export function chipInfo(src) {

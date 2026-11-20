@@ -25,7 +25,8 @@ export function bridgeMain() {
     .tpl-chip--t { background: #e0f2fe; border-color: #7dd3fc; color: #075985 !important; }
     .tpl-chip--cmd { background: #f3f4f6; border-color: #d1d5db; color: #374151 !important; }
     .tpl-chip--param { background: #f5f3ff; border-color: #c4b5fd; color: #6d28d9 !important; }
-    .tpl-chip--param::before { content: '⚙ '; }
+    .tpl-chip--param::before { content: '⚙ '; opacity: .6; }
+    .tpl-chip--param { font-family: inherit; font-weight: 600; font-size: .92em; }
     .tpl-chip--var::before { content: '{ '; opacity: .5 } .tpl-chip--var::after { content: ' }'; opacity: .5 }
     .tpl-chip--link::before { content: '🔗 '; } .tpl-chip--t::before { content: '🌐 '; }
     #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
@@ -86,6 +87,10 @@ export function bridgeMain() {
     badge.style.display = 'block'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
+    // si no cabe encima (bloque pegado arriba), se dibuja por dentro
+    const inside = r.top < 18
+    badge.style.transform = inside ? 'none' : 'translateY(-100%)'
+    badge.style.borderRadius = inside ? '0 0 3px 0' : '3px 3px 0 0'
   }
 
   // ── Serialización de la región editable → código fuente ─────

@@ -65,6 +65,7 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const { meta, body: rawBody } = parseFrontmatter(mjml)
 
   // 2. (modo diseño) anotar nodos para el editor visual
+  if (kind === 'component') ctx.params = meta.params
   let body = design ? annotateBody(rawBody, ctx) : rawBody
   // un componente editado/previsualizado suelto usa los valores por defecto de sus parámetros
   if (kind === 'component') body = applyParams(body, meta.params, [], warn)
