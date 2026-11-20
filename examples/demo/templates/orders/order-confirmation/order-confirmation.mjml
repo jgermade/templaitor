@@ -35,3 +35,5 @@ layout: base.layout.mjml
   </mj-column>
 </mj-section>
 <mj-raw>{% endif %}</mj-raw>
+
+$import(_components/signature)

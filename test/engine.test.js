@@ -7,7 +7,7 @@ import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/s
 import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
 import { annotateBody, chipify } from '../src/engine/design.js'
-import { loadProject, readTemplate, createTemplate, listTemplates } from '../src/engine/project.js'
+import { loadProject, readTemplate, createTemplate, listTemplates, listComponents } from '../src/engine/project.js'
 import { compileProject, previewDraft } from '../src/engine/pipeline.js'
 
 const DEMO = path.resolve(import.meta.dirname, '../examples/demo')
@@ -119,3 +119,29 @@ function stripIds(node) {
   if (rest.children) rest.children = rest.children.map(stripIds)
   return rest
 }
+
+test('componentes: $import de carpeta, textos propios y sobrescritura desde la plantilla', async () => {
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'customers/email-verification')
+  const r = await previewDraft(project, { ...tpl, langKey: 'en' })
+  assert.match(r.text, /The Acme team/)
+  assert.match(r.text, /Help \[/)
+  const yml = tpl.yml.replace("  en:\n", "  en:\n    signature: Cheers\n")
+  const r2 = await previewDraft(project, { ...tpl, yml, langKey: 'en' })
+  assert.match(r2.text, /Cheers/)
+  assert.doesNotMatch(r2.text, /The Acme team/)
+})
+
+test('componentes: listado con usos y modo diseño selecciona la instancia entera', async () => {
+  const project = loadProject(DEMO)
+  const comps = Object.fromEntries(listComponents(project).map(c => [c.id, c]))
+  assert.deepEqual(comps.signature.usedBy.map(u => u.id).sort(), ['customers/email-verification', 'orders/order-confirmation'])
+  assert.equal(comps.footer.usedBy[0].kind, 'layout')
+  const tpl = readTemplate(project, 'customers/email-verification')
+  const d = await previewDraft(project, { ...tpl, langKey: 'es', mode: 'design' })
+  assert.equal((d.html.match(/tpl-comp tpl-node--\d+"/g) || []).length, 2)
+  const c = readTemplate(project, 'legal-notice', 'component')
+  const cp = await previewDraft(project, { ...c, kind: 'component' })
+  assert.deepEqual(cp.errors, [])
+  assert.match(cp.html, /Inter/, 'usa el <mj-head> del layout')
+})

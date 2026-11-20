@@ -47,6 +47,7 @@ export function loadProject(cwd = process.cwd(), overrides = {}) {
     outDir: path.resolve(cwd, config.outDir ?? 'dist'),
     layoutsDir: path.resolve(templatesDir, config.layouts ?? '_layouts'),
     partialsDir: path.resolve(templatesDir, config.partials ?? '_partials'),
+    componentsDir: path.resolve(templatesDir, config.components ?? '_components'),
     linksFile: path.resolve(templatesDir, config.links ?? '_shared/links.yml'),
     staticDir: path.resolve(templatesDir, config.static ?? '_shared'),
     locales: { ...DEFAULT_LOCALES, ...(config.locales || {}) },
@@ -54,7 +55,21 @@ export function loadProject(cwd = process.cwd(), overrides = {}) {
     output: { text: true, subject: true, ...(config.output || {}) },
     smtp: config.smtp || null,
   }
+  // layout cuyo <mj-head> se usa para previsualizar componentes sueltos
+  const layouts = listMjmlFiles(p.layoutsDir)
+  const previewLayout = config.previewLayout ?? layouts[0]
+  p.previewLayoutFile = previewLayout ? path.resolve(p.layoutsDir, previewLayout) : null
   return p
+}
+
+/** Directorio raíz según el tipo de documento: plantillas o componentes */
+export function baseDir(project, kind = 'template') {
+  return kind === 'component' ? project.componentsDir : project.templatesDir
+}
+
+/** Ruta para $import de un componente, relativa a la raíz de plantillas */
+export function componentImportPath(project, id) {
+  return `${path.relative(project.templatesDir, project.componentsDir).split(path.sep).join('/')}/${id}`
 }
 
 export function toLocale(project, langKey) {
@@ -63,7 +78,7 @@ export function toLocale(project, langKey) {
 
 // ── Plantillas ────────────────────────────────────────────────
 
-export function listTemplates(project) {
+function walkDocs(root) {
   const out = []
   const walk = (dir, rel = '') => {
     if (!fs.existsSync(dir)) return
@@ -84,13 +99,42 @@ export function listTemplates(project) {
       }
     }
   }
-  walk(project.templatesDir)
+  walk(root)
   return out.sort((a, b) => a.id.localeCompare(b.id))
 }
 
-export function templatePaths(project, id) {
+export function listTemplates(project) {
+  return walkDocs(project.templatesDir).map(t => ({ ...t, kind: 'template' }))
+}
+
+/** Componentes reutilizables (con dónde se usan y su etiqueta raíz para el editor) */
+export function listComponents(project) {
+  const sources = [
+    ...listTemplates(project).map(t => ({ ref: t.id, kind: 'template', file: templatePaths(project, t.id).mjml })),
+    ...listMjmlFiles(project.layoutsDir).map(f => ({ ref: f, kind: 'layout', file: path.join(project.layoutsDir, f) })),
+  ]
+  const comps = walkDocs(project.componentsDir)
+  for (const c of comps) sources.push({ ref: c.id, kind: 'component', file: templatePaths(project, c.id, 'component').mjml })
+  const texts = sources.map(s => ({ ...s, text: fs.readFileSync(s.file, 'utf8') }))
+  return comps.map((c) => {
+    const importPath = componentImportPath(project, c.id)
+    const re = new RegExp(`\\$import\\(\\s*['"]?${escapeRe(importPath)}(?:/${escapeRe(c.name)}\\.mjml|\\.mjml)?['"]?\\s*\\)`)
+    const src = fs.readFileSync(templatePaths(project, c.id, 'component').mjml, 'utf8')
+    return {
+      ...c,
+      kind: 'component',
+      importPath,
+      rootTag: src.match(/<(mj-[\w-]+)/)?.[1] || 'mj-section',
+      usedBy: texts.filter(t => !(t.kind === 'component' && t.ref === c.id) && re.test(t.text)).map(t => ({ kind: t.kind, id: t.ref })),
+    }
+  })
+}
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export function templatePaths(project, id, kind = 'template') {
   const safe = sanitizeId(id)
-  const dir = path.join(project.templatesDir, safe)
+  const dir = path.join(baseDir(project, kind), safe)
   const name = path.basename(safe)
   return {
     id: safe,
@@ -102,10 +146,11 @@ export function templatePaths(project, id) {
   }
 }
 
-export function readTemplate(project, id) {
-  const p = templatePaths(project, id)
-  if (!fs.existsSync(p.mjml)) throw httpError(404, `Plantilla no encontrada: ${id}`)
+export function readTemplate(project, id, kind = 'template') {
+  const p = templatePaths(project, id, kind)
+  if (!fs.existsSync(p.mjml)) throw httpError(404, `${kind === 'component' ? 'Componente' : 'Plantilla'} no encontrado: ${id}`)
   return {
+    kind,
     id: p.id,
     name: p.name,
     mjml: fs.readFileSync(p.mjml, 'utf8'),
@@ -114,13 +159,13 @@ export function readTemplate(project, id) {
   }
 }
 
-export function writeTemplate(project, id, { mjml, yml, data }) {
-  const p = templatePaths(project, id)
+export function writeTemplate(project, id, { mjml, yml, data }, kind = 'template') {
+  const p = templatePaths(project, id, kind)
   fs.mkdirSync(p.dir, { recursive: true })
   if (mjml !== undefined) fs.writeFileSync(p.mjml, mjml)
   if (yml !== undefined) fs.writeFileSync(p.yml, yml)
   if (data !== undefined) fs.writeFileSync(p.data, data)
-  return readTemplate(project, id)
+  return readTemplate(project, id, kind)
 }
 
 export function createTemplate(project, id, { layout, langs } = {}) {
@@ -158,14 +203,49 @@ export function createTemplate(project, id, { layout, langs } = {}) {
 function layoutNeeds(project, layout) {
   const file = path.resolve(project.layoutsDir, layout)
   if (!fs.existsSync(file)) return { vars: [], keys: [] }
-  let src = resolveImports(fs.readFileSync(file, 'utf8'), project.templatesDir)
+  const imported = []
+  let src = resolveImports(fs.readFileSync(file, 'utf8'), project.templatesDir, { onImport: f => imported.push(f) })
+  const provided = new Set(Object.values(importedMessages(imported)).flatMap(m => Object.keys(m)))
   const links = readLinks(project)
   for (const m of src.matchAll(/\$link\{\s*([\w.-]+)/g)) src += ` ${links[m[1]] ?? ''}`
   const uniq = (re) => [...new Set([...src.matchAll(re)].map(m => m[1]))]
   return {
     vars: uniq(/\{\{-?\s*([A-Za-z_]\w*)/g),
-    keys: uniq(/\$t\(\s*['"]([^'"]+)['"]/g),
+    keys: uniq(/\$t\(\s*['"]([^'"]+)['"]/g).filter(k => !provided.has(k)),
   }
+}
+
+/**
+ * Textos que aportan los ficheros importados (componentes con su propio .yml),
+ * por idioma. Sirven de valores por defecto: la plantilla puede sobrescribirlos.
+ */
+export function importedMessages(files) {
+  const out = {}
+  for (const file of files) {
+    const i18n = readYaml(file.replace(/\.mjml$/, '.yml'))
+    for (const [lang, msgs] of Object.entries(i18n?.messages || {})) out[lang] = { ...out[lang], ...msgs }
+  }
+  return out
+}
+
+export function createComponent(project, id, { mjml, messages, data } = {}) {
+  const p = templatePaths(project, id, 'component')
+  if (fs.existsSync(p.mjml)) throw httpError(409, `Ya existe el componente ${p.id}`)
+  const langKeys = Object.keys(project.config.locales || { en: 1 })
+  const body = mjml ?? [
+    '<mj-section padding="16px 24px">',
+    '  <mj-column>',
+    "    <mj-text>$t('text')</mj-text>",
+    '  </mj-column>',
+    '</mj-section>',
+    '',
+  ].join('\n')
+  const msgs = messages ?? Object.fromEntries(langKeys.map(l => [l, { text: p.name }]))
+  return writeTemplate(project, id, {
+    mjml: body,
+    yml: YAML.stringify({ messages: msgs }),
+    data: `${JSON5.stringify(data ?? {}, { space: 2, quote: '"' })}\n`,
+  }, 'component')
 }
 
 /** Valores ya usados en otras plantillas (datos de demo y mensajes) para reutilizarlos */
@@ -188,13 +268,14 @@ export function readLinks(project) {
   return readYaml(project.linksFile) || {}
 }
 
-export function deleteTemplate(project, id) {
-  const p = templatePaths(project, id)
+export function deleteTemplate(project, id, kind = 'template') {
+  const p = templatePaths(project, id, kind)
   if (!fs.existsSync(p.mjml)) throw httpError(404, `Plantilla no encontrada: ${id}`)
   for (const f of [p.mjml, p.yml, p.data]) if (fs.existsSync(f)) fs.rmSync(f)
   // limpia carpetas vacías (plantilla y grupos) hasta la raíz de plantillas
   let dir = p.dir
-  while (dir.startsWith(project.templatesDir + path.sep) && !fs.readdirSync(dir).length) {
+  const root = baseDir(project, kind)
+  while (dir.startsWith(root + path.sep) && !fs.readdirSync(dir).length) {
     fs.rmdirSync(dir)
     dir = path.dirname(dir)
   }

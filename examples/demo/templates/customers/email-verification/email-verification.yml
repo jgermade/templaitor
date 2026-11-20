@@ -12,7 +12,6 @@ messages:
     cta: Verificar email
     expiry: Este enlace expirará en 24 horas.
     ignore: Si no has creado una cuenta en Acme, puedes ignorar este email.
-    help: Ayuda
 
   en:
     title: Verify your email address
@@ -23,4 +22,3 @@ messages:
     cta: Verify email
     expiry: This link will expire in 24 hours.
     ignore: If you didn't create an Acme account, you can safely ignore this email.
-    help: Help

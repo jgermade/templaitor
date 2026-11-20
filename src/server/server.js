@@ -7,7 +7,7 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import {
   listTemplates, readTemplate, writeTemplate, createTemplate, deleteTemplate,
-  listMjmlFiles, resolveAuxFile, httpError,
+  listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent,
 } from '../engine/project.js'
 import { previewDraft, compileProject, compileSource, langsOf } from '../engine/pipeline.js'
 import { readLinks } from '../engine/project.js'
@@ -38,24 +38,40 @@ export function createHandler(project) {
         ...(fs.existsSync(project.linksFile) ? [rel(project, project.linksFile)] : []),
       ],
       links: readLinks(project),
-      smtp: !!project.smtp,
+      smtp: project.smtp ? { label: project.smtp.label || 'Enviar' } : null,
+      componentsDir: rel(project, project.componentsDir),
     }),
 
     'GET /api/templates': () => listTemplates(project),
 
-    'GET /api/template': ({ query }) => readTemplate(project, query.get('id')),
+    'GET /api/components': () => listComponents(project),
+
+    // `kind`: 'template' (por defecto) | 'component'
+    'GET /api/template': ({ query }) => readTemplate(project, query.get('id'), kindOf(query.get('kind'))),
 
     'PUT /api/template': ({ body }) => {
       validateDraft(body)
-      return writeTemplate(project, body.id, body)
+      return writeTemplate(project, body.id, body, kindOf(body.kind))
     },
 
     'POST /api/templates': ({ body }) => createTemplate(project, body.id, { layout: body.layout, langs: body.langs }),
 
-    'DELETE /api/template': ({ query }) => { deleteTemplate(project, query.get('id')); return { ok: true } },
+    'POST /api/components': ({ body }) => {
+      if (body.yml) validateDraft({ id: body.id, yml: body.yml })
+      return createComponent(project, body.id, {
+        mjml: body.mjml,
+        messages: body.yml ? YAML.parse(body.yml)?.messages : undefined,
+        data: body.data ? JSON5.parse(body.data) : undefined,
+      })
+    },
+
+    'DELETE /api/template': ({ query }) => {
+      deleteTemplate(project, query.get('id'), kindOf(query.get('kind')))
+      return { ok: true }
+    },
 
     'POST /api/preview': ({ body }) => previewDraft(project, {
-      mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, mode: body.mode,
+      mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, mode: body.mode, kind: kindOf(body.kind),
     }),
 
     'POST /api/compile': async ({ body }) => {
@@ -83,7 +99,7 @@ export function createHandler(project) {
       const i18n = YAML.parse(body.yml || '') || {}
       const data = JSON5.parse(body.data || '{}')
       const lang = body.lang || langsOf(project, i18n)[0]
-      const r = await compileSource(project, { mjml: body.mjml, i18n, links: readLinks(project), langKey: lang })
+      const r = await compileSource(project, { mjml: body.mjml, i18n, links: readLinks(project), langKey: lang, kind: kindOf(body.kind) })
       const transport = nodemailer.createTransport({
         host: project.smtp.host || 'localhost',
         port: Number(project.smtp.port || 1025),
@@ -135,6 +151,8 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
 }
 
 // ── helpers ───────────────────────────────────────────────────
+
+const kindOf = (k) => (k === 'component' ? 'component' : 'template')
 
 function rel(project, file) {
   return path.relative(project.templatesDir, file).split(path.sep).join('/')

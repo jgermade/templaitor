@@ -9,7 +9,7 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import {
   parse, serialize, splitFrontmatter, joinFrontmatter, findNode, parentId, clone,
-  removeNode, insertNode, moveNode, getAttr, setAttr,
+  removeNode, insertNode, moveNode, getAttr, setAttr, importRef, walk,
 } from '@shared/mjml-tree.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
@@ -19,7 +19,9 @@ const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
 class EditorStore {
   project = $state(null)
   templates = $state([])
-  doc = $state(null) // { id, name, mjml, yml, data }
+  components = $state([])
+  doc = $state(null) // { kind, id, name, mjml, yml, data }
+  returnTo = $state(null) // plantilla desde la que se abrió un componente
   saved = $state(null) // snapshot de lo guardado
   lang = $state(null)
   selectedId = $state(null)
@@ -41,7 +43,9 @@ class EditorStore {
   frontmatter = $derived.by(() => {
     try { return YAML.parse(this.split.frontmatter || '') || {} } catch { return {} }
   })
-  isFragment = $derived(!!this.frontmatter.layout)
+  kind = $derived(this.doc?.kind ?? 'template')
+  isComponent = $derived(this.kind === 'component')
+  isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
   tree = $derived(parse(this.split.body))
   i18n = $derived.by(() => {
     try { return YAML.parse(this.doc?.yml || '') || {} } catch { return {} }
@@ -70,20 +74,22 @@ class EditorStore {
   // ── Carga / guardado ──────────────────────────────────────
   async init() {
     this.project = await api.project()
-    this.templates = await api.templates()
-    const fromHash = decodeURIComponent(location.hash.slice(1))
-    const first = this.templates.find(t => t.id === fromHash) || this.templates[0]
+    await this.refreshTemplates()
+    const hash = decodeURIComponent(location.hash.slice(1))
+    if (hash.startsWith('c:') && this.components.some(c => c.id === hash.slice(2))) return this.open(hash.slice(2), 'component')
+    const first = this.templates.find(t => t.id === hash) || this.templates[0]
     if (first) await this.open(first.id)
   }
 
   async refreshTemplates() {
-    this.templates = await api.templates()
-    this.project = await api.project()
+    ;[this.templates, this.components, this.project] = await Promise.all([api.templates(), api.components(), api.project()])
   }
 
-  async open(id) {
+  async open(id, kind = 'template') {
     if (this.dirty && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) return false
-    const doc = await api.template(id)
+    const doc = await api.template(id, kind)
+    if (kind === 'component' && this.doc?.kind === 'template') this.returnTo = this.doc.id
+    if (kind === 'template') this.returnTo = null
     this.doc = doc
     this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
     this.history = []
@@ -91,17 +97,17 @@ class EditorStore {
     this.selectedId = null
     const langs = Object.keys(this.i18n.messages || {})
     if (!langs.includes(this.lang)) this.lang = langs[0] || this.project?.defaultLocale
-    history.replaceState(null, '', `#${encodeURIComponent(id)}`)
+    history.replaceState(null, '', `#${kind === 'component' ? 'c:' : ''}${encodeURIComponent(id)}`)
     return true
   }
 
   async save() {
     if (!this.doc) return
     try {
-      const doc = await api.save({ id: this.doc.id, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data })
+      const doc = await api.save({ kind: this.kind, id: this.doc.id, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data })
       this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
-      this.notify('Guardado')
-      this.templates = await api.templates()
+      this.notify(this.isComponent ? 'Componente guardado (se aplica en todas las plantillas que lo usan)' : 'Guardado')
+      await this.refreshTemplates()
     } catch (e) {
       this.notify(e.message, 'error')
     }
@@ -110,7 +116,7 @@ class EditorStore {
   async compile() {
     try {
       if (this.dirty) await this.save()
-      const r = await api.compile(this.doc?.id)
+      const r = await api.compile(this.isComponent ? undefined : this.doc?.id)
       const warn = r.issues.length ? ` · ${r.issues.length} aviso(s)` : ''
       this.notify(`Compilado: ${r.files.length} fichero(s) en ${this.project.outDir}/${warn}`, r.issues.length ? 'warn' : 'success')
     } catch (e) {
@@ -236,7 +242,7 @@ class EditorStore {
       pid = parentId(targetId)
       index = Number(targetId.split('.').pop()) + (where === 'after' ? 1 : 0)
     }
-    if (!this.accepts(pid, node.tag)) return false
+    if (!this.accepts(pid, node.tag ?? this.instanceOf(node)?.comp?.rootTag)) return false
     this.mutate(tree => moveNode(tree, id, pid, index))
     return true
   }
@@ -306,6 +312,94 @@ class EditorStore {
     return body === -1 ? null : `${mjml}.${body}`
   }
 
+  // ── Componentes reutilizables ─────────────────────────────
+  /** Info de una instancia de componente ($import) o null */
+  instanceOf(node) {
+    const ref = importRef(node)
+    if (!ref) return null
+    const comp = this.components.find(c => ref === c.importPath || ref.startsWith(`${c.importPath}/`) || ref === `${c.importPath}.mjml`)
+    return { ref, comp, name: comp?.name ?? ref.split('/').pop().replace(/\.mjml$/, '') }
+  }
+
+  insertComponent(comp) {
+    const node = { type: 'text', value: `$import(${comp.importPath})` }
+    const p = this.findPlacement(comp.rootTag)
+    if (!p) return this.notify(`No hay dónde insertar ${comp.name}`, 'error')
+    this.mutate(tree => insertNode(tree, p.pid, p.index, node))
+  }
+
+  async openComponent(compId) {
+    if (this.dirty) await this.save()
+    await this.open(compId, 'component')
+  }
+
+  async back() {
+    if (!this.returnTo) return
+    if (this.dirty) await this.save()
+    await this.open(this.returnTo)
+  }
+
+  /** Claves $t usadas dentro de un subárbol */
+  keysIn(node) {
+    const keys = new Set()
+    walk(node, (n) => {
+      const text = [n.content, n.value, ...(n.attrs || []).map(a => a[1])].filter(Boolean).join(' ')
+      for (const m of text.matchAll(/\$t\(\s*['"]([^'"]+)['"]\s*\)/g)) keys.add(m[1])
+    })
+    return [...keys]
+  }
+
+  /** Convierte el bloque seleccionado en un componente reutilizable y lo sustituye por su instancia */
+  async extractComponent(id, name) {
+    const node = findNode(this.tree, id)
+    if (!node || node.type !== 'element') return
+    const keys = this.keysIn(node)
+    const messages = Object.fromEntries(this.langs.map(l => [l, Object.fromEntries(
+      keys.filter(k => this.i18n.messages?.[l]?.[k] != null).map(k => [k, this.i18n.messages[l][k]]),
+    )]))
+    try {
+      const comp = await api.createComponent({
+        id: name,
+        mjml: serialize({ type: 'root', children: [node] }),
+        yml: YAML.stringify({ messages }),
+      })
+      await this.refreshTemplates()
+      const info = this.components.find(c => c.id === comp.id)
+      this.mutate(tree => {
+        findNode(tree, parentId(id)).children.splice(Number(id.split('.').pop()), 1, { type: 'text', value: `$import(${info.importPath})` })
+        return id
+      })
+      // los textos pasan al componente (salvo que la plantilla los siga usando)
+      const stillUsed = new Set(this.keysIn(this.tree))
+      const moved = keys.filter(k => !stillUsed.has(k))
+      if (moved.length) this.#editYaml(doc => { for (const l of this.langs) for (const k of moved) doc.deleteIn(['messages', l, k]) })
+      this.notify(`Componente «${comp.id}» creado`)
+    } catch (e) {
+      this.notify(e.message, 'error')
+    }
+  }
+
+  /** Sustituye una instancia por una copia editable de su contenido (y copia sus textos a la plantilla) */
+  async detach(id) {
+    const info = this.instanceOf(findNode(this.tree, id))
+    if (!info?.comp) return
+    const comp = await api.template(info.comp.id, 'component')
+    const parsed = parse(splitFrontmatter(comp.mjml).body)
+    let compMsgs = {}
+    try { compMsgs = YAML.parse(comp.yml || '')?.messages || {} } catch {}
+    this.mutate(tree => {
+      findNode(tree, parentId(id)).children.splice(Number(id.split('.').pop()), 1, ...parsed.children)
+      return id
+    })
+    const keys = this.keysIn(parsed)
+    this.#editYaml(doc => {
+      for (const l of this.langs) for (const k of keys) {
+        const v = compMsgs[l]?.[k]
+        if (v != null && !doc.hasIn(['messages', l, k])) doc.setIn(['messages', l, k], v)
+      }
+    })
+  }
+
   // ── i18n ──────────────────────────────────────────────────
   #editYaml(fn, tag) {
     const doc = YAML.parseDocument(this.doc.yml || '')
@@ -345,6 +439,10 @@ class EditorStore {
     })()
     const re = new RegExp(`\\$t\\(\\s*(['"])${oldKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\1\\s*\\)`, 'g')
     this.update({ yml, mjml: this.doc.mjml.replace(re, `$t('${newKey}')`) })
+  }
+
+  removeKey(key) {
+    this.#editYaml(doc => { for (const l of this.langs) if (doc.hasIn(['messages', l, key])) doc.deleteIn(['messages', l, key]) })
   }
 
   uniqueKey(base) {

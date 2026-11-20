@@ -10,7 +10,6 @@ messages:
     price: Precio
     total: "Total: {{ total }} €"
     track: Seguir envío
-    help: Ayuda
   en:
     title: Thanks for your order, {{ first_name }}!
     intro: We've received your order <b>#{{ order_id }}</b>. We'll let you know when it ships.
@@ -18,4 +17,3 @@ messages:
     price: Price
     total: "Total: {{ total }} €"
     track: Track shipment
-    help: Help

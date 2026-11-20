@@ -4,12 +4,12 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
-import { parseFrontmatter, resolveImports, applyLayout } from './resolver.js'
+import { parseFrontmatter, resolveImports, applyLayout, readImport, wrapFragment } from './resolver.js'
 import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
 import { tryRenderJinja } from './render.js'
-import { listTemplates, readLinks, readTemplate, templatePaths, toLocale } from './project.js'
+import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
 const HTML_TO_TEXT_OPTS = {
   wordwrap: 80,
@@ -37,11 +37,21 @@ export function subjectFor(i18n, langKey) {
  * Compila una plantilla (texto fuente) para un idioma.
  * Devuelve HTML/TXT/subject con los tokens Jinja2 intactos.
  */
-export async function compileSource(project, { mjml, i18n = {}, links = {}, langKey, design = false }) {
+export async function compileSource(project, { mjml, i18n = {}, links = {}, langKey, design = false, kind = 'template' }) {
   const locale = toLocale(project, langKey)
   const country = locale.split('-')[1] || String(langKey).toUpperCase()
   const warnings = []
-  const ctx = { lang: locale, country, langKey, messages: i18n.messages?.[langKey] || {}, links, warnings }
+  const imported = []
+  const onImport = (file) => imported.push(file)
+  const ctx = {
+    lang: locale, country, langKey, messages: i18n.messages?.[langKey] || {}, links, warnings,
+    // (modo diseño) lectura de $import para pintar instancias de componentes seleccionables
+    readImport: (ref) => {
+      const r = readImport(project.templatesDir, ref)
+      onImport(r.file)
+      return r.content
+    },
+  }
 
   // 1. Frontmatter
   const { meta, body: rawBody } = parseFrontmatter(mjml)
@@ -49,11 +59,17 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 2. (modo diseño) anotar nodos para el editor visual
   const body = design ? annotateBody(rawBody, ctx) : rawBody
 
-  // 3. $import + layout
-  const withImports = resolveImports(body, project.templatesDir)
-  const unified = meta.layout
-    ? applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir })
-    : withImports
+  // 3. $import + layout (un componente suelto se envuelve con el <mj-head> del layout de vista previa)
+  const withImports = resolveImports(body, project.templatesDir, { onImport })
+  let unified = withImports
+  if (meta.layout) {
+    unified = applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, onImport })
+  } else if (kind === 'component' && !/<mjml[\s>]/.test(withImports)) {
+    unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport })
+  }
+
+  // Textos de los componentes importados (por defecto; la plantilla los sobrescribe)
+  ctx.messages = { ...importedMessages(imported)[langKey], ...ctx.messages }
 
   // 4. Comandos $ (compile-time)
   const resolved = resolveCommands(unified, ctx)
@@ -117,7 +133,7 @@ export async function compileProject(project, { target, log = console.log } = {}
  * Vista previa de un borrador (sin guardar).
  * mode: 'design' → HTML anotado para el WYSIWYG · 'preview' → renderizado con datos de demo · 'raw' → salida Jinja2
  */
-export async function previewDraft(project, { mjml, yml = '', data = '{}', langKey, mode = 'preview' }) {
+export async function previewDraft(project, { mjml, yml = '', data = '{}', langKey, mode = 'preview', kind = 'template' }) {
   const warnings = []
   let i18n = {}
   try { i18n = YAML.parse(yml) || {} } catch (e) { warnings.push(`YAML: ${e.message.split('\n')[0]}`) }
@@ -125,7 +141,7 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
   try { demo = JSON5.parse(data || '{}') } catch (e) { warnings.push(`JSON5: ${e.message}`) }
 
   const lang = langKey || langsOf(project, i18n)[0]
-  const r = await compileSource(project, { mjml, i18n, links: readLinks(project), langKey: lang, design: mode === 'design' })
+  const r = await compileSource(project, { mjml, i18n, links: readLinks(project), langKey: lang, design: mode === 'design', kind })
   warnings.push(...r.warnings)
 
   if (mode === 'raw') return { ...r, warnings }

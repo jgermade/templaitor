@@ -1,11 +1,11 @@
 <script>
   import AttrField from '../components/AttrField.svelte'
-  import TemplateSettings from './TemplateSettings.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { describe } from '@shared/components.js'
   import { findNode, getAttr } from '@shared/mjml-tree.js'
 
   const node = $derived(store.selected)
+  const instance = $derived(store.instanceOf(node))
   const def = $derived(node?.type === 'element' ? describe(node.tag) : null)
   const key = $derived(store.keyOf(node))
   const knownNames = $derived(new Set((def?.attrs || []).map(a => a.name)))
@@ -17,7 +17,7 @@
     return parts.map((_, i) => {
       const id = parts.slice(0, i + 1).join('.')
       const n = findNode(store.tree, id)
-      return { id, label: n?.tag ? describe(n.tag).label : 'Código' }
+      return { id, label: n?.tag ? describe(n.tag).label : store.instanceOf(n)?.name ?? 'Código' }
     })
   })
 
@@ -41,31 +41,43 @@
 </script>
 
 <aside>
-  {#if !node}
-    <TemplateSettings />
-  {:else}
+  {#if node}
     <div class="head">
       <nav class="crumbs">
-        <button class="ghost" onclick={() => (store.selectedId = null)}>Plantilla</button>
+        <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Componente' : 'Plantilla'}</button>
         {#each crumbs as c}
           <span class="muted">›</span>
           <button class="ghost" class:cur={c.id === store.selectedId} onclick={() => (store.selectedId = c.id)}>{c.label}</button>
         {/each}
       </nav>
       <div class="title">
-        <span class="ic">{def?.icon ?? '$'}</span>
-        <b>{def?.label ?? 'Código'}</b>
+        <span class="ic" class:comp={instance}>{def?.icon ?? (instance ? '◆' : '$')}</span>
+        <b>{def?.label ?? (instance ? instance.name : 'Código')}</b>
         {#if node.tag}<code class="muted">&lt;{node.tag}&gt;</code>{/if}
         <span class="grow"></span>
         {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
           <button class="ghost" title="Duplicar" onclick={() => store.duplicate(node.id)}>⧉</button>
-          <button class="ghost danger" title="Eliminar (Supr)" onclick={() => store.removeSelected()}>✕</button>
+          <button class="ghost danger" title="Eliminar (Supr)" onclick={() => store.removeSelected()}>🗑</button>
         {/if}
+        <button class="ghost" title="Cerrar (Esc)" onclick={() => (store.selectedId = null)}>✕</button>
       </div>
     </div>
 
     <div class="body">
-      {#if node.type === 'text'}
+      {#if instance}
+        <section class="comp">
+          <div class="panel-title">Componente reutilizable</div>
+          {#if instance.comp}
+            <p>Este bloque es una instancia de <b>◆ {instance.comp.name}</b>, usado en {instance.comp.usedBy.length} sitio(s). Los cambios en el componente se aplican en todos.</p>
+            <div class="btns">
+              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Editar componente</button>
+              <button onclick={() => store.detach(node.id)} title="Sustituye la instancia por una copia editable solo en esta plantilla">Desvincular (copiar aquí)</button>
+            </div>
+          {:else}
+            <p class="muted">Parcial importado: <code>{instance.ref}</code>. Edítalo en la vista Código.</p>
+          {/if}
+        </section>
+      {:else if node.type === 'text'}
         <label class="field">
           <span>Código (comandos $, bloques Jinja2…)</span>
           <textarea class="mono" rows="6" value={node.value} oninput={(e) => store.mutate(t => { findNode(t, node.id).value = e.currentTarget.value }, `text:${node.id}`)}></textarea>
@@ -140,6 +152,9 @@
 
 <style>
   aside { background: var(--panel); border-left: 1px solid var(--border); overflow: auto; min-height: 0; }
+  .comp p { margin: 0 0 10px; font-size: 12.5px; }
+  .btns { display: grid; gap: 6px; }
+  .ic.comp { color: #7c3aed; font-size: 12px; }
   .head { position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 8px 8px; z-index: 1; }
   .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; font-size: 11px; }
   .crumbs button { padding: 1px 4px; font-size: 11px; color: var(--muted); }

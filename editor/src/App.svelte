@@ -1,11 +1,10 @@
 <script>
   import { onMount } from 'svelte'
   import Topbar from './views/Topbar.svelte'
-  import Outline from './views/Outline.svelte'
+  import Sidebar from './views/Sidebar.svelte'
   import Canvas from './views/Canvas.svelte'
   import Inspector from './views/Inspector.svelte'
   import CodeView from './views/CodeView.svelte'
-  import PreviewView from './views/PreviewView.svelte'
   import NewTemplateDialog from './views/NewTemplateDialog.svelte'
   import Toast from './components/Toast.svelte'
   import { store } from './stores/editor.svelte.js'
@@ -14,6 +13,7 @@
   let error = $state(null)
   let showNew = $state(false)
   let showIssues = $state(false)
+  let showText = $state(false)
 
   onMount(() => {
     store.init().catch((e) => (error = e.message))
@@ -24,6 +24,7 @@
   $effect(() => {
     if (!store.doc) return
     const draft = {
+      kind: store.kind,
       mjml: store.doc.mjml,
       yml: store.doc.yml,
       data: store.doc.data,
@@ -85,8 +86,10 @@
 
     {#if store.doc && store.view !== 'code'}
       <div class="subject">
-        <span class="label">Asunto</span>
-        {#if store.view === 'design'}
+        <span class="label">{store.isComponent ? 'Componente' : 'Asunto'}</span>
+        {#if store.isComponent}
+          <span class="rendered muted">◆ {store.doc.name} — vista previa con el &lt;mj-head&gt; del layout</span>
+        {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}
             placeholder="Asunto del email ({store.lang})"
@@ -96,6 +99,18 @@
           <span class="rendered">{store.preview.subject}</span>
         {/if}
         {#if store.loadingPreview}<span class="spinner" aria-label="Actualizando"></span>{/if}
+        <span class="grow"></span>
+        <div class="issues-wrap">
+          <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
+            {issues.length ? `⚠ ${issues.length}` : '✓'}
+          </button>
+          {#if showIssues && issues.length}
+            <ul class="issue-list">
+              {#each issues as i}<li class={i.level}>{i.m}</li>{/each}
+            </ul>
+          {/if}
+        </div>
+        <label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>
       </div>
     {/if}
 
@@ -109,32 +124,24 @@
             <p class="muted">Cargando…</p>
           {/if}
         </div>
-      {:else if store.view === 'design'}
-        <div class="design">
-          <Outline />
-          <div class="canvas-wrap"><Canvas mode="design" /></div>
-          <Inspector />
-        </div>
       {:else if store.view === 'code'}
         <CodeView />
       {:else}
-        <PreviewView />
+        <div class="layout" class:with-inspector={store.view === 'design' && store.selected && !showText}>
+          <Sidebar />
+          <div class="center">
+            {#if showText}
+              <pre class="text">{store.preview.text}</pre>
+            {:else}
+              <Canvas mode={store.view === 'design' ? 'design' : 'preview'} />
+            {/if}
+          </div>
+          {#if store.view === 'design' && store.selected && !showText}
+            <Inspector />
+          {/if}
+        </div>
       {/if}
     </main>
-
-    <footer>
-      <span class="mono muted">{store.doc?.id ?? ''}</span>
-      {#if store.doc}<span class="muted">· {store.project?.locales?.[store.lang] || store.lang}</span>{/if}
-      <span class="grow"></span>
-      <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
-        {issues.length ? `⚠ ${issues.length} aviso(s)` : '✓ Sin avisos'}
-      </button>
-      {#if showIssues && issues.length}
-        <ul class="issue-list">
-          {#each issues as i}<li class={i.level}>{i.m}</li>{/each}
-        </ul>
-      {/if}
-    </footer>
   </div>
 {/if}
 
@@ -144,33 +151,37 @@
 <style>
   .app { display: flex; flex-direction: column; height: 100vh; }
   main { flex: 1; min-height: 0; }
-  .design { display: grid; grid-template-columns: 280px minmax(0, 1fr) 320px; height: 100%; min-height: 0; }
-  .canvas-wrap { min-width: 0; min-height: 0; }
+  .layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; min-height: 0; }
+  .layout.with-inspector { grid-template-columns: 400px minmax(0, 1fr) 320px; }
+  .center { min-width: 0; min-height: 0; overflow: auto; background: #f4f4f5; }
   .subject {
-    display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px;
-    background: var(--panel-2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px; height: 52px; padding: 0 20px; flex: none;
+    background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font-size: 15px;
   }
-  .subject .label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--muted); }
-  .subject input { flex: 1; max-width: 640px; border-color: transparent; background: transparent; font-weight: 500; }
+  .subject .label { color: #3f3f46; min-width: 76px; }
+  .subject input { flex: 1; max-width: 760px; border-color: transparent; background: transparent; font-size: 15px; padding: 4px 6px; }
   .subject input:hover { border-color: var(--border); background: #fff; }
-  .subject .rendered { font-weight: 500; }
-  .spinner { width: 12px; height: 12px; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  footer {
-    position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 26px; flex: none;
-    background: var(--panel); border-top: 1px solid var(--border); font-size: 11px;
-  }
+  .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
-  .issues { font-size: 11px; padding: 0 6px; color: var(--ok); }
+  .text-toggle { display: flex; align-items: center; gap: 6px; color: #3f3f46; cursor: pointer; }
+  .text-toggle input { width: 15px; height: 15px; margin: 0; }
+  .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .issues-wrap { position: relative; }
+  .issues { font-size: 12px; padding: 2px 8px; color: var(--ok); }
   .issues.has { color: var(--warn); }
   .issue-list {
-    position: absolute; right: 8px; bottom: 28px; margin: 0; padding: 8px 12px; list-style: none; z-index: 20;
+    position: absolute; right: 0; top: 30px; margin: 0; padding: 8px 12px; list-style: none; z-index: 20;
     background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
     max-height: 50vh; overflow: auto; width: min(520px, 90vw); font-size: 12px;
   }
   .issue-list li { padding: 3px 0; }
   .issue-list .error { color: var(--danger); }
   .issue-list .warn { color: var(--warn); }
+  pre.text {
+    margin: 24px auto; max-width: 680px; background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px 24px; white-space: pre-wrap; font: 13px/1.6 var(--mono);
+  }
   .empty-state { display: grid; place-content: center; gap: 12px; height: 100%; text-align: center; }
   .fatal { padding: 40px; }
 </style>

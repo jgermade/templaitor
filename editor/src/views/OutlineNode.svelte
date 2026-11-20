@@ -9,10 +9,12 @@
   let dropWhere = $state(null)
 
   const isEl = $derived(node.type === 'element')
+  const instance = $derived(store.instanceOf(node))
   const def = $derived(isEl ? describe(node.tag) : null)
   const hasKids = $derived(isEl && node.children.length > 0)
 
   const summary = $derived.by(() => {
+    if (instance) return instance.comp ? `${instance.comp.usedBy.length} uso(s)` : instance.ref
     if (node.type === 'text') return node.value
     if (node.type === 'comment') return `<!-- ${node.value} -->`
     if (node.content != null) {
@@ -58,7 +60,8 @@
     aria-selected={store.selectedId === node.id}
     tabindex="-1"
     draggable={node.tag !== 'mjml' && node.tag !== 'mj-body'}
-    ondragstart={(e) => { drag.id = node.id; drag.tag = node.tag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
+    ondblclick={() => instance?.comp && store.openComponent(instance.comp.id)}
+    ondragstart={(e) => { drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
     ondragend={() => { drag.id = null; dropWhere = null }}
     ondragover={onDragOver}
     ondragleave={() => (dropWhere = null)}
@@ -69,8 +72,8 @@
     <button class="twisty ghost" class:hidden={!hasKids} onclick={(e) => { e.stopPropagation(); collapsed = !collapsed }} tabindex="-1">
       {collapsed ? '▸' : '▾'}
     </button>
-    <span class="icon">{isEl ? def.icon : node.type === 'comment' ? '#' : '$'}</span>
-    <span class="label">{isEl ? def.label : node.type === 'comment' ? 'Comentario' : 'Código'}</span>
+    <span class="icon" class:comp={instance}>{isEl ? def.icon : instance ? '◆' : node.type === 'comment' ? '#' : '$'}</span>
+    <span class="label" class:comp={instance}>{isEl ? def.label : instance ? instance.name : node.type === 'comment' ? 'Comentario' : 'Código'}</span>
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
@@ -103,6 +106,8 @@
   .icon { width: 18px; text-align: center; font-size: 12px; color: var(--muted); flex: none; }
   .label { font-weight: 500; flex: none; }
   .muted .label { color: var(--muted); font-weight: 400; }
+  .muted .label.comp, .label.comp { color: #6d28d9; font-weight: 500; }
+  .icon.comp { color: #7c3aed; font-size: 10px; }
   .summary { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; font-size: 12px; }
   .actions { display: none; flex: none; }
   .row:hover .actions { display: flex; }

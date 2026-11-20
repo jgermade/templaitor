@@ -57,7 +57,10 @@ export function parse(source) {
   const pushText = (end) => {
     if (end <= textStart) return
     const value = source.slice(textStart, end)
-    if (value.trim()) top().children.push({ type: 'text', value: value.trim() })
+    // cada $import (instancia de componente) y cada bloque separado por línea en blanco es un nodo
+    for (const part of value.split(/(\$import\([^)]*\))|\n\s*\n/)) {
+      if (part?.trim()) top().children.push({ type: 'text', value: part.trim() })
+    }
   }
   const top = () => stack[stack.length - 1]
 
@@ -137,12 +140,13 @@ function openTag(node, extraAttrs) {
   return `<${node.tag}${a}`
 }
 
-export function serialize(root, { indent = '  ', extraAttrs, transformContent } = {}) {
+export function serialize(root, { indent = '  ', extraAttrs, transformContent, transformText } = {}) {
   const out = []
   const walk = (node, depth) => {
     const pad = indent.repeat(depth)
     if (node.type === 'text') {
-      out.push(node.value.split('\n').map(l => pad + l.trim()).join('\n'))
+      const value = transformText ? transformText(node) : node.value
+      out.push(value.split('\n').map(l => pad + l.trim()).join('\n'))
       return
     }
     if (node.type === 'comment') { out.push(`${pad}<!-- ${node.value} -->`); return }
@@ -172,6 +176,14 @@ export function serialize(root, { indent = '  ', extraAttrs, transformContent } 
 }
 
 // ── Tree helpers ─────────────────────────────────────────────
+
+const IMPORT_ONLY = /^\$import\(\s*['"]?([^)'"]+?)['"]?\s*\)$/
+
+/** Si el nodo es exactamente un `$import(ruta)` devuelve la ruta */
+export function importRef(node) {
+  if (node?.type !== 'text') return null
+  return node.value.trim().match(IMPORT_ONLY)?.[1] ?? null
+}
 
 export function findNode(root, id) {
   if (id === '' || id == null) return root

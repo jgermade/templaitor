@@ -9,7 +9,7 @@
 //   guardan su código fuente en `data-tpl-src` (codificado para que ni el
 //   resolvedor de comandos ni Jinja2 lo procesen).
 
-import { parse, serialize, walk } from '../shared/mjml-tree.js'
+import { parse, serialize, walk, importRef } from '../shared/mjml-tree.js'
 import { NON_VISUAL, describe } from '../shared/components.js'
 import { lookupMessage, parseAttrs } from './commands.js'
 
@@ -29,6 +29,16 @@ export function annotateBody(body, ctx) {
   const visual = (node) => node.type === 'element' && !hidden.has(node) && !NON_VISUAL.has(node.tag) && !NO_CLASS.has(node.tag)
 
   return serialize(tree, {
+    transformText: (node) => {
+      const ref = importRef(node)
+      if (!ref || !ctx.readImport || hidden.has(node)) return node.value
+      try {
+        return annotateInstance(ctx.readImport(ref), node.id)
+      } catch (err) {
+        ctx.warnings?.push(err.message)
+        return node.value
+      }
+    },
     extraAttrs: (node) => {
       if (!visual(node)) return node.attrs
       const cls = `tpl-node tpl-node--${node.id.replace(/\./g, '_')}`
@@ -46,6 +56,18 @@ export function annotateBody(body, ctx) {
         return `<${tagName} data-tpl-edit="t:${escapeHtml(m[1])}"${missing}>${chipify(String(msg ?? '').trim())}</${tagName}>`
       }
       return `<${tagName} data-tpl-edit="c:${node.id}">${chipify(node.content)}</${tagName}>`
+    },
+  })
+}
+
+function annotateInstance(source, id) {
+  const tree = parse(source)
+  const cls = `tpl-node tpl-comp tpl-node--${id.replace(/\./g, '_')}`
+  return serialize(tree, {
+    extraAttrs: (node) => {
+      if (node.id.includes('.') || NON_VISUAL.has(node.tag) || NO_CLASS.has(node.tag)) return node.attrs
+      const prev = node.attrs.find(([k]) => k === 'css-class')?.[1]
+      return [...node.attrs.filter(([k]) => k !== 'css-class'), ['css-class', prev ? `${prev} ${cls}` : cls]]
     },
   })
 }

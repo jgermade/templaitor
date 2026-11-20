@@ -23,7 +23,8 @@
   $effect(() => {
     const id = store.selectedId
     const node = id != null ? findNode(store.tree, id) : null
-    const label = node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
+    const inst = store.instanceOf(node)
+    const label = inst ? `◆ ${inst.name} · doble click para editar` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
     if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
   })
 
@@ -59,6 +60,11 @@
         else if (kind === 'c') store.setContent(ref, msg.value)
         break
       }
+      case 'opencomp': {
+        const info = store.instanceOf(findNode(store.tree, msg.id))
+        if (info?.comp) store.openComponent(info.comp.id)
+        break
+      }
       case 'key':
         if (msg.key === 'save') store.save()
         if (msg.key === 'undo') store.undo()
@@ -76,10 +82,8 @@
 </div>
 
 <style>
-  .stage { height: 100%; display: flex; justify-content: center; overflow: hidden; padding: 16px; }
-  iframe {
-    width: 100%; max-width: 100%; height: 100%; border: 1px solid var(--border); border-radius: 8px;
-    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); transition: width .2s;
-  }
-  .mobile iframe { width: 390px; }
+  .stage { height: 100%; display: flex; justify-content: center; overflow: hidden; background: #f4f4f5; }
+  iframe { width: 100%; max-width: 100%; height: 100%; border: 0; background: #fff; transition: width .2s; }
+  .mobile { padding: 16px 0; }
+  .mobile iframe { width: 390px; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.08); }
 </style>

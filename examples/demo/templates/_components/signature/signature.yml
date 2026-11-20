@@ -1,0 +1,5 @@
+messages:
+  es:
+    signature: "Gracias,<br><b>El equipo de Acme</b>"
+  en:
+    signature: "Thanks,<br><b>The Acme team</b>"

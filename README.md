@@ -54,7 +54,8 @@ npx templaitor new grupo/nombre --layout base.layout.mjml
 templaitor.config.yml
 templates/
   _layouts/base.layout.mjml        # layouts con $content
-  _partials/footer.mjml            # parciales para $import(...)
+  _components/footer/              # componentes reutilizables: $import(_components/footer)
+    footer.mjml · footer.yml · footer.json5
   _shared/links.yml                # URLs para $link{...}
   _shared/logo.svg                 # estáticos (servidos en /static/ por el editor)
   customers/email-verification/
@@ -74,6 +75,8 @@ templates: templates     # raíz de plantillas
 outDir: dist
 layouts: _layouts        # relativo a templates
 partials: _partials
+components: _components  # componentes reutilizables
+previewLayout: base.layout.mjml   # <mj-head> para previsualizar componentes (por defecto, el primero)
 links: _shared/links.yml
 static: _shared
 locales:                 # clave de idioma en el .yml → locale ($lang y nombre de fichero)
@@ -86,13 +89,14 @@ smtp:                    # opcional: botón "Enviar" del editor (p.ej. Mailpit)
   host: localhost
   port: 1025
   from: noreply@example.com
+  label: mailpit         # texto del botón de envío
 ```
 
 ## Comandos `$` (compile-time) y Jinja2 (runtime)
 
 | Comando | Descripción |
 |---|---|
-| `$import( ruta )` | Incluye un parcial (relativo a `templates/`) |
+| `$import( ruta )` | Incluye un parcial o componente (relativo a `templates/`; `_components/x` = `_components/x/x.mjml`) |
 | `$lang` / `$country` | Locale actual (`es-ES`) / país (`ES`) |
 | `$if( expr ) … $else … $end` | Condicional compile-time (expresión JS) |
 | `$t('clave')` | Texto de `messages.<idioma>.clave` (admite claves anidadas `a.b`) |
@@ -102,19 +106,37 @@ La resolución es recursiva (un `$t` puede contener otros comandos). Todo lo que
 (`{{ }}`, `{% %}`, `{# #}`) se protege del compilador MJML y llega intacto al HTML, al TXT y al asunto.
 Para bloques Jinja2 entre secciones usa `<mj-raw>{% if … %}</mj-raw>`.
 
+## Componentes reutilizables
+
+Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragmento MJML),
+`<nombre>.yml` (`messages` por idioma) y `<nombre>.json5` (datos de demo). Se usa con
+`$import(_components/<nombre>)` en plantillas, layouts u otros componentes.
+
+- Sus textos `$t` se resuelven con su propio `.yml`; la plantilla puede **sobrescribir** cualquier clave en el suyo.
+- En el editor: panel **Componentes** para insertarlos, ver cuántas plantillas los usan y crearlos;
+  en el lienzo cada instancia se selecciona como un bloque (◆) y con **doble click** se edita el componente
+  con el mismo WYSIWYG (con «← volver» a la plantilla). Los cambios se aplican en todas las plantillas.
+- **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
+- **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
+
 ## Editor visual
 
 - **Diseño**: el lienzo es el HTML real compilado por MJML. Click para seleccionar un bloque;
   en textos y botones se escribe directamente. Si el contenido es `$t('clave')`, lo que escribes
   va al `.yml` del idioma activo. Las variables Jinja2 y los comandos `$` aparecen como *chips*
   no editables; escribir `{{ variable }}` crea uno nuevo.
+- **Interfaz**: ruta de la plantilla (click para buscar/abrir plantillas y componentes), banderas de idioma,
+  botón de envío SMTP (p.ej. *mailpit*), abrir la vista previa en otra pestaña, asunto editable y
+  conmutador `text`. A la izquierda, datos de demo (JSON5) y secciones plegables: Mensajes, Componentes,
+  Bloques, Estructura y Plantilla. El inspector aparece al seleccionar un bloque.
 - **Estructura**: árbol de bloques con arrastrar y soltar (valida dónde puede ir cada componente),
   subir/bajar, duplicar y eliminar. **Bloques**: paleta de componentes MJML; los nuevos textos y
   botones nacen traducibles en todos los idiomas.
 - **Inspector**: atributos de cada componente, traducciones en todos los idiomas, renombrar claves,
   insertar variables (de los datos de demo) y links. Sin selección: layout, asunto, idiomas y
   traducciones pendientes.
-- **Vista previa / Texto**: render con los datos de demo (nunjucks, compatible con Jinja2) y versión TXT.
+- **Mensajes**: todas las claves del idioma activo, añadir/eliminar claves e idiomas.
+- **Vista previa / text**: render con los datos de demo (nunjucks, compatible con Jinja2) y versión TXT.
 - **Código**: `.mjml`, `.yml`, `.json5`, layouts, parciales y `links.yml` con vista previa en vivo.
 - Deshacer/rehacer, `Ctrl+S`, vista móvil, compilar y enviar prueba por SMTP.
 
@@ -142,7 +164,8 @@ examples/demo/             proyecto de ejemplo
 
 - [ ] Integrar en `doomus-rs`: sustituir `emails/_engine` por `templaitor compile` y leer `*.subject.txt` en el backend.
 - [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
-- [ ] Edición visual de layouts y parciales (hoy solo en la vista Código).
+- [ ] Edición visual de layouts (hoy solo en la vista Código).
+- [ ] Parámetros en componentes (p.ej. `$import(_components/cta, url: ...)`).
 - [ ] Subida de imágenes a `_shared/` desde el inspector.
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.

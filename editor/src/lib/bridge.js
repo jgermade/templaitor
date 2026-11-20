@@ -10,6 +10,9 @@ export function bridgeMain() {
     .tpl-design .tpl-node { cursor: default; }
     .tpl-design .tpl-hover { outline: 1px dashed #818cf8 !important; outline-offset: -1px; }
     .tpl-design .tpl-selected { outline: 2px solid #4f46e5 !important; outline-offset: -2px; }
+    .tpl-design .tpl-comp { cursor: pointer; }
+    .tpl-design .tpl-comp.tpl-hover { outline: 1px dashed #a78bfa !important; }
+    .tpl-design .tpl-comp.tpl-selected { outline: 2px solid #7c3aed !important; }
     .tpl-design [data-tpl-edit] { cursor: text; border-radius: 2px; min-height: 1em; }
     .tpl-design [data-tpl-edit][contenteditable="true"] { outline: 2px solid #f59e0b; outline-offset: 2px; background: rgba(245,158,11,.06); }
     .tpl-design [data-tpl-edit]:empty::before { content: 'Escribe aquí…'; opacity: .45; font-style: italic; }
@@ -41,7 +44,9 @@ export function bridgeMain() {
     return m ? m[1].replace(/_/g, '.') : null
   }
   const nodeEl = (target) => target?.closest?.('.tpl-node')
-  const elOf = (id) => (id == null ? null : document.querySelector(`.tpl-node--${String(id).replace(/\./g, '_')}`))
+  const sel = (id) => `.tpl-node--${String(id).replace(/\./g, '_')}`
+  const elOf = (id) => (id == null ? null : document.querySelector(sel(id)))
+  const elsOf = (id) => (id == null ? [] : [...document.querySelectorAll(sel(id))])
 
   function ensureChrome() {
     if (!document.getElementById('tpl-bridge-style')) {
@@ -61,9 +66,10 @@ export function bridgeMain() {
   function applySelection(scroll) {
     document.querySelectorAll('.tpl-selected').forEach(e => e.classList.remove('tpl-selected'))
     const badge = document.getElementById('tpl-badge')
-    const el = mode === 'design' ? elOf(selectedId) : null
+    const els = mode === 'design' ? elsOf(selectedId) : []
+    const el = els[0]
     if (!el) { if (badge) badge.style.display = 'none'; return }
-    el.classList.add('tpl-selected')
+    els.forEach(e => e.classList.add('tpl-selected'))
     if (scroll) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     positionBadge()
   }
@@ -74,6 +80,7 @@ export function bridgeMain() {
     if (!badge || !el || !selectedLabel) { if (badge) badge.style.display = 'none'; return }
     const r = el.getBoundingClientRect()
     badge.textContent = selectedLabel
+    badge.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
     badge.style.display = 'block'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
@@ -177,8 +184,9 @@ export function bridgeMain() {
   document.addEventListener('mouseover', (e) => {
     if (mode !== 'design') return
     const el = nodeEl(e.target)
-    document.querySelectorAll('.tpl-hover').forEach(x => x !== el && x.classList.remove('tpl-hover'))
-    if (el) el.classList.add('tpl-hover')
+    const group = el ? elsOf(idOf(el)) : []
+    document.querySelectorAll('.tpl-hover').forEach(x => !group.includes(x) && x.classList.remove('tpl-hover'))
+    group.forEach(x => x.classList.add('tpl-hover'))
   })
   document.addEventListener('mouseleave', () => document.querySelectorAll('.tpl-hover').forEach(x => x.classList.remove('tpl-hover')))
 
@@ -197,6 +205,7 @@ export function bridgeMain() {
   document.addEventListener('dblclick', (e) => {
     if (mode !== 'design') return
     const el = nodeEl(e.target)
+    if (el?.classList.contains('tpl-comp')) { post({ type: 'opencomp', id: idOf(el) }); return }
     const region = el?.querySelector('[data-tpl-edit]')
     if (region && !editing) startEdit(region)
   })
