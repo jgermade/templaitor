@@ -1,0 +1,7 @@
+{
+  first_name: "María",
+  app_url: "http://localhost:5173",
+  assets_url: "/static",
+  verification_token: "demo-token-abc123-xyz789",
+  year: 2026,
+}

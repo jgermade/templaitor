@@ -1,0 +1,63 @@
+---
+format: pdf
+layout: document.layout.mjml
+pdf:
+  size: A4
+  orientation: portrait
+  margin: 15mm
+  footer: "{page} / {pages}"
+---
+
+<mj-section padding="0 0 12px">
+  <mj-column>
+    <mj-text><h1 style="margin:0;font-size:26px;line-height:1.2;color:#111827;">$t('title')</h1></mj-text>
+    <mj-text color="#4b5563">$t('meta')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="0 0 20px">
+  <mj-column width="50%">
+    <mj-text>$t('bill_to')</mj-text>
+  </mj-column>
+  <mj-column width="50%">
+    <mj-text align="right">$t('payment')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-table>
+      <caption style="text-align:left;font-weight:600;padding:0 0 6px;">$t('lines_caption')</caption>
+      <thead>
+        <tr style="border-bottom:1px solid #9ca3af;text-align:left;">
+          <th scope="col" style="padding:6px 0;">$t('concept')</th>
+          <th scope="col" style="padding:6px 0;text-align:right;">$t('qty')</th>
+          <th scope="col" style="padding:6px 0;text-align:right;">$t('amount')</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in lines %}
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:6px 0;">{{ line.concept }}</td>
+          <td style="padding:6px 0;text-align:right;">{{ line.qty }}</td>
+          <td style="padding:6px 0;text-align:right;">{{ line.amount }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </mj-table>
+    <mj-text align="right" font-size="16px" padding="12px 0 0">$t('total')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/signature)
+
+<mj-raw><div class="tpl-page-break"></div></mj-raw>
+
+<mj-section padding="0 0 12px">
+  <mj-column>
+    <mj-text><h2 style="margin:0;font-size:18px;color:#111827;">$t('terms_title')</h2></mj-text>
+    <mj-text>$t('terms')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/legal-notice)

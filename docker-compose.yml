@@ -1,0 +1,16 @@
+# Local development services
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: templaitor-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"   # SMTP (no authentication)
+      - "${MAILPIT_WEB_PORT:-8025}:8025"    # web inbox (http://localhost:8025/mailpit/)
+    environment:
+      # served under /mailpit/ so `make up` publishes it on the same port as the editor
+      # (and therefore through intergate as well: https://<gate>/mailpit/)
+      MP_WEBROOT: /mailpit/
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1

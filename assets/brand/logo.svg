@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="templaitor">
+  <!-- Solo trazados y degradados lineales: sin filtros, máscaras ni fuentes (apto para PDF e impresión) -->
+  <defs>
+    <linearGradient id="tpl-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset=".55" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="tpl-ink" x1="190" y1="222" x2="330" y2="358" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#DB2777"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#tpl-bg)"/>
+  <!-- página (email / PDF) con esquina doblada -->
+  <path d="M168 100H316L376 160V396Q376 416 356 416H168Q148 416 148 396V120Q148 100 168 100Z" fill="#FFFFFF"/>
+  <path d="M316 100V144Q316 160 332 160H376Z" fill="#C7D2FE"/>
+  <!-- líneas de texto -->
+  <path d="M184 150H276M184 184H240" stroke="#C7D2FE" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- { T } : plantilla Jinja2 -->
+  <g fill="none" stroke="url(#tpl-ink)" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="22" d="M226 226Q200 226 200 252V272Q200 290 182 294Q200 298 200 316V336Q200 362 226 362"/>
+    <path stroke-width="22" d="M298 226Q324 226 324 252V272Q324 290 342 294Q324 298 324 316V336Q324 362 298 362"/>
+    <path stroke-width="20" d="M240 262H284M262 262V328"/>
+  </g>
+  <!-- destello (ai) -->
+  <path d="M400 52Q407 97 452 104Q407 111 400 156Q393 111 348 104Q393 97 400 52Z" fill="#FDE68A"/>
+  <path d="M110 396Q113 417 134 420Q113 423 110 444Q107 423 86 420Q107 417 110 396Z" fill="#FFFFFF" fill-opacity=".85"/>
+</svg>

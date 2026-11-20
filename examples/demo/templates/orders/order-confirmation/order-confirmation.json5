@@ -1,0 +1,13 @@
+{
+  first_name: "Ada",
+  order_id: "A-1042",
+  items: [
+    { qty: 1, name: "Mechanical keyboard", price: "89.00" },
+    { qty: 2, name: "Mouse pad", price: "12.50" },
+  ],
+  total: "114.00",
+  tracking_url: "https://example.com/track/A-1042",
+  app_url: "http://localhost:5173",
+  assets_url: "/static",
+  year: 2026,
+}
