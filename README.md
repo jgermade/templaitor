@@ -22,6 +22,18 @@ make build             # compila el editor a dist/editor
 ```
 
 `make up` abre `examples/demo` por defecto; para otro proyecto: `make up PROJECT=ruta/al/proyecto`.
+
+Para exponerlo públicamente con [intergate](https://jgermade.github.io/intergate/):
+
+```bash
+make up GATE=templaitor.gate.example.com
+```
+
+Abre un túnel SSH (`ssh -p 2222 -R templaitor:80:localhost:5180 gate.example.com`) que se reconecta
+solo, y permite ese host en Vite. Requiere que tu clave SSH esté autorizada para el subdominio en el
+dashboard de intergate. Opcionales: `GATE_SSH_PORT` (2222) y `GATE_KEY` (p.ej. `~/.ssh/intergate`).
+⚠ El editor no tiene autenticación y puede escribir ficheros del proyecto: restringe el acceso al
+subdominio en intergate si no quieres que sea público.
 Sin `make`: `npm run editor` (editor ya compilado en http://127.0.0.1:3333) y `npm run compile`.
 
 En otro proyecto:

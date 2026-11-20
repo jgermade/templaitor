@@ -3,6 +3,8 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { fileURLToPath } from 'node:url'
 
 const API = process.env.TEMPLAITOR_API || 'http://127.0.0.1:3333'
+// hosts públicos permitidos (p.ej. el subdominio de intergate: make up GATE=...)
+const ALLOWED_HOSTS = (process.env.TEMPLAITOR_ALLOWED_HOSTS || '').split(',').map(h => h.trim()).filter(Boolean)
 
 export default defineConfig({
   root: fileURLToPath(new URL('./editor', import.meta.url)),
@@ -16,6 +18,7 @@ export default defineConfig({
   },
   server: {
     port: 5180,
+    allowedHosts: ALLOWED_HOSTS,
     proxy: { '/api': API, '/static': API },
   },
   build: {
