@@ -1,0 +1,62 @@
+# Builds the landing page (site/) and deploys it to GitHub Pages.
+# Manual, or called by release.yml. The upload and the deployment run in separate jobs (GitHub's
+# recommended layout): deploy-pages looks the artifact up through the API, and an artifact uploaded in
+# the same job may not be listed yet.
+#
+# Requirement: Settings → Pages → Source: "GitHub Actions".
+name: pages
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Version shown in the site footer (defaults to package.json)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stamp version
+        if: ${{ inputs.version }}
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      # scripts/build-site.mjs only uses Node built-ins: no dependencies needed
+      - name: Build site
+        run: node scripts/build-site.mjs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
