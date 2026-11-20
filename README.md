@@ -15,7 +15,7 @@ plantilla.mjml + plantilla.yml (textos por idioma) ──► dist/<id>/<nombre>.
 ## Uso rápido
 
 ```bash
-make install           # instala dependencias y compila el editor (dist/editor)
+make install           # (o `make i`) instala dependencias y compila el editor (dist/editor)
 make up                # desarrollo local: editor + API en http://localhost:5180
 make test              # tests
 make build             # compila el editor a dist/editor

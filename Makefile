@@ -1,4 +1,4 @@
-.PHONY: install test up build
+.PHONY: install i test up build
 
 # Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
 PROJECT  ?= examples/demo
@@ -17,15 +17,23 @@ GATE_SUBDOMAIN  = $(firstword $(subst ., ,$(GATE_HOST)))
 GATE_SERVER     = $(patsubst $(GATE_SUBDOMAIN).%,%,$(GATE_HOST))
 GATE_SSH_OPTS   = -N -p $(GATE_PORT) -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 $(if $(GATE_KEY),-i $(GATE_KEY) -o IdentitiesOnly=yes)
 
+# Se reinstala solo si cambian package.json / package-lock.json
+node_modules: package.json package-lock.json
+	npm install
+	@touch node_modules
+
 install:
 	npm install
+	@touch node_modules
 
-test:
+i: install
+
+test: node_modules
 	npm test
 
 # Desarrollo local en un solo puerto: Vite (recarga en caliente) con la API del motor montada
 # como middleware (+ túnel intergate si GATE=...). Ctrl+C para parar todo.
-up:
+up: node_modules
 	@if [ -n "$(GATE)" ]; then \
 		command -v ssh >/dev/null || { echo "✗ GATE requiere ssh instalado"; exit 1; }; \
 		echo "⇄ intergate: https://$(GATE_HOST) → localhost:$(DEV_PORT) (vía $(GATE_SERVER):$(GATE_PORT))"; \
@@ -40,5 +48,5 @@ up:
 	TEMPLAITOR_PROJECT=$(PROJECT) TEMPLAITOR_ALLOWED_HOSTS=$(GATE_HOST) \
 		npx vite --config vite.config.js --port $(DEV_PORT) --strictPort || true
 
-build:
+build: node_modules
 	npm run build
