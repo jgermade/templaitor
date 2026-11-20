@@ -1,0 +1,37 @@
+---
+layout: base.layout.mjml
+---
+
+<mj-section background-color="#ffffff" padding="24px 24px 0">
+  <mj-column>
+    <mj-text font-size="20px" font-weight="600" color="#111827">$t('title')</mj-text>
+    <mj-text>$t('intro')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section background-color="#ffffff" padding="0 24px 16px">
+  <mj-column>
+    <mj-table font-size="14px">
+      <tr style="border-bottom:1px solid #e5e7eb;text-align:left;">
+        <th style="padding:8px 0;">$t('product')</th>
+        <th style="padding:8px 0;text-align:right;">$t('price')</th>
+      </tr>
+      {% for item in items %}
+      <tr>
+        <td style="padding:6px 0;">{{ item.qty }} × {{ item.name }}</td>
+        <td style="padding:6px 0;text-align:right;">{{ item.price }} €</td>
+      </tr>
+      {% endfor %}
+    </mj-table>
+    <mj-divider border-color="#e5e7eb" border-width="1px" />
+    <mj-text align="right" font-weight="600">$t('total')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-raw>{% if tracking_url %}</mj-raw>
+<mj-section background-color="#ffffff" padding="0 24px 32px">
+  <mj-column>
+    <mj-button href="{{ tracking_url }}">$t('track')</mj-button>
+  </mj-column>
+</mj-section>
+<mj-raw>{% endif %}</mj-raw>

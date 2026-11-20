@@ -1,0 +1,121 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/shared/mjml-tree.js'
+import { resolveCommands } from '../src/engine/commands.js'
+import { obfuscate, restore } from '../src/engine/guard.js'
+import { annotateBody, chipify } from '../src/engine/design.js'
+import { loadProject, readTemplate, createTemplate, listTemplates } from '../src/engine/project.js'
+import { compileProject, previewDraft } from '../src/engine/pipeline.js'
+
+const DEMO = path.resolve(import.meta.dirname, '../examples/demo')
+
+test('parser: round-trip conserva comandos, Jinja2 y contenido', () => {
+  const src = `<mj-section padding="0">
+  <mj-column>
+    <mj-text color="#111">$t('title') <b>{{ name }}</b></mj-text>
+    <mj-button href="{{ url }}?a=1&b=2">Go</mj-button>
+  </mj-column>
+</mj-section>
+<mj-raw>{% if x %}</mj-raw>
+$import(_partials/footer.mjml)
+<!-- nota -->
+`
+  const tree = parse(src)
+  const out = serialize(tree)
+  assert.deepEqual(stripIds(parse(out)), stripIds(tree))
+  assert.match(out, /\$import\(_partials\/footer\.mjml\)/)
+  assert.match(out, /href="\{\{ url \}\}\?a=1&b=2"/)
+  assert.equal(findNode(tree, '0.0.0').content, "$t('title') <b>{{ name }}</b>")
+  assert.equal(tree.children[1].tag, 'mj-raw')
+  assert.equal(tree.children[2].type, 'text')
+  assert.equal(tree.children[3].type, 'comment')
+})
+
+test('parser: moveNode reasigna ids', () => {
+  const tree = parse('<mj-section><mj-column><mj-text>a</mj-text><mj-text>b</mj-text></mj-column></mj-section>')
+  moveNode(tree, '0.0.1', '0.0', 0)
+  assert.equal(findNode(tree, '0.0.0').content, 'b')
+  assert.equal(findNode(tree, '0.0.1').id, '0.0.1')
+})
+
+test('frontmatter', () => {
+  const { frontmatter, body } = splitFrontmatter('---\nlayout: a.mjml\n---\n<mj-section />')
+  assert.equal(frontmatter, 'layout: a.mjml')
+  assert.equal(body, '<mj-section />')
+})
+
+test('comandos $: t, link, if, lang, recursivos', () => {
+  const ctx = {
+    lang: 'es-ES', country: 'ES', warnings: [],
+    messages: { a: "Hola $t('b')", b: 'mundo', nested: { k: 'anidado' } },
+    links: { home: 'https://x.y' },
+  }
+  assert.equal(resolveCommands("$t('a')", ctx), 'Hola mundo')
+  assert.equal(resolveCommands("$t('nested.k')", ctx), 'anidado')
+  assert.equal(resolveCommands('$link{ home, label: Inicio }', ctx), '<a href="https://x.y">Inicio</a>')
+  assert.equal(resolveCommands("$if($lang === 'es-ES')sí$else no$end", ctx), 'sí')
+  assert.equal(resolveCommands("$t('nope')", ctx), '')
+  assert.equal(ctx.warnings.length, 1)
+})
+
+test('guard: protege {{ }}, {% %} y {# #}', () => {
+  const src = '<a href="{{ u }}">{% if a %}x{# c #}{% endif %}</a>'
+  const { content, map } = obfuscate(src)
+  assert.doesNotMatch(content, /[{}]/)
+  assert.equal(restore(content, map), src)
+})
+
+test('modo diseño: anota nodos y crea regiones editables con chips', () => {
+  const out = annotateBody("<mj-section><mj-column><mj-text>$t('hi')</mj-text><mj-text>Hola {{ n }}</mj-text></mj-column></mj-section>", {
+    messages: { hi: 'Hola {{ name }}' },
+  })
+  assert.match(out, /css-class="tpl-node tpl-node--0"/)
+  assert.match(out, /data-tpl-edit="t:hi"/)
+  assert.match(out, /data-tpl-edit="c:0\.0\.1"/)
+  assert.doesNotMatch(out.replace(/data-tpl-src="[^"]*"/g, ''), /\{\{/)
+  assert.match(chipify('{{ a }}'), /tpl-chip--var/)
+})
+
+test('compilación del proyecto demo: Jinja2 intacto en HTML/TXT/subject', async () => {
+  const project = loadProject(DEMO, { outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-')) })
+  const { files, issues } = await compileProject(project, { log: null })
+  assert.equal(issues.length, 0, JSON.stringify(issues))
+  assert.equal(files.length, listTemplates(project).length * 2 * 3)
+  const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
+  const html = fs.readFileSync(`${base}.html`, 'utf8')
+  assert.match(html, /\{% for item in items %\}/)
+  assert.match(html, /href="\{\{ tracking_url \}\}"/)
+  assert.match(html, /lang="es-ES"/)
+  const txt = fs.readFileSync(`${base}.txt`, 'utf8')
+  for (const tok of txt.match(/\{\{[\s\S]*?\}\}/g)) assert.doesNotMatch(tok, /\n/, 'el wordwrap no debe partir tokens')
+  assert.equal(fs.readFileSync(`${base}.subject.txt`, 'utf8'), 'Pedido #{{ order_id }} confirmado')
+})
+
+test('vista previa: renderiza con datos de demo', async () => {
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'orders/order-confirmation')
+  const r = await previewDraft(project, { ...tpl, langKey: 'en' })
+  assert.equal(r.subject, 'Order #A-1042 confirmed')
+  assert.match(r.html, /Teclado mecánico/)
+  assert.deepEqual(r.warnings, [])
+})
+
+test('createTemplate: genera una plantilla que compila', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-'))
+  fs.writeFileSync(path.join(dir, 'templaitor.config.yml'), 'locales:\n  es: es-ES\n  en: en-US\n')
+  const project = loadProject(dir)
+  createTemplate(project, 'misc/hello')
+  assert.throws(() => createTemplate(project, '../evil'), /no válido/)
+  const { issues } = await compileProject(project, { log: null })
+  assert.equal(issues.length, 0)
+  assert.ok(fs.existsSync(path.join(dir, 'dist/misc/hello/hello.en-US.html')))
+})
+
+function stripIds(node) {
+  const { id, ...rest } = node
+  if (rest.children) rest.children = rest.children.map(stripIds)
+  return rest
+}

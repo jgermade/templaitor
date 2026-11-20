@@ -1,0 +1,22 @@
+# Configuración del proyecto templaitor
+name: Demo
+templates: templates          # raíz de plantillas
+outDir: dist                  # salida compilada (HTML/TXT con Jinja2)
+layouts: _layouts             # relativo a `templates`
+links: _shared/links.yml
+static: _shared               # servido en /static/ por el editor
+
+# idioma (clave en el .yml) → locale usado en los nombres de fichero y en $lang
+locales:
+  es: es-ES
+  en: en-US
+
+output:
+  text: true                  # genera <nombre>.<locale>.txt
+  subject: true               # genera <nombre>.<locale>.subject.txt
+
+# SMTP para "Enviar prueba" desde el editor (p.ej. Mailpit)
+smtp:
+  host: localhost
+  port: 1025
+  from: noreply@example.com
