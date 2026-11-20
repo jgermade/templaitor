@@ -1,6 +1,6 @@
 <script>
   // Real PDF of the draft with the demo data (re-rendered on edit) + engine and veraPDF validation
-  import { untrack } from 'svelte'
+  import { untrack, onDestroy } from 'svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
 
@@ -13,10 +13,18 @@
   const configured = $derived(store.pdfSettings.engine || store.project?.pdf?.configured || 'auto')
   const draft = () => ({ kind: store.kind, name: store.doc.name, mjml: store.doc.mjml, yml: store.doc.yml, data: store.doc.data, lang: store.lang, engine: store.pdfEngine || undefined })
 
+  let lastKey = null
+
+  // Re-renders only when the draft (texts, language or engine) actually changes.
+  // `url`, `loading`, etc. are read untracked so rendering never re-triggers itself.
   $effect(() => {
     if (!store.doc) return
     const d = draft()
+    const key = JSON.stringify(d)
+    if (key === untrack(() => lastKey)) return
+    lastKey = key
     const n = ++seq
+    const hasPdf = untrack(() => !!url)
     // the previous validation no longer matches the PDF (without subscribing to it)
     untrack(() => {
       const v = store.pdfValidation
@@ -27,8 +35,9 @@
       try {
         const { blob, engine } = await api.pdf(d)
         if (n !== seq) return
-        if (url) URL.revokeObjectURL(url)
+        const previous = url
         url = URL.createObjectURL(blob)
+        if (previous) URL.revokeObjectURL(previous)
         store.pdfEngineUsed = engine
         error = null
       } catch (e) {
@@ -36,11 +45,11 @@
       } finally {
         if (n === seq) loading = false
       }
-    }, url ? 900 : 0)
+    }, hasPdf ? 900 : 0)
     return () => clearTimeout(t)
   })
 
-  $effect(() => () => url && URL.revokeObjectURL(url))
+  onDestroy(() => { if (url) URL.revokeObjectURL(url) })
 
   async function validate() {
     store.pdfValidation = { status: 'running' }
