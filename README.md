@@ -316,6 +316,8 @@ examples/demo/             demo project
   build attached and deploys the site to GitHub Pages.
   Requires *Settings → Pages → Source: GitHub Actions*, and permission for the workflow to push the
   version commit and tag to the branch it runs on.
+- **`pages.yml`** (manual, or called by `release.yml`): builds `site/` and deploys it to GitHub Pages,
+  with upload and deployment in separate jobs. Run it on its own to redeploy the landing page.
 
 Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · conventions: [`AGENTS.md`](AGENTS.md).
 
