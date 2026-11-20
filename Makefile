@@ -3,7 +3,8 @@
 # Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
 PROJECT  ?= examples/demo
 
-# Mailpit local (docker compose): SMTP en :1025 y bandeja en http://localhost:8025
+# Mailpit local (docker compose): SMTP en :1025 y bandeja en /mailpit/ del editor
+# (http://localhost:5180/mailpit/, también a través de GATE)
 #   make up MAILPIT=0   → no arrancarlo
 MAILPIT  ?= 1
 DEV_PORT ?= 5180
@@ -56,7 +57,7 @@ mailpit:
 	@if [ "$(MAILPIT)" = "1" ]; then \
 		if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
 			if docker compose up -d --quiet-pull mailpit >/dev/null 2>&1; then \
-				echo "✉ Mailpit → http://localhost:8025 (SMTP localhost:1025)"; \
+				echo "✉ Mailpit → http://localhost:$(DEV_PORT)/mailpit/ (SMTP localhost:1025)"; \
 			else echo "⚠ No se pudo arrancar Mailpit (docker compose up mailpit)"; fi; \
 		else \
 			echo "⚠ Docker no disponible: se arranca sin Mailpit (make up MAILPIT=0 oculta este aviso)"; \

@@ -7,6 +7,8 @@ import { createHandler } from './src/server/server.js'
 
 // Proyecto que sirve la API en desarrollo (make up PROJECT=...)
 const PROJECT = process.env.TEMPLAITOR_PROJECT || 'examples/demo'
+// Mailpit local (docker compose) publicado en /mailpit/ del mismo servidor
+const MAILPIT = process.env.TEMPLAITOR_MAILPIT || 'http://127.0.0.1:8025'
 // hosts públicos permitidos (p.ej. el subdominio de intergate: make up GATE=...)
 const ALLOWED_HOSTS = (process.env.TEMPLAITOR_ALLOWED_HOSTS || '').split(',').map(h => h.trim()).filter(Boolean)
 
@@ -40,6 +42,10 @@ export default defineConfig({
   server: {
     port: 5180,
     allowedHosts: ALLOWED_HOSTS,
+    proxy: {
+      // bandeja de Mailpit (incluye el websocket de actualizaciones en vivo)
+      '/mailpit': { target: MAILPIT, ws: true, changeOrigin: true },
+    },
   },
   build: {
     outDir: fileURLToPath(new URL('./dist/editor', import.meta.url)),

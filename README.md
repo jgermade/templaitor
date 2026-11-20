@@ -16,7 +16,7 @@ plantilla.mjml + plantilla.yml (textos por idioma) ──► dist/<id>/<nombre>.
 
 ```bash
 make install           # (o `make i`) instala dependencias y compila el editor (dist/editor)
-make up                # desarrollo local: editor + API en http://localhost:5180 y Mailpit en :8025
+make up                # desarrollo local: editor + API en http://localhost:5180 (Mailpit en /mailpit/)
 make down              # para Mailpit
 make test              # tests
 make build             # compila el editor a dist/editor
@@ -25,7 +25,8 @@ make build             # compila el editor a dist/editor
 `make up` abre `examples/demo` por defecto; para otro proyecto: `make up PROJECT=ruta/al/proyecto`.
 
 **Mailpit local**: si hay Docker, `make up` arranca [Mailpit](https://mailpit.axllent.org/) con
-`docker compose` (SMTP en `localhost:1025`, bandeja en http://localhost:8025). El botón **mailpit ➤** del
+`docker compose` (SMTP en `localhost:1025`). Su bandeja se publica en **`/mailpit/`** del propio editor
+(http://localhost:5180/mailpit/), así que con `GATE=...` también es accesible en `https://<gate>/mailpit/`. El botón **mailpit ➤** del
 editor envía la plantilla renderizada con los datos de demo y el aviso enlaza a la bandeja. Sin Docker
 arranca igual (con un aviso); `make up MAILPIT=0` lo desactiva y `make down` lo para. Puertos:
 `MAILPIT_SMTP_PORT` / `MAILPIT_WEB_PORT`.
@@ -97,7 +98,7 @@ smtp:                    # opcional: botón "Enviar" del editor (p.ej. Mailpit)
   port: 1025
   from: noreply@example.com
   label: mailpit         # texto del botón de envío
-  web: http://localhost:8025   # bandeja web (enlace tras enviar)
+  web: /mailpit/         # bandeja web (enlace tras enviar; relativa al editor)
 ```
 
 ## Comandos `$` (compile-time) y Jinja2 (runtime)
