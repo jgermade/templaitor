@@ -9,7 +9,7 @@
   "files": [
     "bin",
     "src",
-    "dist"
+    "dist/editor"
   ],
   "engines": {
     "node": ">=20"
@@ -20,7 +20,9 @@
     "editor": "node bin/templaitor.js editor --cwd examples/demo",
     "compile": "node bin/templaitor.js compile --cwd examples/demo",
     "test": "node --test test/*.test.js",
-    "prepare": "vite build --config vite.config.js"
+    "prepare": "vite build --config vite.config.js",
+    "build:site": "node scripts/build-site.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "chokidar": "^3.6.0",

@@ -303,6 +303,20 @@ editor/                    Svelte 5 + Vite SPA (→ dist/editor)
 examples/demo/             demo project
 ```
 
+## Website, CI and releases
+
+- **Landing page**: `site/` (static, accessible: axe-core reports no WCAG violations on desktop and
+  mobile). `make site` builds it into `dist/site`; `make screenshots` regenerates `site/screenshots/`
+  from the demo project.
+- **`build.yml`** (push to `main`, pull requests, manual, reusable): installs dependencies, installs
+  WeasyPrint and veraPDF so the tests validate the demo PDF against PDF/UA-1, runs the tests, builds the
+  editor and the site, and uploads two artifacts: `build` (npm package `.tgz` + editor `.zip`) and `site`.
+- **`release.yml`** (manual, input `version`: `patch` · `minor` · `major`): computes the next version,
+  runs `build.yml` with it, commits the version bump, tags `vX.Y.Z`, creates the GitHub release with the
+  build attached and deploys the site to GitHub Pages.
+  Requires *Settings → Pages → Source: GitHub Actions*, and permission for the workflow to push the
+  version commit and tag to the branch it runs on.
+
 Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · conventions: [`AGENTS.md`](AGENTS.md).
 
 # Todos

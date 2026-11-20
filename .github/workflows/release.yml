@@ -1,0 +1,114 @@
+# Manual release: bumps the version, runs build.yml, creates the GitHub release with the build
+# attached and deploys the landing page to GitHub Pages.
+#
+# Requirements: Settings → Pages → Source: "GitHub Actions"; the workflow must be allowed to push
+# the version bump commit and tag to the branch it runs on.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compute next version
+        id: next
+        run: |
+          npm version "${{ inputs.version }}" --no-git-tag-version > /dev/null
+          version="$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" > /dev/null; then
+            echo "::error::Tag v${version} already exists"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Next version: v${version}" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Commit version bump and tag
+        run: |
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "release: v${VERSION}"
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}" "v${VERSION}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: artifacts
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${VERSION}" artifacts/* \
+            --title "v${VERSION}" \
+            --generate-notes \
+            --verify-tag
+
+  pages:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

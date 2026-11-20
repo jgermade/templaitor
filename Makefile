@@ -1,4 +1,4 @@
-.PHONY: install i test up build mailpit down verapdf pdf-tools
+.PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots
 
 # Project opened by `make up` (override: make up PROJECT=path/to/project)
 PROJECT  ?= examples/demo
@@ -79,3 +79,11 @@ pdf-tools: verapdf
 
 build: node_modules
 	npm run build
+
+# Landing page for GitHub Pages → dist/site
+site: node_modules
+	npm run build:site
+
+# Regenerates the landing screenshots (needs Playwright with Chromium; pdftoppm for the PDF page)
+screenshots: build
+	npm run screenshots
