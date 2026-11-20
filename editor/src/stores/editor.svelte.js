@@ -14,6 +14,7 @@ import {
 import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
+import { confirmDialog } from '../lib/dialogs.svelte.js'
 
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
 
@@ -128,7 +129,11 @@ class EditorStore {
   }
 
   async open(id, kind = 'template') {
-    if (this.dirty && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) return false
+    if (this.dirty && !(await confirmDialog({
+      title: 'Cambios sin guardar',
+      message: `Hay cambios sin guardar en ${this.doc.id}. ¿Descartarlos?`,
+      okLabel: 'Descartar', danger: true,
+    }))) return false
     const doc = await api.template(id, kind)
     if (kind !== 'template' && this.doc?.kind === 'template') this.returnTo = this.doc.id
     if (kind === 'template') this.returnTo = null
@@ -575,8 +580,12 @@ class EditorStore {
     this.lang = lang
   }
 
-  removeLang(lang) {
-    if (!confirm(`¿Eliminar el idioma "${lang}" y todas sus traducciones?`)) return
+  async removeLang(lang) {
+    if (!(await confirmDialog({
+      title: `Eliminar idioma «${lang}»`,
+      message: 'Se borrarán todas sus traducciones y su asunto.',
+      okLabel: 'Eliminar', danger: true,
+    }))) return
     this.#editYaml(doc => {
       doc.deleteIn(['messages', lang])
       if (doc.hasIn(['subject', lang])) doc.deleteIn(['subject', lang])

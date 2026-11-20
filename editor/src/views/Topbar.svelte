@@ -3,6 +3,7 @@
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { flagOf } from '../lib/flags.js'
+  import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
   import logo from '../../../assets/brand/logo.svg'
 
   let { onnew } = $props()
@@ -39,7 +40,13 @@
   }
 
   async function sendTest() {
-    const to = prompt('Enviar prueba a:', localStorage.getItem('tpl:send-to') || 'demo@example.com')
+    let last = 'demo@example.com'
+    try { last = localStorage.getItem('tpl:send-to') || last } catch {}
+    const to = await promptDialog({
+      title: `Enviar prueba a ${store.project.smtp.label}`,
+      message: `${store.doc.id} · ${store.lang} · con los datos de demo`,
+      label: 'Destinatario', value: last, inputType: 'email', okLabel: 'Enviar ➤',
+    })
     if (!to) return
     try { localStorage.setItem('tpl:send-to', to) } catch {}
     try {

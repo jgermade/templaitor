@@ -1,6 +1,7 @@
 <script>
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
 
   const comp = $derived(store.isComponent ? store.components.find(c => c.id === store.doc.id) : null)
   const lay = $derived(store.isLayout ? store.layouts.find(l => l.id === store.doc.id) : null)
@@ -9,7 +10,11 @@
     const what = store.isComponent ? 'el componente' : store.isLayout ? 'el layout' : 'la plantilla'
     const users = comp?.usedBy ?? lay?.usedBy ?? []
     const extra = users.length ? `\n\nSe usa en: ${users.map(u => u.id).join(', ')}` : ''
-    if (!confirm(`¿Eliminar ${what} ${store.doc.id}? Esta acción borra sus ficheros.${extra}`)) return
+    if (!(await confirmDialog({
+      title: `Eliminar ${what}`,
+      message: `${store.doc.id}\n\nEsta acción borra sus ficheros.${extra}`,
+      okLabel: 'Eliminar', danger: true,
+    }))) return
     try {
       await api.remove(store.doc.id, store.kind)
       const back = store.returnTo

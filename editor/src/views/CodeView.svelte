@@ -3,6 +3,7 @@
   import Canvas from './Canvas.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
 
   let tab = $state('mjml')
   let auxPath = $state(null)
@@ -21,7 +22,7 @@
   })
 
   async function openAux(path) {
-    if (aux.content !== aux.saved && !confirm('Hay cambios sin guardar en este fichero. ¿Descartarlos?')) return
+    if (aux.content !== aux.saved && !(await confirmDialog({ title: 'Cambios sin guardar', message: `Hay cambios sin guardar en ${auxPath}. ¿Descartarlos?`, okLabel: 'Descartar', danger: true }))) return
     const f = await api.file(path)
     auxPath = path
     aux = { content: f.content, saved: f.content }

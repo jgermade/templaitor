@@ -1,16 +1,22 @@
 <script>
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
 
   const canExtract = $derived(store.selected?.type === 'element' && !['mjml', 'mj-body'].includes(store.selected.tag) && !store.isComponent)
 
   async function extract() {
-    const name = prompt('Nombre del nuevo componente:', store.selected.tag === 'mj-section' ? 'bloque' : store.selected.tag.replace('mj-', ''))
+    const name = await promptDialog({
+      title: 'Convertir en componente',
+      message: 'El bloque seleccionado y sus textos pasarán a un componente reutilizable.',
+      label: 'Nombre del componente', value: store.selected.tag === 'mj-section' ? 'bloque' : store.selected.tag.replace('mj-', ''),
+      okLabel: 'Crear componente', pattern: '[\\w.\\-]+', hint: 'Letras, números, guiones y puntos.',
+    })
     if (name) await store.extractComponent(store.selectedId, name.trim())
   }
 
   async function create() {
-    const id = prompt('Nombre del componente (p.ej. header, legal-notice):')
+    const id = await promptDialog({ title: 'Nuevo componente', label: 'Nombre', placeholder: 'header, legal-notice…', okLabel: 'Crear', pattern: '[\\w.\\-]+' })
     if (!id) return
     try {
       await api.createComponent({ id: id.trim() })

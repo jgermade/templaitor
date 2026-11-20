@@ -1,6 +1,7 @@
 <script>
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
 
   let { open = $bindable(false), onnew } = $props()
   let filter = $state('')
@@ -25,7 +26,8 @@
   }
 
   async function newLayout() {
-    const id = prompt('Nombre del layout (p.ej. marketing):')
+    open = false
+    const id = await promptDialog({ title: 'Nuevo layout', label: 'Nombre', placeholder: 'marketing', okLabel: 'Crear', pattern: '[\\w.\\-]+', hint: 'Se crea _layouts/<nombre>.mjml con $content.' })
     if (!id) return
     try {
       const l = await api.createLayout(id.trim())
@@ -35,7 +37,8 @@
   }
 
   async function newComponent() {
-    const id = prompt('Nombre del componente (p.ej. header, legal-notice):')
+    open = false
+    const id = await promptDialog({ title: 'Nuevo componente', label: 'Nombre', placeholder: 'header, legal-notice…', okLabel: 'Crear', pattern: '[\\w.\\-]+' })
     if (!id) return
     try {
       const c = await api.createComponent({ id: id.trim() })

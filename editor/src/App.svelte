@@ -7,6 +7,7 @@
   import CodeView from './views/CodeView.svelte'
   import NewTemplateDialog from './views/NewTemplateDialog.svelte'
   import Toast from './components/Toast.svelte'
+  import DialogHost from './components/DialogHost.svelte'
   import { store } from './stores/editor.svelte.js'
   import { api } from './lib/api.js'
 
@@ -152,6 +153,7 @@
 
 <NewTemplateDialog bind:open={showNew} />
 <Toast toast={store.toast} />
+<DialogHost />
 
 <style>
   .app { display: flex; flex-direction: column; height: 100vh; }
