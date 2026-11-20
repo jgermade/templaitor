@@ -29,11 +29,7 @@ layout: base.layout.mjml
 </mj-section>
 
 <mj-raw>{% if tracking_url %}</mj-raw>
-<mj-section background-color="#ffffff" padding="0 24px 32px">
-  <mj-column>
-    <mj-button href="{{ tracking_url }}">$t('track')</mj-button>
-  </mj-column>
-</mj-section>
+$import(_components/cta-button, url="{{ tracking_url }}", label="$t('track')", color="#059669")
 <mj-raw>{% endif %}</mj-raw>
 
 $import(_components/signature)

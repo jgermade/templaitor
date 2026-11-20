@@ -15,11 +15,7 @@ layout: base.layout.mjml
   </mj-column>
 </mj-section>
 
-<mj-section background-color="#ffffff" padding="8px 24px 32px">
-  <mj-column>
-    <mj-button href="{{ app_url }}/verify?token={{ verification_token }}">$t('cta')</mj-button>
-  </mj-column>
-</mj-section>
+$import(_components/cta-button, url="{{ app_url }}/verify?token={{ verification_token }}", label="$t('cta')")
 
 <mj-section background-color="#ffffff" padding="0 24px 16px">
   <mj-column>

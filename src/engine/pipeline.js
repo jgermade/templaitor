@@ -4,7 +4,8 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
-import { parseFrontmatter, resolveImports, applyLayout, readImport, wrapFragment } from './resolver.js'
+import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment } from './resolver.js'
+import { applyParams } from '../shared/imports.js'
 import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
@@ -43,11 +44,12 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const warnings = []
   const imported = []
   const onImport = (file) => imported.push(file)
+  const warn = (m) => { if (!warnings.includes(m)) warnings.push(m) }
   const ctx = {
     lang: locale, country, langKey, messages: i18n.messages?.[langKey] || {}, links, warnings,
     // (modo diseño) lectura de $import para pintar instancias de componentes seleccionables
-    readImport: (ref) => {
-      const r = readImport(project.templatesDir, ref)
+    expandImport: (call) => {
+      const r = expandImport(project.templatesDir, call, warn)
       onImport(r.file)
       return r.content
     },
@@ -57,15 +59,17 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const { meta, body: rawBody } = parseFrontmatter(mjml)
 
   // 2. (modo diseño) anotar nodos para el editor visual
-  const body = design ? annotateBody(rawBody, ctx) : rawBody
+  let body = design ? annotateBody(rawBody, ctx) : rawBody
+  // un componente editado/previsualizado suelto usa los valores por defecto de sus parámetros
+  if (kind === 'component') body = applyParams(body, meta.params, [], warn)
 
   // 3. $import + layout (un componente suelto se envuelve con el <mj-head> del layout de vista previa)
-  const withImports = resolveImports(body, project.templatesDir, { onImport })
+  const withImports = resolveImports(body, project.templatesDir, { onImport, warn })
   let unified = withImports
   if (meta.layout) {
-    unified = applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, onImport })
+    unified = applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, onImport, warn })
   } else if (kind === 'component' && !/<mjml[\s>]/.test(withImports)) {
-    unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport })
+    unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport, warn })
   }
 
   // Textos de los componentes importados (por defecto; la plantilla los sobrescribe)

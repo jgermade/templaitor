@@ -2,8 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 import { splitFrontmatter } from '../shared/mjml-tree.js'
-
-export const IMPORT_RE = /\$import\(\s*([^)]+?)\s*\)/g
+import { replaceImportCalls, applyParams } from '../shared/imports.js'
 
 export function parseFrontmatter(content) {
   const { frontmatter, body } = splitFrontmatter(content)
@@ -22,33 +21,40 @@ export function resolveImportPath(baseDir, ref) {
   return full
 }
 
-/** Lee el contenido de un $import (sin frontmatter) */
+/** Lee el contenido de un $import (sin frontmatter) y su declaración de parámetros */
 export function readImport(baseDir, ref) {
   const full = resolveImportPath(baseDir, ref)
   if (!fs.existsSync(full)) throw new Error(`$import: no existe ${ref}`)
-  return { file: full, content: splitFrontmatter(fs.readFileSync(full, 'utf8')).body }
+  const { meta, body } = parseFrontmatter(fs.readFileSync(full, 'utf8'))
+  return { file: full, content: body, params: meta.params }
+}
+
+/** Contenido de una llamada $import con sus parámetros ya sustituidos */
+export function expandImport(baseDir, call, warn) {
+  const r = readImport(baseDir, call.path)
+  return { ...r, content: applyParams(r.content, r.params, call.params, (m) => warn?.(`${call.path}: ${m}`)) }
 }
 
 /**
- * Sustituye recursivamente los $import.
+ * Sustituye recursivamente los $import (con parámetros).
  * `onImport(file)` se llama por cada fichero importado (p.ej. para cargar los textos del componente).
  */
-export function resolveImports(content, baseDir, { seen = [], onImport } = {}) {
-  return content.replace(IMPORT_RE, (_, ref) => {
-    const { file, content: partial } = readImport(baseDir, ref)
-    if (seen.includes(file)) throw new Error(`$import circular: ${ref}`)
+export function resolveImports(content, baseDir, { seen = [], onImport, warn } = {}) {
+  return replaceImportCalls(content, (call) => {
+    const { file, content: partial } = expandImport(baseDir, call, warn)
+    if (seen.includes(file)) throw new Error(`$import circular: ${call.path}`)
     onImport?.(file)
-    return resolveImports(partial, baseDir, { seen: [...seen, file], onImport })
+    return resolveImports(partial, baseDir, { seen: [...seen, file], onImport, warn })
   })
 }
 
-export function applyLayout(body, layoutName, { layoutsDir, baseDir, onImport }) {
+export function applyLayout(body, layoutName, { layoutsDir, baseDir, onImport, warn }) {
   const layoutPath = path.resolve(layoutsDir, layoutName)
   if (!fs.existsSync(layoutPath)) throw new Error(`Layout no encontrado: ${layoutName}`)
   const layout = fs.readFileSync(layoutPath, 'utf8')
   if (!layout.includes('$content')) throw new Error(`El layout ${layoutName} no contiene $content`)
   const unified = layout.replace('$content', () => body)
-  return resolveImports(unified, baseDir, { onImport })
+  return resolveImports(unified, baseDir, { onImport, warn })
 }
 
 /**

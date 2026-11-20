@@ -15,7 +15,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 import JSON5 from 'json5'
-import { resolveImports } from './resolver.js'
+import { resolveImports, resolveImportPath, parseFrontmatter } from './resolver.js'
+import { findImportCalls, normalizeParams } from '../shared/imports.js'
 
 export const DEFAULT_LOCALES = {
   es: 'es-ES', en: 'en-US', fr: 'fr-FR', de: 'de-DE', pt: 'pt-PT', ca: 'ca-ES', it: 'it-IT',
@@ -116,21 +117,20 @@ export function listComponents(project) {
   const comps = walkDocs(project.componentsDir)
   for (const c of comps) sources.push({ ref: c.id, kind: 'component', file: templatePaths(project, c.id, 'component').mjml })
   const texts = sources.map(s => ({ ...s, text: fs.readFileSync(s.file, 'utf8') }))
+  const importsOf = texts.map(t => ({ ...t, files: findImportCalls(t.text).map(c => resolveImportPath(project.templatesDir, c.path)) }))
   return comps.map((c) => {
-    const importPath = componentImportPath(project, c.id)
-    const re = new RegExp(`\\$import\\(\\s*['"]?${escapeRe(importPath)}(?:/${escapeRe(c.name)}\\.mjml|\\.mjml)?['"]?\\s*\\)`)
-    const src = fs.readFileSync(templatePaths(project, c.id, 'component').mjml, 'utf8')
+    const file = templatePaths(project, c.id, 'component').mjml
+    const { meta, body } = parseFrontmatter(fs.readFileSync(file, 'utf8'))
     return {
       ...c,
       kind: 'component',
-      importPath,
-      rootTag: src.match(/<(mj-[\w-]+)/)?.[1] || 'mj-section',
-      usedBy: texts.filter(t => !(t.kind === 'component' && t.ref === c.id) && re.test(t.text)).map(t => ({ kind: t.kind, id: t.ref })),
+      importPath: componentImportPath(project, c.id),
+      rootTag: body.match(/<(mj-[\w-]+)/)?.[1] || 'mj-section',
+      params: normalizeParams(meta.params),
+      usedBy: importsOf.filter(t => !(t.kind === 'component' && t.ref === c.id) && t.files.includes(file)).map(t => ({ kind: t.kind, id: t.ref })),
     }
   })
 }
-
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export function templatePaths(project, id, kind = 'template') {
   const safe = sanitizeId(id)

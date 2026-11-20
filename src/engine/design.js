@@ -9,14 +9,14 @@
 //   guardan su código fuente en `data-tpl-src` (codificado para que ni el
 //   resolvedor de comandos ni Jinja2 lo procesen).
 
-import { parse, serialize, walk, importRef } from '../shared/mjml-tree.js'
+import { parse, serialize, walk, importCall } from '../shared/mjml-tree.js'
 import { NON_VISUAL, describe } from '../shared/components.js'
 import { lookupMessage, parseAttrs } from './commands.js'
 
 const NO_CLASS = new Set(['mj-raw', 'mj-body', 'mjml'])
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
 
-export const CHIP_RE = /\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\}|\$link\{[^}]*\}|\$t\(\s*['"][^'"]+['"]\s*\)|\$if\([^)]*\)[\s\S]*?\$end\b|\$import\([^)]*\)|\$lang\b|\$country\b/g
+export const CHIP_RE = /\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\}|\$link\{[^}]*\}|\$t\(\s*['"][^'"]+['"]\s*\)|\$if\([^)]*\)[\s\S]*?\$end\b|\$import\([^)]*\)|\$param\.[A-Za-z_][\w-]*|\$lang\b|\$country\b/g
 
 export function annotateBody(body, ctx) {
   const tree = parse(body)
@@ -30,10 +30,10 @@ export function annotateBody(body, ctx) {
 
   return serialize(tree, {
     transformText: (node) => {
-      const ref = importRef(node)
-      if (!ref || !ctx.readImport || hidden.has(node)) return node.value
+      const call = importCall(node)
+      if (!call || !ctx.expandImport || hidden.has(node)) return node.value
       try {
-        return annotateInstance(ctx.readImport(ref), node.id)
+        return annotateInstance(ctx.expandImport(call), node.id)
       } catch (err) {
         ctx.warnings?.push(err.message)
         return node.value
@@ -89,6 +89,7 @@ export function chipInfo(src) {
     return { kind: 'link', label: attrs.label || m?.[1] || src }
   }
   if (src.startsWith('$t(')) return { kind: 't', label: src.match(/['"]([^'"]+)['"]/)[1] }
+  if (src.startsWith('$param.')) return { kind: 'param', label: src.slice(7) }
   return { kind: 'cmd', label: src.length > 40 ? `${src.slice(0, 37)}…` : src }
 }
 

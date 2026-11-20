@@ -69,6 +69,27 @@
           <div class="panel-title">Componente reutilizable</div>
           {#if instance.comp}
             <p>Este bloque es una instancia de <b>◆ {instance.comp.name}</b>, usado en {instance.comp.usedBy.length} sitio(s). Los cambios en el componente se aplican en todos.</p>
+            {@const decl = instance.comp.params}
+            {@const given = Object.fromEntries(instance.params)}
+            {#if Object.keys(decl).length || instance.params.length}
+              <div class="panel-title">Parámetros</div>
+              {#each Object.entries(decl) as [name, d] (name)}
+                <AttrField
+                  def={{ name, label: d.label, type: d.type === 'select' ? 'select' : d.type === 'color' ? 'color' : 'text', options: ['', ...(d.options || [])] }}
+                  value={given[name] ?? ''}
+                  placeholder={String(d.default ?? '')}
+                  onchange={(v) => store.setParam(node.id, name, v)}
+                />
+              {/each}
+              {#each instance.params.filter(([k]) => !decl[k]) as [k, v] (k)}
+                <div class="extra">
+                  <input class="mono" value={k} disabled title="Parámetro no declarado en el componente" />
+                  <input class="mono" value={v} oninput={(e) => store.setParam(node.id, k, e.currentTarget.value)} />
+                  <button class="ghost" title="Quitar" onclick={() => store.setParam(node.id, k, '')}>✕</button>
+                </div>
+              {/each}
+              <p class="hint muted">Vacío = valor por defecto del componente. Admiten <code>{'{{ variables }}'}</code> y <code>$t('clave')</code>.</p>
+            {/if}
             <div class="btns">
               <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Editar componente</button>
               <button onclick={() => store.detach(node.id)} title="Sustituye la instancia por una copia editable solo en esta plantilla">Desvincular (copiar aquí)</button>
@@ -112,12 +133,17 @@
             {/if}
           {/if}
 
-          {#if variables.length || links.length}
+          {#if variables.length || links.length || (store.isComponent && Object.keys(store.componentParams).length)}
             <div class="vars">
               <span class="muted">Insertar {store.editing ? 'en el cursor' : 'al final'}:</span>
               {#each variables as v}
                 <button class="chip" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`{{ ${v} }}`)}>{v}</button>
               {/each}
+              {#if store.isComponent}
+                {#each Object.keys(store.componentParams) as pname}
+                  <button class="chip param" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$param.${pname}`)}>⚙ {pname}</button>
+                {/each}
+              {/if}
               {#each links as l}
                 <button class="chip link" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$link{ ${l}, label: ${l} }`)}>🔗 {l}</button>
               {/each}
@@ -143,7 +169,7 @@
             <input class="mono" placeholder="nuevo-atributo" bind:value={newAttr} />
             <button type="submit">Añadir</button>
           </form>
-          <p class="hint muted">Los valores admiten <code>{'{{ variables }}'}</code> Jinja2 y comandos <code>$t</code> / <code>$link</code>.</p>
+          <p class="hint muted">Los valores admiten <code>{'{{ variables }}'}</code> Jinja2 y comandos <code>$t</code> / <code>$link</code>{store.isComponent ? ' / $param.nombre' : ''}.</p>
         </section>
       {/if}
     </div>
@@ -153,7 +179,9 @@
 <style>
   aside { background: var(--panel); border-left: 1px solid var(--border); overflow: auto; min-height: 0; }
   .comp p { margin: 0 0 10px; font-size: 12.5px; }
-  .btns { display: grid; gap: 6px; }
+  .btns { display: grid; gap: 6px; margin-top: 10px; }
+  .comp .panel-title { padding-left: 0; }
+  .chip.param { background: #f5f3ff; border-color: #c4b5fd; color: #6d28d9; }
   .ic.comp { color: #7c3aed; font-size: 12px; }
   .head { position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 8px 8px; z-index: 1; }
   .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; font-size: 11px; }

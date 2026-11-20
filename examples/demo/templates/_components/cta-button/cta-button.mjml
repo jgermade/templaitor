@@ -1,0 +1,26 @@
+---
+params:
+  url:
+    type: text
+    label: Enlace
+    default: "#"
+  label:
+    type: text
+    label: Texto del botón
+    default: $t('cta')
+  color:
+    type: color
+    label: Color
+    default: "#4F46E5"
+  align:
+    type: select
+    label: Alineación
+    options: [left, center, right]
+    default: center
+---
+
+<mj-section background-color="#ffffff" padding="8px 24px 32px">
+  <mj-column>
+    <mj-button href="$param.url" background-color="$param.color" align="$param.align">$param.label</mj-button>
+  </mj-column>
+</mj-section>

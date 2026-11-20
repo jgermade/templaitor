@@ -9,8 +9,9 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import {
   parse, serialize, splitFrontmatter, joinFrontmatter, findNode, parentId, clone,
-  removeNode, insertNode, moveNode, getAttr, setAttr, importRef, walk,
+  removeNode, insertNode, moveNode, getAttr, setAttr, importCall, walk,
 } from '@shared/mjml-tree.js'
+import { formatImportCall, normalizeParams } from '@shared/imports.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
 
@@ -45,6 +46,8 @@ class EditorStore {
   })
   kind = $derived(this.doc?.kind ?? 'template')
   isComponent = $derived(this.kind === 'component')
+  /** Parámetros declarados en el frontmatter (al editar un componente) */
+  componentParams = $derived(normalizeParams(this.frontmatter.params))
   isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
   tree = $derived(parse(this.split.body))
   i18n = $derived.by(() => {
@@ -315,10 +318,59 @@ class EditorStore {
   // ── Componentes reutilizables ─────────────────────────────
   /** Info de una instancia de componente ($import) o null */
   instanceOf(node) {
-    const ref = importRef(node)
-    if (!ref) return null
-    const comp = this.components.find(c => ref === c.importPath || ref.startsWith(`${c.importPath}/`) || ref === `${c.importPath}.mjml`)
-    return { ref, comp, name: comp?.name ?? ref.split('/').pop().replace(/\.mjml$/, '') }
+    const call = importCall(node)
+    if (!call) return null
+    const ref = call.path
+    const comp = this.components.find(c => ref === c.importPath || ref === `${c.importPath}/${c.name}.mjml` || ref === `${c.importPath}.mjml`)
+    return { ref, params: call.params, comp, name: comp?.name ?? ref.split('/').pop().replace(/\.mjml$/, '') }
+  }
+
+  /** Cambia (o quita, con valor vacío) un parámetro de una instancia */
+  setParam(id, name, value) {
+    const info = this.instanceOf(findNode(this.tree, id))
+    if (!info) return
+    const params = info.params.filter(([k]) => k !== name)
+    const idx = info.params.findIndex(([k]) => k === name)
+    if (value !== '' && value != null) params.splice(idx === -1 ? params.length : idx, 0, [name, value])
+    this.mutate(tree => { findNode(tree, id).value = formatImportCall(info.ref, params) }, `param:${id}:${name}`)
+  }
+
+  // ── Declaración de parámetros (frontmatter del componente) ──
+  #editFrontmatter(fn, tag) {
+    const fm = YAML.parseDocument(this.split.frontmatter || '')
+    if (fm.errors.length) return this.notify('El frontmatter tiene errores; corrígelo en la vista Código', 'error')
+    if (!fm.contents) fm.contents = fm.createNode({})
+    fn(fm)
+    const text = fm.toString().trim()
+    this.update({ mjml: joinFrontmatter(text === '{}' ? '' : text, this.split.body) }, tag)
+  }
+
+  addParamDecl(name) {
+    name = name.trim()
+    if (!/^[A-Za-z_][\w-]*$/.test(name)) return this.notify('Nombre de parámetro no válido (letras, números, _ y -)', 'error')
+    if (this.componentParams[name]) return this.notify(`El parámetro ${name} ya existe`, 'error')
+    this.#editFrontmatter(fm => fm.setIn(['params', name], fm.createNode({ type: 'text', label: name, default: '' })))
+  }
+
+  setParamDecl(name, field, value) {
+    this.#editFrontmatter(fm => {
+      const cur = fm.getIn(['params', name], true)
+      // forma corta (`nombre: valor`) → forma completa
+      if (!YAML.isMap(cur)) fm.setIn(['params', name], fm.createNode({ type: 'text', label: name, default: cur?.value ?? cur ?? '' }))
+      if (value === '' || value == null || (Array.isArray(value) && !value.length)) {
+        if (field !== 'default' && fm.hasIn(['params', name, field])) fm.deleteIn(['params', name, field])
+        else if (field === 'default') fm.setIn(['params', name, field], '')
+      } else {
+        fm.setIn(['params', name, field], Array.isArray(value) ? fm.createNode(value, { flow: true }) : value)
+      }
+    }, `pdecl:${name}:${field}`)
+  }
+
+  removeParamDecl(name) {
+    this.#editFrontmatter(fm => {
+      fm.deleteIn(['params', name])
+      if (!fm.get('params')?.items?.length) fm.delete('params')
+    })
   }
 
   insertComponent(comp) {

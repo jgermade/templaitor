@@ -7,8 +7,10 @@ import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/s
 import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
 import { annotateBody, chipify } from '../src/engine/design.js'
-import { loadProject, readTemplate, createTemplate, listTemplates, listComponents } from '../src/engine/project.js'
-import { compileProject, previewDraft } from '../src/engine/pipeline.js'
+import { loadProject, readTemplate, createTemplate, listTemplates, listComponents, readLinks } from '../src/engine/project.js'
+import { compileProject, previewDraft, compileSource } from '../src/engine/pipeline.js'
+import { findImportCalls, parseImportCall, formatImportCall, applyParams } from '../src/shared/imports.js'
+import YAML from 'yaml'
 
 const DEMO = path.resolve(import.meta.dirname, '../examples/demo')
 
@@ -139,9 +141,38 @@ test('componentes: listado con usos y modo diseño selecciona la instancia enter
   assert.equal(comps.footer.usedBy[0].kind, 'layout')
   const tpl = readTemplate(project, 'customers/email-verification')
   const d = await previewDraft(project, { ...tpl, langKey: 'es', mode: 'design' })
-  assert.equal((d.html.match(/tpl-comp tpl-node--\d+"/g) || []).length, 2)
+  assert.equal((d.html.match(/tpl-comp tpl-node--\d+"/g) || []).length, 3)
   const c = readTemplate(project, 'legal-notice', 'component')
   const cp = await previewDraft(project, { ...c, kind: 'component' })
   assert.deepEqual(cp.errors, [])
   assert.match(cp.html, /Inter/, 'usa el <mj-head> del layout')
+})
+
+test('imports: parámetros con comillas, comas y paréntesis', () => {
+  const t = `x $import(_components/cta, url="{{ a }}/v?x=1,y", label="$t('cta')", note='di "hola"') y`
+  const [call] = findImportCalls(t)
+  assert.equal(call.path, '_components/cta')
+  assert.deepEqual(call.params, [['url', '{{ a }}/v?x=1,y'], ['label', "$t('cta')"], ['note', 'di "hola"']])
+  assert.deepEqual(parseImportCall(formatImportCall(call.path, call.params)).params, call.params)
+  assert.equal(applyParams('$param.a|$param.b|$param.c', { a: 'A', b: { default: 'B' } }, [['b', 'X']]), 'A|X|')
+  // el parser trata cada $import (aunque lleve paréntesis en los argumentos) como un nodo
+  const tree = parse(`<mj-section />\n${t.slice(2, -2)}\n<mj-section />`)
+  assert.equal(tree.children[1].value, t.slice(2, -2))
+})
+
+test('componentes con parámetros: valores por instancia, por defecto y Jinja2 intacto', async () => {
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'orders/order-confirmation')
+  const r = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
+  assert.match(r.html, /href="\{\{ tracking_url \}\}"/)
+  assert.match(r.html, /background:#059669/)
+  assert.match(r.html, /Seguir envío/)
+  assert.deepEqual(r.warnings, [])
+  const c = readTemplate(project, 'cta-button', 'component')
+  const cp = await previewDraft(project, { ...c, kind: 'component', langKey: 'es' })
+  assert.match(cp.html, /Continuar/)
+  assert.match(cp.html, /background:#4F46E5/)
+  const comps = Object.fromEntries(listComponents(project).map(x => [x.id, x]))
+  assert.equal(comps['cta-button'].params.align.type, 'select')
+  assert.equal(comps['cta-button'].usedBy.length, 2)
 })

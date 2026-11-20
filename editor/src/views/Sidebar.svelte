@@ -5,6 +5,7 @@
   import ComponentsPanel from './ComponentsPanel.svelte'
   import Outline from './Outline.svelte'
   import TemplateSettings from './TemplateSettings.svelte'
+  import ParamsPanel from './ParamsPanel.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { PALETTE, describe } from '@shared/components.js'
 
@@ -30,6 +31,12 @@
     <Section id="messages" title="Mensajes" count={keyCount}>
       <MessagesPanel />
     </Section>
+
+    {#if store.isComponent}
+      <Section id="params" title="Parámetros" count={Object.keys(store.componentParams).length} open>
+        <ParamsPanel />
+      </Section>
+    {/if}
 
     {#if design}
       <Section id="components" title="Componentes" count={store.components.length} open>

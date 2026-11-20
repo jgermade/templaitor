@@ -96,7 +96,8 @@ smtp:                    # opcional: botón "Enviar" del editor (p.ej. Mailpit)
 
 | Comando | Descripción |
 |---|---|
-| `$import( ruta )` | Incluye un parcial o componente (relativo a `templates/`; `_components/x` = `_components/x/x.mjml`) |
+| `$import( ruta, clave="valor", … )` | Incluye un parcial o componente (relativo a `templates/`; `_components/x` = `_components/x/x.mjml`), con parámetros opcionales |
+| `$param.nombre` | (dentro de un componente) valor del parámetro de la instancia o su valor por defecto |
 | `$lang` / `$country` | Locale actual (`es-ES`) / país (`ES`) |
 | `$if( expr ) … $else … $end` | Condicional compile-time (expresión JS) |
 | `$t('clave')` | Texto de `messages.<idioma>.clave` (admite claves anidadas `a.b`) |
@@ -116,6 +117,31 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
 - En el editor: panel **Componentes** para insertarlos, ver cuántas plantillas los usan y crearlos;
   en el lienzo cada instancia se selecciona como un bloque (◆) y con **doble click** se edita el componente
   con el mismo WYSIWYG (con «← volver» a la plantilla). Los cambios se aplican en todas las plantillas.
+- **Parámetros**: se declaran en el frontmatter del componente y se usan como `$param.nombre` en
+  textos, botones o atributos. Cada instancia les da valor (o usa el valor por defecto):
+
+  ```
+  ---
+  params:
+    url: { type: text, label: Enlace, default: "#" }
+    color: { type: color, label: Color, default: "#4F46E5" }
+    align: { type: select, options: [left, center, right], default: center }
+    label: $t('cta')          # forma corta: solo el valor por defecto
+  ---
+  <mj-section>
+    <mj-column>
+      <mj-button href="$param.url" background-color="$param.color" align="$param.align">$param.label</mj-button>
+    </mj-column>
+  </mj-section>
+  ```
+
+  ```
+  $import(_components/cta-button, url="{{ app_url }}/verify?token={{ token }}", label="$t('cta')", color="#059669")
+  ```
+
+  Los valores (entre comillas dobles o simples) admiten Jinja2 y comandos `$`. En el editor, el inspector
+  de una instancia muestra un formulario con los parámetros declarados (texto, color o lista), y al editar
+  el componente el panel **Parámetros** permite declararlos y añadir `$param.x` como chip en los textos.
 - **Convertir selección en componente**: mueve el bloque seleccionado y sus textos a un componente nuevo.
 - **Desvincular**: sustituye una instancia por una copia editable solo en esa plantilla.
 
@@ -165,7 +191,6 @@ examples/demo/             proyecto de ejemplo
 - [ ] Integrar en `doomus-rs`: sustituir `emails/_engine` por `templaitor compile` y leer `*.subject.txt` en el backend.
 - [ ] Barra de formato flotante (negrita, cursiva, enlace) en la edición inline.
 - [ ] Edición visual de layouts (hoy solo en la vista Código).
-- [ ] Parámetros en componentes (p.ej. `$import(_components/cta, url: ...)`).
 - [ ] Subida de imágenes a `_shared/` desde el inspector.
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.

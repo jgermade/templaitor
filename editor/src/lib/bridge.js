@@ -24,6 +24,8 @@ export function bridgeMain() {
     .tpl-chip--link { background: #dcfce7; border-color: #86efac; color: #166534 !important; }
     .tpl-chip--t { background: #e0f2fe; border-color: #7dd3fc; color: #075985 !important; }
     .tpl-chip--cmd { background: #f3f4f6; border-color: #d1d5db; color: #374151 !important; }
+    .tpl-chip--param { background: #f5f3ff; border-color: #c4b5fd; color: #6d28d9 !important; }
+    .tpl-chip--param::before { content: '⚙ '; }
     .tpl-chip--var::before { content: '{ '; opacity: .5 } .tpl-chip--var::after { content: ' }'; opacity: .5 }
     .tpl-chip--link::before { content: '🔗 '; } .tpl-chip--t::before { content: '🌐 '; }
     #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;

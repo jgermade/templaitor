@@ -4,6 +4,8 @@
 // bloques Jinja2 {% %}, $import(...), etc.) y el contenido de las etiquetas
 // "ending" (mj-text, mj-button, mj-raw...) como HTML en crudo.
 //
+import { findImportCalls, parseImportCall } from './imports.js'
+
 // Nodos:
 //   { type: 'root', children }
 //   { type: 'element', tag, attrs: [[name, value]], children, content }   // content !== null => ending tag
@@ -58,9 +60,16 @@ export function parse(source) {
     if (end <= textStart) return
     const value = source.slice(textStart, end)
     // cada $import (instancia de componente) y cada bloque separado por línea en blanco es un nodo
-    for (const part of value.split(/(\$import\([^)]*\))|\n\s*\n/)) {
-      if (part?.trim()) top().children.push({ type: 'text', value: part.trim() })
+    let last = 0
+    const pushParts = (str) => {
+      for (const part of str.split(/\n\s*\n/)) if (part.trim()) top().children.push({ type: 'text', value: part.trim() })
     }
+    for (const call of findImportCalls(value)) {
+      pushParts(value.slice(last, call.start))
+      top().children.push({ type: 'text', value: call.raw })
+      last = call.end
+    }
+    pushParts(value.slice(last))
   }
   const top = () => stack[stack.length - 1]
 
@@ -177,12 +186,15 @@ export function serialize(root, { indent = '  ', extraAttrs, transformContent, t
 
 // ── Tree helpers ─────────────────────────────────────────────
 
-const IMPORT_ONLY = /^\$import\(\s*['"]?([^)'"]+?)['"]?\s*\)$/
-
-/** Si el nodo es exactamente un `$import(ruta)` devuelve la ruta */
-export function importRef(node) {
+/** Si el nodo es exactamente un `$import(ruta, ...)` devuelve { path, params } */
+export function importCall(node) {
   if (node?.type !== 'text') return null
-  return node.value.trim().match(IMPORT_ONLY)?.[1] ?? null
+  return parseImportCall(node.value)
+}
+
+/** Ruta del `$import` si el nodo es una instancia de componente/parcial */
+export function importRef(node) {
+  return importCall(node)?.path ?? null
 }
 
 export function findNode(root, id) {
