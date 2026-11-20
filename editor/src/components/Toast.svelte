@@ -10,7 +10,10 @@
 </script>
 
 {#if toast && visible}
-  <div class="toast {toast.type}" role="status">{toast.message}</div>
+  <div class="toast {toast.type}" role="status">
+    {toast.message}
+    {#if toast.link}<a href={toast.link.href} target="_blank" rel="noopener">{toast.link.label} ↗</a>{/if}
+  </div>
 {/if}
 
 <style>
@@ -20,5 +23,6 @@
     box-shadow: 0 6px 24px rgba(0,0,0,.18); max-width: min(90vw, 640px);
   }
   .toast.error { background: var(--danger); }
+  .toast a { color: #a5b4fc; margin-left: 10px; font-weight: 600; }
   .toast.warn { background: var(--warn); }
 </style>

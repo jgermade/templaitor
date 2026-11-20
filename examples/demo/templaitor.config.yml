@@ -16,9 +16,10 @@ output:
   text: true                  # genera <nombre>.<locale>.txt
   subject: true               # genera <nombre>.<locale>.subject.txt
 
-# SMTP para "Enviar prueba" desde el editor (p.ej. Mailpit)
+# SMTP para "Enviar prueba" desde el editor (Mailpit local: `make up` lo arranca con docker compose)
 smtp:
   host: localhost
   port: 1025
   from: noreply@example.com
   label: mailpit              # texto del botón de envío
+  web: http://localhost:8025  # bandeja web: el editor enlaza aquí tras enviar

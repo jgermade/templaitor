@@ -140,8 +140,8 @@ class EditorStore {
     else this.setContent(this.selectedId, `${node.content.trim()} ${src}`.trim())
   }
 
-  notify(message, type = 'success') {
-    this.toast = { message, type, at: Date.now() }
+  notify(message, type = 'success', link = null) {
+    this.toast = { message, type, link, at: Date.now() }
   }
 
   // ── Historial ─────────────────────────────────────────────

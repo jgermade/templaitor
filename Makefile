@@ -1,7 +1,11 @@
-.PHONY: install i test up build
+.PHONY: install i test up build mailpit down
 
 # Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
 PROJECT  ?= examples/demo
+
+# Mailpit local (docker compose): SMTP en :1025 y bandeja en http://localhost:8025
+#   make up MAILPIT=0   → no arrancarlo
+MAILPIT  ?= 1
 DEV_PORT ?= 5180
 
 # Exposición pública opcional con intergate (https://jgermade.github.io/intergate/):
@@ -33,7 +37,7 @@ test: node_modules
 
 # Desarrollo local en un solo puerto: Vite (recarga en caliente) con la API del motor montada
 # como middleware (+ túnel intergate si GATE=...). Ctrl+C para parar todo.
-up: node_modules
+up: node_modules mailpit
 	@if [ -n "$(GATE)" ]; then \
 		command -v ssh >/dev/null || { echo "✗ GATE requiere ssh instalado"; exit 1; }; \
 		echo "⇄ intergate: https://$(GATE_HOST) → localhost:$(DEV_PORT) (vía $(GATE_SERVER):$(GATE_PORT))"; \
@@ -47,6 +51,20 @@ up: node_modules
 	fi; \
 	TEMPLAITOR_PROJECT=$(PROJECT) TEMPLAITOR_ALLOWED_HOSTS=$(GATE_HOST) \
 		npx vite --config vite.config.js --port $(DEV_PORT) --strictPort || true
+
+mailpit:
+	@if [ "$(MAILPIT)" = "1" ]; then \
+		if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+			if docker compose up -d --quiet-pull mailpit >/dev/null 2>&1; then \
+				echo "✉ Mailpit → http://localhost:8025 (SMTP localhost:1025)"; \
+			else echo "⚠ No se pudo arrancar Mailpit (docker compose up mailpit)"; fi; \
+		else \
+			echo "⚠ Docker no disponible: se arranca sin Mailpit (make up MAILPIT=0 oculta este aviso)"; \
+		fi; \
+	fi
+
+down:
+	docker compose down
 
 build: node_modules
 	npm run build

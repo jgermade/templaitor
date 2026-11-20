@@ -38,7 +38,7 @@ export function createHandler(project) {
         ...(fs.existsSync(project.linksFile) ? [rel(project, project.linksFile)] : []),
       ],
       links: readLinks(project),
-      smtp: project.smtp ? { label: project.smtp.label || 'Enviar' } : null,
+      smtp: project.smtp ? { label: project.smtp.label || 'Enviar', web: project.smtp.web || null } : null,
       componentsDir: rel(project, project.componentsDir),
     }),
 
@@ -106,14 +106,17 @@ export function createHandler(project) {
         secure: !!project.smtp.secure,
         ...(project.smtp.user ? { auth: { user: project.smtp.user, pass: process.env[project.smtp.passEnv || 'SMTP_PASS'] } } : {}),
       })
-      await transport.sendMail({
+      const info = await transport.sendMail({
         from: project.smtp.from || 'templaitor@localhost',
         to: body.to,
         subject: renderJinja(r.subject, data),
         html: renderJinja(r.html, data),
         text: renderJinja(r.text, data),
+      }).catch((err) => {
+        const where = `${project.smtp.host || 'localhost'}:${project.smtp.port || 1025}`
+        throw httpError(502, /ECONNREFUSED/.test(`${err.code} ${err.message}`) ? `No hay servidor SMTP en ${where} (¿Mailpit arrancado? make up)` : err.message)
       })
-      return { ok: true }
+      return { ok: true, messageId: info.messageId }
     },
   }
 

@@ -21,7 +21,8 @@
     try { localStorage.setItem('tpl:send-to', to) } catch {}
     try {
       await api.send({ ...draft(), to })
-      store.notify(`Enviado a ${to}`)
+      const web = store.project.smtp.web
+      store.notify(`Enviado a ${to}`, 'success', web ? { href: web, label: `Abrir ${store.project.smtp.label}` } : null)
     } catch (e) {
       store.notify(e.message, 'error')
     }

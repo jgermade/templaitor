@@ -1,0 +1,13 @@
+# Servicios locales de desarrollo
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: templaitor-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"   # SMTP (sin autenticación)
+      - "${MAILPIT_WEB_PORT:-8025}:8025"    # bandeja web
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
