@@ -35,6 +35,7 @@ class EditorStore {
   editing = $state(null) // región editable activa en el lienzo
   selectSource = $state(null) // 'canvas' si la selección viene de un click en el lienzo
   insertRequest = $state(null) // { src } — inserta un token en la región editable activa
+  lastSentUrl = $state(null) // enlace al último email enviado (p.ej. en Mailpit)
   previewNonce = $state(0) // fuerza recargar la vista previa (p.ej. tras editar un layout)
   history = $state([])
   future = $state([])
@@ -138,6 +139,20 @@ class EditorStore {
     const key = this.keyOf(node)
     if (key) this.setMessage(this.lang, key, `${String(this.messages[key] ?? '').trim()} ${src}`.trim())
     else this.setContent(this.selectedId, `${node.content.trim()} ${src}`.trim())
+  }
+
+  /** Abre la vista previa renderizada (con datos de demo) en una pestaña nueva */
+  async openPreviewTab() {
+    const win = window.open('', '_blank')
+    try {
+      const r = await api.preview({ kind: this.kind, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data, lang: this.lang, mode: 'preview' })
+      win.document.open()
+      win.document.write(r.html.replace('<head>', `<head><base href="${location.origin}/"><title>${r.subject || this.doc.name}</title>`))
+      win.document.close()
+    } catch (e) {
+      win?.close()
+      this.notify(e.message, 'error')
+    }
   }
 
   notify(message, type = 'success', link = null) {

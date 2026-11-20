@@ -110,6 +110,9 @@
             </ul>
           {/if}
         </div>
+        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Abrir la vista previa en una pestaña nueva">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        </button>
         <label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>
       </div>
     {/if}
@@ -163,6 +166,7 @@
   .subject input:hover { border-color: var(--border); background: #fff; }
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
+  .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }
   .text-toggle { display: flex; align-items: center; gap: 6px; color: #3f3f46; cursor: pointer; }
   .text-toggle input { width: 15px; height: 15px; margin: 0; }
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }

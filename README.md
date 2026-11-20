@@ -27,7 +27,8 @@ make build             # compila el editor a dist/editor
 **Mailpit local**: si hay Docker, `make up` arranca [Mailpit](https://mailpit.axllent.org/) con
 `docker compose` (SMTP en `localhost:1025`). Su bandeja se publica en **`/mailpit/`** del propio editor
 (http://localhost:5180/mailpit/), así que con `GATE=...` también es accesible en `https://<gate>/mailpit/`. El botón **mailpit ➤** del
-editor envía la plantilla renderizada con los datos de demo y el aviso enlaza a la bandeja. Sin Docker
+editor envía la plantilla renderizada con los datos de demo; el aviso y el icono ↗ de la barra superior
+abren **ese email** en Mailpit (o la bandeja si aún no se ha enviado nada). Sin Docker
 arranca igual (con un aviso); `make up MAILPIT=0` lo desactiva y `make down` lo para. Puertos:
 `MAILPIT_SMTP_PORT` / `MAILPIT_WEB_PORT`.
 
@@ -161,8 +162,8 @@ Un componente es una carpeta `_components/<nombre>/` con `<nombre>.mjml` (fragme
   va al `.yml` del idioma activo. Las variables Jinja2 y los comandos `$` aparecen como *chips*
   no editables; escribir `{{ variable }}` crea uno nuevo.
 - **Interfaz**: ruta de la plantilla (click para buscar/abrir plantillas y componentes), banderas de idioma,
-  botón de envío SMTP (p.ej. *mailpit*), abrir la vista previa en otra pestaña, asunto editable y
-  conmutador `text`. A la izquierda, datos de demo (JSON5) y secciones plegables: Mensajes, Componentes,
+  botón de envío SMTP (p.ej. *mailpit*) e icono ↗ que abre Mailpit (el último email enviado); en la barra
+  del asunto, abrir la vista previa en otra pestaña y el conmutador `text`. A la izquierda, datos de demo (JSON5) y secciones plegables: Mensajes, Componentes,
   Bloques, Estructura y Plantilla. El inspector aparece al seleccionar un bloque.
 - **Estructura**: árbol de bloques con arrastrar y soltar (valida dónde puede ir cada componente),
   subir/bajar, duplicar y eliminar. **Bloques**: paleta de componentes MJML; los nuevos textos y

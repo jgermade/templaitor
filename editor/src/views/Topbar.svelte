@@ -15,31 +15,43 @@
 
   const draft = () => ({ kind: store.kind, mjml: store.doc.mjml, yml: store.doc.yml, data: store.doc.data, lang: store.lang })
 
+  /**
+   * URL del email recién enviado en la bandeja de Mailpit (`smtp.web`), buscándolo por su Message-ID.
+   * Si la bandeja no es Mailpit o no responde, devuelve null (se enlaza a la bandeja).
+   */
+  async function mailpitMessageUrl(web, messageId) {
+    if (!messageId) return null
+    const base = web.endsWith('/') ? web : `${web}/`
+    const query = `message-id:"${messageId.replace(/^<|>$/g, '')}"`
+    for (let i = 0; i < 4; i++) {
+      try {
+        const res = await fetch(`${base}api/v1/search?${new URLSearchParams({ query, limit: '1' })}`)
+        if (!res.ok) return null
+        const id = (await res.json()).messages?.[0]?.ID
+        if (id) return `${base}view/${id}`
+      } catch {
+        return null
+      }
+      await new Promise(r => setTimeout(r, 250)) // Mailpit indexa el mensaje en segundo plano
+    }
+    return null
+  }
+
   async function sendTest() {
     const to = prompt('Enviar prueba a:', localStorage.getItem('tpl:send-to') || 'demo@example.com')
     if (!to) return
     try { localStorage.setItem('tpl:send-to', to) } catch {}
     try {
-      await api.send({ ...draft(), to })
+      const { messageId } = await api.send({ ...draft(), to })
       const web = store.project.smtp.web
-      store.notify(`Enviado a ${to}`, 'success', web ? { href: web, label: `Abrir ${store.project.smtp.label}` } : null)
+      const href = web ? (await mailpitMessageUrl(web, messageId)) ?? web : null
+      if (href) store.lastSentUrl = href
+      store.notify(`Enviado a ${to}`, 'success', href ? { href, label: `Abrir en ${store.project.smtp.label}` } : null)
     } catch (e) {
       store.notify(e.message, 'error')
     }
   }
 
-  async function openExternal() {
-    const win = window.open('', '_blank')
-    try {
-      const r = await api.preview({ ...draft(), mode: 'preview' })
-      win.document.open()
-      win.document.write(r.html.replace('<head>', `<head><base href="${location.origin}/"><title>${r.subject || store.doc.name}</title>`))
-      win.document.close()
-    } catch (e) {
-      win?.close()
-      store.notify(e.message, 'error')
-    }
-  }
 </script>
 
 <header>
@@ -90,9 +102,17 @@
   {#if store.project?.smtp}
     <button class="send" onclick={sendTest} title="Enviar prueba por SMTP">{store.project.smtp.label} <span class="arrow">➤</span></button>
   {/if}
-  <button class="ghost icon ext" onclick={openExternal} title="Abrir vista previa en una pestaña nueva">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
-  </button>
+  {#if store.project?.smtp?.web}
+    <a
+      class="icon ext"
+      href={store.lastSentUrl ?? store.project.smtp.web}
+      target="_blank"
+      rel="noopener"
+      title={store.lastSentUrl ? `Abrir el último email enviado en ${store.project.smtp.label}` : `Abrir ${store.project.smtp.label}`}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+    </a>
+  {/if}
 </header>
 
 <style>
@@ -125,5 +145,6 @@
   }
   .send:hover:not(:disabled) { background: #2f5be0; }
   .arrow { font-size: 16px; }
-  .ext { margin-right: 6px; color: #3f3f46; }
+  .ext { display: grid; place-content: center; width: 40px; height: 100%; color: #3f3f46; border-radius: 6px; }
+  .ext:hover { background: #f4f4f5; }
 </style>
