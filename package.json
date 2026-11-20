@@ -15,7 +15,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node bin/templaitor.js editor --cwd examples/demo --port 3333 & vite --config vite.config.js",
+    "dev": "vite --config vite.config.js",
     "build": "vite build --config vite.config.js",
     "editor": "node bin/templaitor.js editor --cwd examples/demo",
     "compile": "node bin/templaitor.js compile --cwd examples/demo",

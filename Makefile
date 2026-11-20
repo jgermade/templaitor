@@ -2,7 +2,6 @@
 
 # Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
 PROJECT  ?= examples/demo
-API_PORT ?= 3333
 DEV_PORT ?= 5180
 
 # Exposición pública opcional con intergate (https://jgermade.github.io/intergate/):
@@ -24,21 +23,22 @@ install:
 test:
 	npm test
 
-# Desarrollo local: API del editor + Vite con recarga en caliente (+ túnel intergate si GATE=...).
-# Ctrl+C para parar todo.
+# Desarrollo local en un solo puerto: Vite (recarga en caliente) con la API del motor montada
+# como middleware (+ túnel intergate si GATE=...). Ctrl+C para parar todo.
 up:
-	@trap 'kill 0' INT TERM EXIT; \
-	node bin/templaitor.js editor --cwd $(PROJECT) --port $(API_PORT) & \
-	if [ -n "$(GATE)" ]; then \
+	@if [ -n "$(GATE)" ]; then \
+		command -v ssh >/dev/null || { echo "✗ GATE requiere ssh instalado"; exit 1; }; \
 		echo "⇄ intergate: https://$(GATE_HOST) → localhost:$(DEV_PORT) (vía $(GATE_SERVER):$(GATE_PORT))"; \
-		( while true; do \
-			ssh $(GATE_SSH_OPTS) -R $(GATE_SUBDOMAIN):80:localhost:$(DEV_PORT) $(GATE_SERVER); \
+		( trap 'kill $$SSH_PID 2>/dev/null; exit 0' TERM; \
+		  while true; do \
+			ssh $(GATE_SSH_OPTS) -R $(GATE_SUBDOMAIN):80:localhost:$(DEV_PORT) $(GATE_SERVER) & SSH_PID=$$!; \
+			wait $$SSH_PID; \
 			echo "⇄ intergate: túnel caído, reintentando en 3s..."; sleep 3; \
-		done ) & \
+		  done ) & TUNNEL_PID=$$!; \
+		trap 'kill $$TUNNEL_PID 2>/dev/null; exit 0' INT TERM EXIT; \
 	fi; \
-	TEMPLAITOR_API=http://127.0.0.1:$(API_PORT) TEMPLAITOR_ALLOWED_HOSTS=$(GATE_HOST) \
-		npx vite --config vite.config.js --port $(DEV_PORT) --strictPort; \
-	wait
+	TEMPLAITOR_PROJECT=$(PROJECT) TEMPLAITOR_ALLOWED_HOSTS=$(GATE_HOST) \
+		npx vite --config vite.config.js --port $(DEV_PORT) --strictPort || true
 
 build:
 	npm run build

@@ -16,7 +16,7 @@ plantilla.mjml + plantilla.yml (textos por idioma) ──► dist/<id>/<nombre>.
 
 ```bash
 make install           # instala dependencias y compila el editor (dist/editor)
-make up                # desarrollo local: editor en http://localhost:5180 (API en :3333)
+make up                # desarrollo local: editor + API en http://localhost:5180
 make test              # tests
 make build             # compila el editor a dist/editor
 ```
@@ -35,7 +35,7 @@ dashboard de intergate. El puerto SSH es 2222 por defecto; se puede indicar en e
 (`GATE=templaitor.gate.example.com:2223`) o con `GATE_SSH_PORT`. Clave concreta: `GATE_KEY=~/.ssh/intergate`.
 ⚠ El editor no tiene autenticación y puede escribir ficheros del proyecto: restringe el acceso al
 subdominio en intergate si no quieres que sea público.
-Sin `make`: `npm run editor` (editor ya compilado en http://127.0.0.1:3333) y `npm run compile`.
+Sin `make`: `npm run dev` (desarrollo, :5180), `npm run editor` (editor ya compilado, :3333) y `npm run compile`.
 
 En otro proyecto:
 
