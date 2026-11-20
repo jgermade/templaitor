@@ -2,7 +2,24 @@
   // Informe de accesibilidad (WCAG 2.1 AA · EN 301 549 · PDF/UA) del borrador actual
   import { store } from '../stores/editor.svelte.js'
 
-  const report = $derived(store.preview.a11yReport)
+  const engines = $derived(store.project?.pdf?.engines || [])
+  const usedEngine = $derived(engines.find(e => e.id === store.pdfEngineUsed))
+  const validation = $derived(store.view === 'pdf' ? store.pdfValidation : null)
+  // el criterio PDF/UA depende del motor y, si se ha validado, del resultado de veraPDF
+  const report = $derived.by(() => {
+    const r = store.preview.a11yReport
+    if (!r) return r
+    return {
+      ...r,
+      checks: r.checks.map((c) => {
+        if (c.id !== 'pdf-ua') return c
+        const v = validation?.status === 'done' && !validation.stale ? validation.result : null
+        if (v) return { ...c, status: v.compliant ? 'pass' : 'fail' }
+        if (usedEngine && !usedEngine.pdfua) return { ...c, status: 'warn' }
+        return c
+      }),
+    }
+  })
   const counts = $derived.by(() => {
     const c = { fail: 0, warn: 0, pass: 0, na: 0 }
     for (const ch of report?.checks || []) c[ch.status]++
@@ -12,7 +29,7 @@
   const LABEL = { pass: 'Cumple', warn: 'Revisar', fail: 'No cumple', na: 'No aplica' }
 
   let open = $state({})
-  const isOpen = (c) => open[c.id] ?? c.status !== 'pass'
+  const isOpen = (c) => open[c.id] ?? (c.status !== 'pass' || (c.id === 'pdf-ua' && store.view === 'pdf'))
 </script>
 
 <aside class="report" aria-label="Informe de accesibilidad">
@@ -89,7 +106,30 @@
                   </tbody>
                 </table>
               {:else if c.id === 'pdf-ua'}
-                <p class="inv">El PDF se genera etiquetado (estructura de encabezados, tablas, alt de imágenes), con idioma, título y marcadores.</p>
+                {#if usedEngine}
+                  <p class="inv">Motor: <b>{usedEngine.label}</b> — {usedEngine.pdfua ? 'genera PDF/UA-1 (etiquetado, idioma, título, marcadores).' : 'etiqueta el PDF pero no cumple PDF/UA-1. Usa WeasyPrint o Prince.'}</p>
+                {/if}
+                {#if store.view !== 'pdf'}
+                  <p class="inv">Abre la vista <b>PDF</b> para validarlo con veraPDF.</p>
+                {:else if !validation}
+                  <p class="inv">Pulsa «Validar PDF/UA (veraPDF)» en la barra del PDF.</p>
+                {:else if validation.status === 'running'}
+                  <p class="inv">Validando con veraPDF…</p>
+                {:else if validation.status === 'error'}
+                  <div class="issue error"><p>{validation.error}</p></div>
+                {:else}
+                  {@const v = validation.result}
+                  <div class="vp" class:pass={v.compliant}>
+                    <b>{v.compliant ? '✓ Cumple' : '✕ No cumple'} {v.profile.replace(' validation profile', '')}</b>
+                    <span>{v.passedRules} reglas ✓ · {v.failedRules} ✕ · {v.validator}{validation.engine ? ` · ${validation.engine}` : ''}{validation.stale ? ' · desactualizado: vuelve a validar' : ''}</span>
+                  </div>
+                  {#each v.rules as r}
+                    <div class="issue error">
+                      <p><code>{r.specification?.replace('ISO ', '')} {r.id}</code> · {r.checks}×</p>
+                      <p class="hint">→ {r.hint || r.description}</p>
+                    </div>
+                  {/each}
+                {/if}
               {/if}
             </div>
           {/if}
@@ -121,6 +161,9 @@
   .title { flex: 1; font-weight: 500; }
   .wcag { font: 10px var(--mono); color: var(--muted); }
   .detail { padding: 0 16px 10px 42px; }
+  .vp { display: grid; gap: 2px; margin: 6px 0; padding: 6px 8px; border-radius: 6px; background: #fef2f2; color: #991b1b; }
+  .vp.pass { background: #f0fdf4; color: #166534; }
+  .vp span { font-size: 11px; }
   .issue { margin-bottom: 6px; padding: 6px 8px; border-radius: 6px; background: #fffbeb; }
   .issue.error { background: #fef2f2; }
   .issue p { margin: 0; }

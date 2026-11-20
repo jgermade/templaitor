@@ -31,8 +31,9 @@ export const api = {
       const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    return res.blob()
+    return { blob: await res.blob(), engine: res.headers.get('X-Templaitor-Engine') }
   },
+  validatePdf: (draft) => request('POST', '/api/pdf/validate', draft),
   assets: () => request('GET', '/api/assets'),
   uploadAsset: async (file) => {
     const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })

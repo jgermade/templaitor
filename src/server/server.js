@@ -10,8 +10,9 @@ import {
   listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
   listLayouts, readLayout, writeLayout, createLayout, deleteLayout,
 } from '../engine/project.js'
-import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf } from '../engine/pipeline.js'
-import { pdfAvailable } from '../engine/pdf.js'
+import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf, validateDraftPdf } from '../engine/pipeline.js'
+import { listEngines, resolveEngine } from '../engine/pdf.js'
+import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
 
@@ -43,7 +44,7 @@ export function createHandler(project) {
       smtp: project.smtp ? { label: project.smtp.label || 'Enviar', web: project.smtp.web || null } : null,
       componentsDir: rel(project, project.componentsDir),
       assetsUrl: project.assetsUrl,
-      pdf: pdfAvailable(),
+      pdf: pdfInfo(project),
     }),
 
     'GET /api/templates': () => listTemplates(project),
@@ -54,6 +55,11 @@ export function createHandler(project) {
     'GET /api/assets': () => listAssets(project),
 
     'GET /api/layouts': () => listLayouts(project),
+
+    // validación PDF/UA-1 con veraPDF del PDF del borrador
+    'POST /api/pdf/validate': ({ body }) => validateDraftPdf(project, {
+      mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
+    }, { engine: body.engine }),
 
     'POST /api/layouts': ({ body }) => createLayout(project, body.id),
 
@@ -146,10 +152,11 @@ export function createHandler(project) {
       if (url.pathname === '/api/pdf' && req.method === 'POST') {
         // PDF del borrador con los datos de demo
         const body = await readJson(req)
-        const { pdf, result } = await renderDraftPdf(project, {
+        const { pdf, result, engine } = await renderDraftPdf(project, {
           mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
-        })
+        }, { engine: body.engine })
         res.writeHead(200, {
+          'X-Templaitor-Engine': engine,
           'Content-Type': 'application/pdf',
           'Content-Disposition': `inline; filename="${encodeURIComponent(body.name || 'documento')}.${result.locale}.pdf"`,
           'X-Templaitor-Warnings': encodeURIComponent(JSON.stringify(result.warnings || [])),
@@ -187,6 +194,14 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
 }
 
 // ── helpers ───────────────────────────────────────────────────
+
+function pdfInfo(project) {
+  const engines = listEngines()
+  let defaultEngine = null
+  try { defaultEngine = resolveEngine(project.config.pdf?.engine) } catch {}
+  const v = verapdfRunner()
+  return { engines, defaultEngine, configured: project.config.pdf?.engine || 'auto', verapdf: v ? v.label : null }
+}
 
 const kindOf = (k) => (k === 'component' ? 'component' : 'template')
 const previewKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')

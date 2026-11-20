@@ -6,7 +6,8 @@ import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
 import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment } from './resolver.js'
 import { applyParams } from '../shared/imports.js'
-import { isPdf, pdfOptions, injectPrintCss, chromiumPdfOptions, renderPdf } from './pdf.js'
+import { isPdf, pdfOptions, injectPrintCss, engineOptions, renderPdf } from './pdf.js'
+import { validatePdf } from './verapdf.js'
 import { accessibilityReport, imagesWithoutAlt } from './a11y.js'
 import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
@@ -102,7 +103,10 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // PDF: CSS de impresión (@page) y título del documento
   const format = isPdf(meta) ? 'pdf' : 'email'
   const pdf = format === 'pdf' ? pdfOptions(meta) : null
-  if (pdf) html = injectPrintCss(html, pdf)
+  if (pdf) {
+    pdf.engine = pdf.engine || project.config.pdf?.engine || null
+    html = injectPrintCss(html, pdf, { title: subjectRaw })
+  }
   // título del documento (lo leen los lectores de pantalla y se usa como título del PDF)
   if (subjectRaw && !/<title>[^<]+<\/title>/.test(html)) html = html.replace(/<title>\s*<\/title>/, `<title>${escapeHtml(subjectRaw)}</title>`)
   // (el .txt también se protege: el wordwrap no debe partir tokens Jinja2)
@@ -117,7 +121,7 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
 }
 
 /** Compila una plantilla del proyecto y escribe los ficheros en outDir */
-export async function compileTemplate(project, id, { log = console.log, samplePdf = false } = {}) {
+export async function compileTemplate(project, id, { log = console.log, samplePdf = false, validate = false } = {}) {
   const tpl = readTemplate(project, id)
   const i18n = tpl.yml ? YAML.parse(tpl.yml) || {} : {}
   const links = readLinks(project)
@@ -134,12 +138,24 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
     files.push(`${base}.html`)
     if (r.format === 'pdf') {
       // opciones para el renderizador (Chromium page.pdf) del backend
-      fs.writeFileSync(`${base}.pdf.json`, `${JSON.stringify({ title: r.subject, ...chromiumPdfOptions(r.pdf) }, null, 2)}\n`)
+      fs.writeFileSync(`${base}.pdf.json`, `${JSON.stringify({
+        title: r.subject,
+        engine: r.pdf.engine || 'auto',
+        recommended: 'weasyprint',
+        page: { size: r.pdf.size, landscape: r.pdf.landscape, margin: r.pdf.margin },
+        engines: engineOptions(r.pdf),
+      }, null, 2)}\n`)
       files.push(`${base}.pdf.json`)
       if (samplePdf) {
         const demo = fs.existsSync(p.data) ? JSON5.parse(fs.readFileSync(p.data, 'utf8')) : {}
-        const sample = await renderPdf(tryRenderJinja(r.html, demo, []), r.pdf, { staticDir: project.staticDir })
+        const { pdf: sample, engine } = await renderPdf(tryRenderJinja(r.html, demo, []), r.pdf, { staticDir: project.staticDir })
         fs.writeFileSync(`${base}.sample.pdf`, sample)
+        log?.(`  ✓ ${p.name}.${r.locale}.sample.pdf (${engine})`)
+        if (validate) {
+          const v = await validatePdf(sample)
+          log?.(`    ${v.compliant ? '✓' : '✕'} ${v.profile} · ${v.passedRules} reglas ✓ · ${v.failedRules} ✕`)
+          for (const rule of v.rules) issues.push({ level: 'pdfua', template: p.id, locale: r.locale, message: `${rule.id} (${rule.checks}×) ${rule.hint || rule.description}` })
+        }
         files.push(`${base}.sample.pdf`)
       }
     } else {
@@ -154,12 +170,12 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
   return { files, issues }
 }
 
-export async function compileProject(project, { target, log = console.log, samplePdf = false } = {}) {
+export async function compileProject(project, { target, log = console.log, samplePdf = false, validate = false } = {}) {
   const ids = target ? [target] : listTemplates(project).map(t => t.id)
   const all = { files: [], issues: [] }
   for (const id of ids) {
     log?.(`\n→ ${id}`)
-    const r = await compileTemplate(project, id, { log, samplePdf })
+    const r = await compileTemplate(project, id, { log, samplePdf, validate })
     all.files.push(...r.files)
     all.issues.push(...r.issues)
     for (const i of r.issues) log?.(`  [${i.level}] ${i.locale}: ${i.message}`)
@@ -193,15 +209,25 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
   }
 }
 
-/** PDF de un borrador renderizado con sus datos de demo (vista PDF del editor, `templaitor pdf`) */
-export async function renderDraftPdf(project, draft) {
+/**
+ * PDF de un borrador renderizado con sus datos de demo (vista PDF del editor, `templaitor pdf`).
+ * `engine`: motor a usar (si no, el de la plantilla / config / el primero disponible).
+ */
+export async function renderDraftPdf(project, draft, { engine } = {}) {
   const r = await previewDraft(project, { ...draft, mode: 'preview' })
   if (r.format !== 'pdf') {
     const err = new Error('La plantilla no es PDF (añade `format: pdf` al frontmatter)')
     err.status = 400
     throw err
   }
-  return { pdf: await renderPdf(r.html, r.pdf, { staticDir: project.staticDir }), result: r }
+  const out = await renderPdf(r.html, r.pdf, { staticDir: project.staticDir, engine: engine || undefined })
+  return { pdf: out.pdf, engine: out.engine, result: r }
+}
+
+/** Renderiza y valida con veraPDF (PDF/UA-1) */
+export async function validateDraftPdf(project, draft, opts = {}) {
+  const { pdf, engine, result } = await renderDraftPdf(project, draft, opts)
+  return { engine, locale: result.locale, validation: await validatePdf(pdf, { flavour: opts.flavour || 'ua1' }) }
 }
 
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

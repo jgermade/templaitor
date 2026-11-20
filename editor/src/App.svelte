@@ -106,7 +106,8 @@
         {#if store.loadingPreview}<span class="spinner" aria-label="Actualizando"></span>{/if}
         <span class="grow"></span>
         {#if store.preview.a11yReport}
-          {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length}
+          {@const vp = store.view === 'pdf' && store.pdfValidation?.status === 'done' && !store.pdfValidation.stale ? store.pdfValidation.result : null}
+          {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
           <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Informe de accesibilidad (WCAG 2.1 AA)">
             ♿ {fails ? `${fails} ✕` : warns ? `${warns} ⚠` : '✓'}

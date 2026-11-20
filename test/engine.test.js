@@ -11,7 +11,7 @@ import { loadProject, readTemplate, createTemplate, listTemplates, listComponent
 import { compileProject, previewDraft, compileSource } from '../src/engine/pipeline.js'
 import { findImportCalls, parseImportCall, formatImportCall, applyParams } from '../src/shared/imports.js'
 import { accessibilityReport, contrast, parseColor } from '../src/engine/a11y.js'
-import { pdfOptions, contentWidthPx, pdfAvailable } from '../src/engine/pdf.js'
+import { pdfOptions, contentWidthPx, marginBoxContent } from '../src/engine/pdf.js'
 import { setHeadingLevel, headingLevel, rewrap } from '../src/shared/semantics.js'
 import YAML from 'yaml'
 
@@ -242,24 +242,41 @@ test('semántica: títulos que heredan el estilo y se pueden quitar', () => {
   assert.equal(rewrap(h, 'Hola'), h.replace("$t('title')", 'Hola'))
 })
 
-test('PDF: opciones de página, HTML de impresión y render etiquetado', async () => {
+test('PDF: opciones de página y HTML de impresión común a todos los motores', async () => {
   const o = pdfOptions({ pdf: { size: 'A4', margin: '15mm', footer: '{page} / {pages}' } })
   assert.equal(contentWidthPx(o), 680)
   assert.equal(o.margin.bottom, '20mm')
+  assert.equal(marginBoxContent('Pág. {page} de {pages}'), '"Pág. " counter(page) " de " counter(pages)')
   const project = loadProject(DEMO)
   const tpl = readTemplate(project, 'documents/invoice')
   const r = await previewDraft(project, { ...tpl, langKey: 'es' })
   assert.equal(r.format, 'pdf')
   assert.match(r.html, /@page \{ size: A4 portrait/)
+  assert.match(r.html, /@bottom-center \{ content: counter\(page\) " \/ " counter\(pages\)/)
+  assert.match(r.html, /\.mj-column-per-50 \{ width:50% !important/, 'columnas de escritorio fuera de @media')
   assert.match(r.html, /<title>Factura 2026-0042 · Acme<\/title>/)
   assert.doesNotMatch(r.html, /aria-roledescription="email"/)
-  if (!pdfAvailable()) return
+})
+
+test('PDF: cada motor disponible renderiza; veraPDF confirma PDF/UA-1 en los motores que lo soportan', { timeout: 240000 }, async () => {
   const { renderDraftPdf } = await import('../src/engine/pipeline.js')
-  const { closePdfBrowser } = await import('../src/engine/pdf.js')
-  const { pdf } = await renderDraftPdf(project, { ...tpl, langKey: 'es' })
+  const { closePdfBrowser, listEngines } = await import('../src/engine/pdf.js')
+  const { validatePdf, verapdfRunner } = await import('../src/engine/verapdf.js')
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'documents/invoice')
+  const engines = listEngines().filter(e => e.available)
+  if (!engines.length) return
+  const canValidate = !!verapdfRunner()
+  for (const e of engines) {
+    const { pdf, engine } = await renderDraftPdf(project, { ...tpl, langKey: 'es' }, { engine: e.id })
+    assert.equal(engine, e.id)
+    const raw = pdf.toString('latin1')
+    assert.ok(raw.startsWith('%PDF'), e.id)
+    if (canValidate) {
+      const v = await validatePdf(pdf)
+      if (e.pdfua) assert.ok(v.compliant, `${e.id} debería cumplir PDF/UA-1: ${v.rules.map(r => r.id).join(', ')}`)
+      else assert.equal(v.compliant, false, `${e.id} está marcado como sin PDF/UA`)
+    }
+  }
   await closePdfBrowser()
-  const raw = pdf.toString('latin1')
-  assert.ok(raw.startsWith('%PDF'))
-  assert.match(raw, /\/StructTreeRoot/, 'PDF etiquetado')
-  assert.match(raw, /\/Lang/, 'idioma del PDF')
 })

@@ -11,6 +11,7 @@ Plans and specifications live in [ROADMAP/](ROADMAP/). Convention (same as doomu
 
 - **Engine / CLI / server**: Node.js ≥ 20 (ESM), `mjml`, `yaml`, `json5`, `html-to-text`, `nunjucks` (preview only), plain `node:http`.
 - **Editor**: Svelte 5 (runes) + Vite, CodeMirror 6. Source in `editor/src`, built to `dist/editor`.
+- **PDF**: motores intercambiables (WeasyPrint recomendado por PDF/UA-1, Prince, Chromium vía Playwright) y validación con veraPDF (binario o Docker `verapdf/cli`).
 - **Tests**: `node --test` (`npm test`).
 
 ## Conventions
@@ -19,3 +20,4 @@ Plans and specifications live in [ROADMAP/](ROADMAP/). Convention (same as doomu
 - Compiled output must keep Jinja2 tokens intact (`{{ }}`, `{% %}`, `{# #}`).
 - Editor state: the template source texts (`mjml`, `yml`, `data`) are the single source of truth; visual edits rewrite them.
 - `editor/src/components` holds store-agnostic UI; `editor/src/views` holds store-connected panels; shared state in `editor/src/stores`.
+- Accessibility is a hard requirement: emails and PDFs must meet WCAG 2.1 AA / EN 301 549 and PDFs must be PDF/UA-1 (validate with veraPDF). Demo templates must pass the checker (there is a test for it).

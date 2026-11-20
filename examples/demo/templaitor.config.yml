@@ -16,6 +16,10 @@ output:
   text: true                  # genera <nombre>.<locale>.txt
   subject: true               # genera <nombre>.<locale>.subject.txt
 
+# PDF: motor de render (weasyprint · prince · chromium · auto). weasyprint y prince generan PDF/UA-1.
+pdf:
+  engine: auto
+
 # SMTP para "Enviar prueba" desde el editor (Mailpit local: `make up` lo arranca con docker compose)
 smtp:
   host: localhost

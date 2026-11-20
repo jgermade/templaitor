@@ -185,14 +185,40 @@ pdf:
 ---
 ```
 
-- `templaitor compile` genera `<nombre>.<locale>.html` (Jinja2 + `@page`) y `<nombre>.<locale>.pdf.json`
-  (opciones para `page.pdf()` de Chromium) para que el backend renderice el PDF con sus datos en runtime.
-  `compile --pdf` añade `<nombre>.<locale>.sample.pdf` con los datos de demo.
-- `templaitor pdf grupo/nombre [--lang es] [--data datos.json5] [-o salida.pdf]` genera un PDF.
-- En el editor: vista **PDF** (el PDF real, se regenera al editar, con descarga), formato y opciones de
-  página en «Plantilla», bloque «Salto de página» y el subject como **título** del documento.
-- Requiere Playwright (dependencia opcional): `npm i -D playwright && npx playwright install chromium`
-  (o `TEMPLAITOR_CHROMIUM=/ruta/a/chrome`).
+- `templaitor compile` genera `<nombre>.<locale>.html` (Jinja2 + CSS de paginación `@page`) y
+  `<nombre>.<locale>.pdf.json` (motor, página y opciones de cada motor) para que el backend renderice el
+  PDF con sus datos en runtime. `compile --pdf` añade `<nombre>.<locale>.sample.pdf` con los datos de demo
+  y `compile --validate` además los valida con veraPDF.
+- `templaitor pdf grupo/nombre [--lang es] [--data datos.json5] [-o salida.pdf] [--engine weasyprint] [--validate]`
+- `templaitor validate fichero.pdf [--flavour ua1]` valida cualquier PDF; `templaitor engines` muestra
+  qué motores y validador hay instalados.
+- En el editor: vista **PDF** (el PDF real, se regenera al editar, con selector de motor, descarga y
+  botón **Validar PDF/UA (veraPDF)**), formato y opciones de página en «Plantilla», bloque «Salto de
+  página» y el subject como **título** del documento.
+
+### Motores de render
+
+El HTML de PDF es el mismo para todos los motores: usa CSS de paginación estándar (`@page` con cabecera y
+pie en cajas de margen, columnas de MJML sin `@media`). Se elige con `pdf.engine` en
+`templaitor.config.yml` o en el frontmatter de la plantilla (`auto` = el primero instalado, por este orden):
+
+| Motor | PDF/UA-1 (veraPDF) | Licencia | Instalación |
+|---|---|---|---|
+| **WeasyPrint** (recomendado) | ✓ cumple (106 reglas ✓, 0 ✕) | Libre (BSD) | `pip install weasyprint` (≥ 58) |
+| **Prince** | genera PDF/UA-1 (`--pdf-profile=PDF/UA-1`); no probado aquí | Comercial | princexml.com |
+| **Chromium** (Playwright) | ✕ no cumple (4 reglas: metadatos XMP, contenido sin etiquetar, enlaces) | Libre | `npm i -D playwright && npx playwright install chromium` |
+
+Resultados de validar la factura del demo con veraPDF 1.30 (perfil PDF/UA-1). **Como la prioridad es
+cumplir la normativa de accesibilidad, el recomendado es WeasyPrint**: libre y conforme. Prince es la
+alternativa comercial de referencia. Chromium etiqueta el PDF (estructura, idioma, marcadores) pero no
+llega a PDF/UA-1: úsalo solo para vistas rápidas o si no hay otro motor.
+
+### Validación con veraPDF
+
+[veraPDF](https://verapdf.org) es el validador de referencia de PDF/UA y PDF/A. Se usa el ejecutable
+`verapdf` (o `TEMPLAITOR_VERAPDF=/ruta`) o, si no, Docker con la imagen oficial: `make verapdf` la descarga
+y `make pdf-tools` comprueba motores y validador. Las reglas que fallan se muestran con su cláusula de
+ISO 14289-1 y una explicación.
 
 ## Accesibilidad
 
@@ -276,4 +302,4 @@ examples/demo/             proyecto de ejemplo
 - [ ] Validación de variables: avisar de `{{ var }}` sin dato de demo.
 - [ ] Modo "render" en Rust (minijinja) para que la vista previa sea idéntica al runtime.
 - [ ] Adjuntar un PDF (plantilla PDF) a un email al enviar la prueba.
-- [ ] Comprobación de accesibilidad sobre el PDF generado (veraPDF) además de sobre el HTML.
+- [ ] Modo de comparación de plantillas: diff de código (MJML/YAML/datos) y diff visual (render lado a lado / superpuesto).

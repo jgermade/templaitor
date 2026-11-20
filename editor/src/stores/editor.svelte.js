@@ -40,7 +40,10 @@ class EditorStore {
   selectSource = $state(null) // 'canvas' si la selección viene de un click en el lienzo
   insertRequest = $state(null) // { src } — inserta un token en la región editable activa
   lastSentUrl = $state(null) // enlace al último email enviado (p.ej. en Mailpit)
-  previewNonce = $state(0) // fuerza recargar la vista previa (p.ej. tras editar un layout)
+  previewNonce = $state(0)
+  pdfEngine = $state(null) // motor elegido en la vista PDF (null = el de la plantilla/config)
+  pdfEngineUsed = $state(null)
+  pdfValidation = $state(null) // { status: 'running' | 'done' | 'error', result, error, stale } // fuerza recargar la vista previa (p.ej. tras editar un layout)
   history = $state([])
   future = $state([])
 

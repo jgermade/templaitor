@@ -1,4 +1,4 @@
-.PHONY: install i test up build mailpit down
+.PHONY: install i test up build mailpit down verapdf pdf-tools
 
 # Proyecto que abre `make up` (sobrescribible: make up PROJECT=ruta/al/proyecto)
 PROJECT  ?= examples/demo
@@ -66,6 +66,16 @@ mailpit:
 
 down:
 	docker compose down
+
+# Validador PDF/UA (veraPDF) en Docker
+verapdf:
+	docker pull verapdf/cli:latest
+
+# Herramientas de PDF: motor accesible (WeasyPrint) + validador
+pdf-tools: verapdf
+	@command -v weasyprint >/dev/null 2>&1 && weasyprint --version || \
+		echo "→ Instala WeasyPrint (motor PDF/UA recomendado): pip install weasyprint"
+	@node bin/templaitor.js engines --cwd $(PROJECT)
 
 build: node_modules
 	npm run build
