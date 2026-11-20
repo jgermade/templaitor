@@ -69,5 +69,5 @@ export function wrapFragment(body, layoutPath) {
     head = layout.match(/<mj-head[\s\S]*?<\/mj-head>/)?.[0] || ''
     bodyAttrs = layout.match(/<mj-body([^>]*)>/)?.[1] || ''
   }
-  return `<mjml>\n${head}\n<mj-body${bodyAttrs}>\n${body}\n</mj-body>\n</mjml>\n`
+  return `<mjml lang="$lang">\n${head}\n<mj-body${bodyAttrs}>\n${body}\n</mj-body>\n</mjml>\n`
 }

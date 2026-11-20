@@ -12,6 +12,7 @@ import {
   removeNode, insertNode, moveNode, getAttr, setAttr, importCall, walk,
 } from '@shared/mjml-tree.js'
 import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js'
+import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
@@ -595,20 +596,35 @@ class EditorStore {
 
   /** Clave $t si el contenido del nodo es exactamente $t('clave') */
   keyOf(node) {
-    return node?.content?.trim().match(EXACT_T)?.[1] ?? null
+    if (node?.content == null) return null
+    const inner = splitWrapper(node.content)?.inner ?? node.content
+    return inner.trim().match(EXACT_T)?.[1] ?? null
+  }
+
+  /** Nivel de encabezado de un mj-text (0 = párrafo) */
+  setHeading(id, level) {
+    const node = findNode(this.tree, id)
+    this.setContent(id, setHeadingLevel(node.content, level), null)
+  }
+
+  /** Edición inline de un contenido literal: conserva el envoltorio <hN>/<p> */
+  setInner(id, inner) {
+    const node = findNode(this.tree, id)
+    this.setContent(id, rewrap(node.content, inner))
   }
 
   makeTranslatable(id) {
     const node = findNode(this.tree, id)
     const key = this.uniqueKey(node.tag === 'mj-button' ? 'cta' : 'text')
-    this.addMessage(key, node.content.trim())
-    this.setContent(id, `$t('${key}')`, null)
+    const wrap = splitWrapper(node.content)
+    this.addMessage(key, (wrap ? wrap.inner : node.content).trim())
+    this.setContent(id, wrap ? rewrap(node.content, `$t('${key}')`) : `$t('${key}')`, null)
   }
 
   inlineTranslation(id) {
     const node = findNode(this.tree, id)
     const key = this.keyOf(node)
-    this.setContent(id, String(this.messages[key] ?? '').trim(), null)
+    this.setContent(id, rewrap(node.content, String(this.messages[key] ?? '').trim()), null)
   }
 
   setLayout(layout) {

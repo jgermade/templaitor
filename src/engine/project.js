@@ -177,7 +177,7 @@ export function createTemplate(project, id, { layout, langs } = {}) {
   const body = [
     '<mj-section background-color="#ffffff" padding="24px">',
     '  <mj-column>',
-    "    <mj-text font-size=\"20px\" font-weight=\"600\">$t('title')</mj-text>",
+    "    <mj-text font-size=\"20px\" font-weight=\"600\"><h1 style=\"margin:0;font:inherit;color:inherit;letter-spacing:inherit\">$t('title')</h1></mj-text>",
     "    <mj-text>$t('body')</mj-text>",
     '  </mj-column>',
     '</mj-section>',
@@ -185,7 +185,7 @@ export function createTemplate(project, id, { layout, langs } = {}) {
   ].join('\n')
   const mjml = layout
     ? `---\nlayout: ${layout}\n---\n\n${body}`
-    : `<mjml>\n  <mj-body>\n${body.split('\n').map(l => (l ? `    ${l}` : l)).join('\n')}  </mj-body>\n</mjml>\n`
+    : `<mjml lang="$lang">\n  <mj-body>\n${body.split('\n').map(l => (l ? `    ${l}` : l)).join('\n')}  </mj-body>\n</mjml>\n`
   // hereda lo que necesita el layout: variables Jinja2 y claves $t (con valores de otras plantillas)
   const { vars, keys } = layout ? layoutNeeds(project, layout) : { vars: [], keys: [] }
   const known = knownValues(project)

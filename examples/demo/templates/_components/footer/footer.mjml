@@ -1,5 +1,5 @@
 <mj-section padding="24px">
   <mj-column>
-    <mj-text font-size="12px" color="#9ca3af" align="center">© {{ year }} Acme · $link{ homepage, label: example.com } · $link{ help, label: $t('help') }</mj-text>
+    <mj-text font-size="12px" color="#52525b" align="center">© {{ year }} Acme · $link{ homepage, label: example.com } · $link{ help, label: $t('help') }</mj-text>
   </mj-column>
 </mj-section>

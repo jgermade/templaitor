@@ -13,6 +13,7 @@ import { parse, serialize, walk, importCall } from '../shared/mjml-tree.js'
 import { NON_VISUAL, describe } from '../shared/components.js'
 import { lookupMessage, parseAttrs, resolveCommands } from './commands.js'
 import { normalizeParams } from '../shared/imports.js'
+import { splitWrapper } from '../shared/semantics.js'
 
 const NO_CLASS = new Set(['mj-raw', 'mj-body', 'mjml'])
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
@@ -49,16 +50,21 @@ export function annotateBody(body, ctx) {
     },
     transformContent: (node) => {
       if (!visual(node) || !describe(node.tag).editable) return node.content
-      const tagName = node.tag === 'mj-button' ? 'span' : 'div'
-      const m = node.content.trim().match(EXACT_T)
+      // encabezado/párrafo envolvente: la región editable va dentro (el envoltorio se conserva)
+      const wrap = node.tag === 'mj-text' ? splitWrapper(node.content) : null
+      const inner = wrap ? wrap.inner : node.content
+      const open = wrap ? `<${wrap.tag}${wrap.attrs}>` : ''
+      const close = wrap ? `</${wrap.tag}>` : ''
+      const tagName = node.tag === 'mj-button' || wrap ? 'span' : 'div'
+      const m = inner.trim().match(EXACT_T)
       if (m) {
         const msg = lookupMessage(ctx.messages, m[1])
         const missing = msg === undefined || msg === null ? ' data-tpl-missing="1"' : ''
         // en un layout los textos son de cada plantilla: se muestran pero no se editan aquí
         const edit = ctx.kind === 'layout' ? '' : ` data-tpl-edit="t:${escapeHtml(m[1])}"${missing}`
-        return `<${tagName}${edit}>${chipify(String(msg ?? '').trim(), ctx)}</${tagName}>`
+        return `${open}<${tagName}${edit}>${chipify(String(msg ?? '').trim(), ctx)}</${tagName}>${close}`
       }
-      return `<${tagName} data-tpl-edit="c:${node.id}">${chipify(node.content, ctx)}</${tagName}>`
+      return `${open}<${tagName} data-tpl-edit="c:${node.id}">${chipify(inner, ctx)}</${tagName}>${close}`
     },
   })
 }

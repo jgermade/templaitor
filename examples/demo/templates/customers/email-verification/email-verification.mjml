@@ -4,7 +4,7 @@ layout: base.layout.mjml
 
 <mj-section background-color="#ffffff" padding="24px 24px 0">
   <mj-column>
-    <mj-text font-size="20px" font-weight="600" color="#111827">$t('title')</mj-text>
+    <mj-text font-size="20px" font-weight="600" color="#111827"><h1 style="margin:0;font:inherit;color:inherit;letter-spacing:inherit">$t('title')</h1></mj-text>
   </mj-column>
 </mj-section>
 

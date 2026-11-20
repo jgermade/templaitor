@@ -3,6 +3,7 @@
   import { store } from '../stores/editor.svelte.js'
   import { describe } from '@shared/components.js'
   import { findNode, getAttr } from '@shared/mjml-tree.js'
+  import { headingLevel } from '@shared/semantics.js'
 
   const node = $derived(store.selected)
   const instance = $derived(store.instanceOf(node))
@@ -112,6 +113,18 @@
       {:else if node.content != null}
         <section>
           <div class="panel-title">Contenido</div>
+          {#if node.tag === 'mj-text'}
+            {@const level = headingLevel(node.content)}
+            <label class="field">
+              <span>Semántica (accesibilidad)</span>
+              <select value={String(level)} onchange={(e) => store.setHeading(node.id, Number(e.currentTarget.value))}>
+                <option value="0">Párrafo</option>
+                <option value="1">Título 1 (principal)</option>
+                <option value="2">Título 2</option>
+                <option value="3">Título 3</option>
+              </select>
+            </label>
+          {/if}
           {#if key}
             <div class="keyrow">
               <span class="muted">Traducción</span>

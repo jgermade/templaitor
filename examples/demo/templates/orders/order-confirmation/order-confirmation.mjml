@@ -6,7 +6,7 @@ $import(_components/banner, show_caption="true", caption="$t('banner_caption')")
 
 <mj-section background-color="#ffffff" padding="24px 24px 0">
   <mj-column>
-    <mj-text font-size="20px" font-weight="600" color="#111827">$t('title')</mj-text>
+    <mj-text font-size="20px" font-weight="600" color="#111827"><h1 style="margin:0;font:inherit;color:inherit;letter-spacing:inherit">$t('title')</h1></mj-text>
     <mj-text>$t('intro')</mj-text>
   </mj-column>
 </mj-section>
@@ -14,10 +14,12 @@ $import(_components/banner, show_caption="true", caption="$t('banner_caption')")
 <mj-section background-color="#ffffff" padding="0 24px 16px">
   <mj-column>
     <mj-table font-size="14px">
-      <tr style="border-bottom:1px solid #e5e7eb;text-align:left;">
-        <th style="padding:8px 0;">$t('product')</th>
-        <th style="padding:8px 0;text-align:right;">$t('price')</th>
-      </tr>
+      <thead>
+        <tr style="border-bottom:1px solid #e5e7eb;text-align:left;">
+          <th scope="col" style="padding:8px 0;">$t('product')</th>
+          <th scope="col" style="padding:8px 0;text-align:right;">$t('price')</th>
+        </tr>
+      </thead>
       {% for item in items %}
       <tr>
         <td style="padding:6px 0;">{{ item.qty }} × {{ item.name }}</td>
@@ -31,7 +33,7 @@ $import(_components/banner, show_caption="true", caption="$t('banner_caption')")
 </mj-section>
 
 <mj-raw>{% if tracking_url %}</mj-raw>
-$import(_components/cta-button, url="{{ tracking_url }}", label="$t('track')", color="#059669")
+$import(_components/cta-button, url="{{ tracking_url }}", label="$t('track')", color="#047857")
 <mj-raw>{% endif %}</mj-raw>
 
 $import(_components/signature)

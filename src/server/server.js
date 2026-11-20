@@ -10,7 +10,8 @@ import {
   listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
   listLayouts, readLayout, writeLayout, createLayout, deleteLayout,
 } from '../engine/project.js'
-import { previewDraft, compileProject, compileSource, langsOf } from '../engine/pipeline.js'
+import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf } from '../engine/pipeline.js'
+import { pdfAvailable } from '../engine/pdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
 
@@ -42,6 +43,7 @@ export function createHandler(project) {
       smtp: project.smtp ? { label: project.smtp.label || 'Enviar', web: project.smtp.web || null } : null,
       componentsDir: rel(project, project.componentsDir),
       assetsUrl: project.assetsUrl,
+      pdf: pdfAvailable(),
     }),
 
     'GET /api/templates': () => listTemplates(project),
@@ -89,7 +91,7 @@ export function createHandler(project) {
     }),
 
     'POST /api/compile': async ({ body }) => {
-      const r = await compileProject(project, { target: body?.id, log: null })
+      const r = await compileProject(project, { target: body?.id, log: null, samplePdf: !!body?.samplePdf })
       return { files: r.files.map(f => path.relative(project.cwd, f)), issues: r.issues }
     },
 
@@ -140,6 +142,19 @@ export function createHandler(project) {
       if (url.pathname === '/api/assets' && req.method === 'POST') {
         // subida de imagen: cuerpo binario, nombre en ?name=
         return sendJson(res, saveAsset(project, url.searchParams.get('name'), await readRaw(req, 5 * 1024 * 1024 + 1)))
+      }
+      if (url.pathname === '/api/pdf' && req.method === 'POST') {
+        // PDF del borrador con los datos de demo
+        const body = await readJson(req)
+        const { pdf, result } = await renderDraftPdf(project, {
+          mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
+        })
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${encodeURIComponent(body.name || 'documento')}.${result.locale}.pdf"`,
+          'X-Templaitor-Warnings': encodeURIComponent(JSON.stringify(result.warnings || [])),
+        })
+        return res.end(pdf)
       }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]

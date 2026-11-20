@@ -57,7 +57,7 @@
         const [kind, ...rest] = msg.target.split(':')
         const ref = rest.join(':')
         if (kind === 't') store.setMessage(store.lang, ref, msg.value)
-        else if (kind === 'c') store.setContent(ref, msg.value)
+        else if (kind === 'c') store.setInner(ref, msg.value)
         break
       }
       case 'opencomp': {

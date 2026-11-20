@@ -1,0 +1,15 @@
+{
+  number: "2026-0042",
+  date: "20/11/2026",
+  due_date: "20/12/2026",
+  payment_method: "Transferencia bancaria",
+  customer: { name: "Ada Lovelace", address: "Calle Analítica 12, 28001 Madrid" },
+  lines: [
+    { concept: "Teclado mecánico", qty: 1, amount: "89.00" },
+    { concept: "Alfombrilla", qty: 2, amount: "25.00" },
+  ],
+  total: "114.00",
+  assets_url: "/static",
+  app_url: "http://localhost:5173",
+  year: 2026,
+}

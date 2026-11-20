@@ -6,6 +6,8 @@ import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
 import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment } from './resolver.js'
 import { applyParams } from '../shared/imports.js'
+import { isPdf, pdfOptions, injectPrintCss, chromiumPdfOptions, renderPdf } from './pdf.js'
+import { accessibilityReport, imagesWithoutAlt } from './a11y.js'
 import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
@@ -95,17 +97,27 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const errors = (result.errors || []).map(e => e.formattedMessage || e.message)
 
   // 7. Restaurar Jinja2
-  const html = restore(result.html, map)
+  let html = restore(result.html, map)
+  const subjectRaw = resolveCommands(subjectFor(i18n, langKey), ctx).trim()
+  // PDF: CSS de impresión (@page) y título del documento
+  const format = isPdf(meta) ? 'pdf' : 'email'
+  const pdf = format === 'pdf' ? pdfOptions(meta) : null
+  if (pdf) html = injectPrintCss(html, pdf)
+  // título del documento (lo leen los lectores de pantalla y se usa como título del PDF)
+  if (subjectRaw && !/<title>[^<]+<\/title>/.test(html)) html = html.replace(/<title>\s*<\/title>/, `<title>${escapeHtml(subjectRaw)}</title>`)
   // (el .txt también se protege: el wordwrap no debe partir tokens Jinja2)
   const textGuard = obfuscate(html)
   const text = restore(htmlToText(textGuard.content, HTML_TO_TEXT_OPTS), textGuard.map)
-  const subject = resolveCommands(subjectFor(i18n, langKey), ctx).trim()
+  const subject = subjectRaw
 
-  return { locale, langKey, html, text, subject, meta, warnings, errors }
+  // 8. Accesibilidad (WCAG 2.1 AA)
+  const a11yReport = accessibilityReport(html, { format, sourceImages: imagesWithoutAlt(resolved) })
+
+  return { locale, langKey, html, text, subject, meta, format, pdf, warnings, errors, a11y: a11yReport.issues, a11yReport }
 }
 
 /** Compila una plantilla del proyecto y escribe los ficheros en outDir */
-export async function compileTemplate(project, id, { log = console.log } = {}) {
+export async function compileTemplate(project, id, { log = console.log, samplePdf = false } = {}) {
   const tpl = readTemplate(project, id)
   const i18n = tpl.yml ? YAML.parse(tpl.yml) || {} : {}
   const links = readLinks(project)
@@ -120,21 +132,34 @@ export async function compileTemplate(project, id, { log = console.log } = {}) {
     const base = path.join(outDir, `${p.name}.${r.locale}`)
     fs.writeFileSync(`${base}.html`, r.html)
     files.push(`${base}.html`)
-    if (project.output.text) { fs.writeFileSync(`${base}.txt`, r.text); files.push(`${base}.txt`) }
-    if (project.output.subject) { fs.writeFileSync(`${base}.subject.txt`, r.subject); files.push(`${base}.subject.txt`) }
+    if (r.format === 'pdf') {
+      // opciones para el renderizador (Chromium page.pdf) del backend
+      fs.writeFileSync(`${base}.pdf.json`, `${JSON.stringify({ title: r.subject, ...chromiumPdfOptions(r.pdf) }, null, 2)}\n`)
+      files.push(`${base}.pdf.json`)
+      if (samplePdf) {
+        const demo = fs.existsSync(p.data) ? JSON5.parse(fs.readFileSync(p.data, 'utf8')) : {}
+        const sample = await renderPdf(tryRenderJinja(r.html, demo, []), r.pdf, { staticDir: project.staticDir })
+        fs.writeFileSync(`${base}.sample.pdf`, sample)
+        files.push(`${base}.sample.pdf`)
+      }
+    } else {
+      if (project.output.text) { fs.writeFileSync(`${base}.txt`, r.text); files.push(`${base}.txt`) }
+      if (project.output.subject) { fs.writeFileSync(`${base}.subject.txt`, r.subject); files.push(`${base}.subject.txt`) }
+    }
     for (const w of r.warnings) issues.push({ level: 'warn', template: p.id, locale: r.locale, message: w })
     for (const e of r.errors) issues.push({ level: 'mjml', template: p.id, locale: r.locale, message: e })
+    for (const a of r.a11y) issues.push({ level: `a11y-${a.level}`, template: p.id, locale: r.locale, message: `WCAG ${a.wcag}: ${a.message}` })
     log?.(`  ✓ ${p.name}.${r.locale}`)
   }
   return { files, issues }
 }
 
-export async function compileProject(project, { target, log = console.log } = {}) {
+export async function compileProject(project, { target, log = console.log, samplePdf = false } = {}) {
   const ids = target ? [target] : listTemplates(project).map(t => t.id)
   const all = { files: [], issues: [] }
   for (const id of ids) {
     log?.(`\n→ ${id}`)
-    const r = await compileTemplate(project, id, { log })
+    const r = await compileTemplate(project, id, { log, samplePdf })
     all.files.push(...r.files)
     all.issues.push(...r.issues)
     for (const i of r.issues) log?.(`  [${i.level}] ${i.locale}: ${i.message}`)
@@ -167,3 +192,16 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
     warnings,
   }
 }
+
+/** PDF de un borrador renderizado con sus datos de demo (vista PDF del editor, `templaitor pdf`) */
+export async function renderDraftPdf(project, draft) {
+  const r = await previewDraft(project, { ...draft, mode: 'preview' })
+  if (r.format !== 'pdf') {
+    const err = new Error('La plantilla no es PDF (añade `format: pdf` al frontmatter)')
+    err.status = 400
+    throw err
+  }
+  return { pdf: await renderPdf(r.html, r.pdf, { staticDir: project.staticDir }), result: r }
+}
+
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

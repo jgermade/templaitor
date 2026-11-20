@@ -10,6 +10,9 @@ import { annotateBody, chipify } from '../src/engine/design.js'
 import { loadProject, readTemplate, createTemplate, listTemplates, listComponents, readLinks, listLayouts, readLayout, writeLayout } from '../src/engine/project.js'
 import { compileProject, previewDraft, compileSource } from '../src/engine/pipeline.js'
 import { findImportCalls, parseImportCall, formatImportCall, applyParams } from '../src/shared/imports.js'
+import { accessibilityReport, contrast, parseColor } from '../src/engine/a11y.js'
+import { pdfOptions, contentWidthPx, pdfAvailable } from '../src/engine/pdf.js'
+import { setHeadingLevel, headingLevel, rewrap } from '../src/shared/semantics.js'
 import YAML from 'yaml'
 
 const DEMO = path.resolve(import.meta.dirname, '../examples/demo')
@@ -85,7 +88,9 @@ test('compilación del proyecto demo: Jinja2 intacto en HTML/TXT/subject', async
   const project = loadProject(DEMO, { outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-')) })
   const { files, issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0, JSON.stringify(issues))
-  assert.equal(files.length, listTemplates(project).length * 2 * 3)
+  // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (por idioma)
+  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0)
+  assert.equal(files.length, expected)
   const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
   const html = fs.readFileSync(`${base}.html`, 'utf8')
   assert.match(html, /\{% for item in items %\}/)
@@ -137,7 +142,7 @@ test('componentes: $import de carpeta, textos propios y sobrescritura desde la p
 test('componentes: listado con usos y modo diseño selecciona la instancia entera', async () => {
   const project = loadProject(DEMO)
   const comps = Object.fromEntries(listComponents(project).map(c => [c.id, c]))
-  assert.deepEqual(comps.signature.usedBy.map(u => u.id).sort(), ['customers/email-verification', 'orders/order-confirmation'])
+  assert.deepEqual(comps.signature.usedBy.map(u => u.id).sort(), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
   assert.equal(comps.footer.usedBy[0].kind, 'layout')
   const tpl = readTemplate(project, 'customers/email-verification')
   const d = await previewDraft(project, { ...tpl, langKey: 'es', mode: 'design' })
@@ -165,7 +170,7 @@ test('componentes con parámetros: valores por instancia, por defecto y Jinja2 i
   const tpl = readTemplate(project, 'orders/order-confirmation')
   const r = await compileSource(project, { mjml: tpl.mjml, i18n: YAML.parse(tpl.yml), links: readLinks(project), langKey: 'es' })
   assert.match(r.html, /href="\{\{ tracking_url \}\}"/)
-  assert.match(r.html, /background:#059669/)
+  assert.match(r.html, /background:#047857/)
   assert.match(r.html, /Seguir envío/)
   assert.deepEqual(r.warnings, [])
   const c = readTemplate(project, 'cta-button', 'component')
@@ -207,4 +212,54 @@ test('layouts: listado con usos, vista previa con hueco y textos no editables', 
   assert.doesNotMatch(d.html, /data-tpl-edit="t:/)
   assert.throws(() => writeLayout(project, base.id, { mjml: '<mjml><mj-body></mj-body></mjml>' }), /\$content/)
   assert.throws(() => readLayout(project, '../x.mjml'), /no válido/)
+})
+
+test('accesibilidad: detecta incidencias y el demo cumple WCAG 2.1 AA', async () => {
+  const bad = `<!doctype html><html lang="und"><head><title></title></head><body style="background-color:#f4f4f5">
+    <div style="color:#9ca3af;font-size:11px">Texto gris</div><img src="x.png"><a href="/x">aquí</a><a href="/y"><img src="y.png" alt=""></a>
+    <table><tr><td>a</td><td>b</td></tr></table></body></html>`
+  const rules = accessibilityReport(bad).issues.map(i => i.rule)
+  for (const r of ['lang', 'title', 'headings', 'img-alt', 'link-vague', 'link-name', 'table-headers', 'contrast', 'font-size']) {
+    assert.ok(rules.includes(r), `debería detectar ${r}`)
+  }
+  assert.equal(Math.round(contrast(parseColor('#ffffff'), parseColor('#000')) * 10) / 10, 21)
+  const project = loadProject(DEMO)
+  for (const t of listTemplates(project)) {
+    const tpl = readTemplate(project, t.id)
+    for (const lang of t.langs) {
+      const r = await previewDraft(project, { ...tpl, langKey: lang })
+      assert.deepEqual(r.a11y, [], `${t.id} (${lang}) no cumple: ${r.a11y.map(i => i.message).join('; ')}`)
+    }
+  }
+})
+
+test('semántica: títulos que heredan el estilo y se pueden quitar', () => {
+  const h = setHeadingLevel("$t('title')", 1)
+  assert.match(h, /^<h1 style="margin:0;font:inherit/)
+  assert.equal(headingLevel(h), 1)
+  assert.equal(headingLevel(setHeadingLevel(h, 2)), 2)
+  assert.equal(setHeadingLevel(h, 0), "$t('title')")
+  assert.equal(rewrap(h, 'Hola'), h.replace("$t('title')", 'Hola'))
+})
+
+test('PDF: opciones de página, HTML de impresión y render etiquetado', async () => {
+  const o = pdfOptions({ pdf: { size: 'A4', margin: '15mm', footer: '{page} / {pages}' } })
+  assert.equal(contentWidthPx(o), 680)
+  assert.equal(o.margin.bottom, '20mm')
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'documents/invoice')
+  const r = await previewDraft(project, { ...tpl, langKey: 'es' })
+  assert.equal(r.format, 'pdf')
+  assert.match(r.html, /@page \{ size: A4 portrait/)
+  assert.match(r.html, /<title>Factura 2026-0042 · Acme<\/title>/)
+  assert.doesNotMatch(r.html, /aria-roledescription="email"/)
+  if (!pdfAvailable()) return
+  const { renderDraftPdf } = await import('../src/engine/pipeline.js')
+  const { closePdfBrowser } = await import('../src/engine/pdf.js')
+  const { pdf } = await renderDraftPdf(project, { ...tpl, langKey: 'es' })
+  await closePdfBrowser()
+  const raw = pdf.toString('latin1')
+  assert.ok(raw.startsWith('%PDF'))
+  assert.match(raw, /\/StructTreeRoot/, 'PDF etiquetado')
+  assert.match(raw, /\/Lang/, 'idioma del PDF')
 })
