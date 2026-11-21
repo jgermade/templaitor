@@ -150,10 +150,10 @@
 </script>
 
 <dialog bind:this={dialog} class="settings" aria-labelledby="settings-title" oncancel={(e) => { e.preventDefault(); open = false }}>
-  <header>
+  <div class="dhead">
     <h2 id="settings-title">{org?.name} <span class="muted role">· {org?.role}</span></h2>
     <button class="ghost" aria-label="Close settings" onclick={() => (open = false)}>✕</button>
-  </header>
+  </div>
   <div class="body">
     <nav aria-label="Settings sections">
       {#each TABS as [t, label]}
@@ -319,7 +319,7 @@
   .settings { border: 1px solid var(--border); border-radius: 12px; padding: 0; width: min(900px, calc(100vw - 32px)); height: min(640px, calc(100vh - 32px)); color: var(--text); }
   .settings::backdrop { background: rgba(24, 24, 27, .38); }
   .settings[open] { display: flex; flex-direction: column; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .dhead { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
   h2 { margin: 0; font-size: 16px; }
   .role { font-weight: 400; font-size: 13px; }
   .body { flex: 1; display: grid; grid-template-columns: 170px 1fr; min-height: 0; }

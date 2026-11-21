@@ -268,6 +268,22 @@ HTML = weasyprint.HTML
 HTML(filename=sys.argv[2], base_url=base, url_fetcher=fetcher).write_pdf(sys.argv[3], pdf_variant='pdf/ua-1')
 `
 
+/** Python that can import weasyprint: TEMPLAITOR_PYTHON, the interpreter of the weasyprint executable (pipx, venv) or python3 */
+let pythonCache = null
+function sandboxPython() {
+  if (process.env.TEMPLAITOR_PYTHON) return process.env.TEMPLAITOR_PYTHON
+  if (pythonCache) return pythonCache
+  pythonCache = 'python3'
+  try {
+    const bin = PDF_ENGINES.weasyprint.bin()
+    const full = path.isAbsolute(bin) ? bin : (process.env.PATH || '').split(path.delimiter).map(d => path.join(d, bin)).find(f => fs.existsSync(f))
+    const shebang = full && fs.readFileSync(full, 'utf8').slice(0, 300).split('\n')[0]
+    const interp = shebang?.startsWith('#!') ? shebang.slice(2).trim().split(/\s+/)[0] : null
+    if (interp && /python[\d.]*$/.test(interp) && fs.existsSync(interp)) pythonCache = interp
+  } catch {}
+  return pythonCache
+}
+
 async function renderWeasyprintSandboxed(html, { staticDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-pdf-'))
   try {
@@ -275,7 +291,7 @@ async function renderWeasyprintSandboxed(html, { staticDir }) {
     const output = path.join(dir, 'document.pdf')
     const local = staticDir ? html.replace(/(["'(])\/static\//g, `$1${pathToFileUrl(staticDir)}/`) : html
     fs.writeFileSync(input, local)
-    const python = process.env.TEMPLAITOR_PYTHON || 'python3'
+    const python = sandboxPython()
     const { code, stderr } = await run(python, ['-I', '-c', WEASYPRINT_SANDBOX, staticDir ? fs.realpathSync(staticDir) : '', input, output], 120000)
     if (code !== 0 || !fs.existsSync(output)) {
       throw httpErr(500, `WeasyPrint failed (${code}): ${stderr.split('\n').filter(l => l.trim() && !/^WARNING/i.test(l)).slice(-3).join(' ').trim()}`)

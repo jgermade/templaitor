@@ -1,8 +1,11 @@
-// SQLite adapter (built-in node:sqlite). The service only uses this small interface, so a Postgres
-// adapter can implement the same methods (`?` placeholders → `$n`).
+// SQLite adapter (built-in node:sqlite). Same async interface as the Postgres adapter:
+//   get(sql, ...params) → row | null · all → rows · run → { changes } · exec(sql) · tx(async fn) · close()
+// SQL uses `?` placeholders. node:sqlite is synchronous and has one connection, so a transaction holds a
+// lock: queries from other requests wait until it commits (queries inside it run directly).
 import fs from 'node:fs'
 import path from 'node:path'
-import { MIGRATIONS } from './migrations.js'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { migrate } from './migrations.js'
 
 export async function openSqlite(file) {
   // node:sqlite prints an ExperimentalWarning on load: silence only that one
@@ -27,45 +30,42 @@ export async function openSqlite(file) {
     return s
   }
   const norm = (params) => params.map(p => (p === undefined ? null : typeof p === 'boolean' ? Number(p) : p))
-  let depth = 0
+  const inTx = new AsyncLocalStorage()
+  let lock = Promise.resolve()
+  // outside a transaction, wait for the one in progress (if any)
+  const ready = () => (inTx.getStore() ? null : lock)
 
   const db = {
     driver: 'sqlite',
-    get: (sql, ...params) => prep(sql).get(...norm(params)) ?? null,
-    all: (sql, ...params) => prep(sql).all(...norm(params)),
-    run: (sql, ...params) => { const r = prep(sql).run(...norm(params)); return { changes: Number(r.changes) } },
-    exec: (sql) => raw.exec(sql),
-    /** Runs fn in a transaction (nested calls join the outer one) */
-    tx(fn) {
-      if (depth) return fn()
-      depth++
-      raw.exec('BEGIN IMMEDIATE')
+    async get(sql, ...params) { await ready(); return prep(sql).get(...norm(params)) ?? null },
+    async all(sql, ...params) { await ready(); return prep(sql).all(...norm(params)) },
+    async run(sql, ...params) { await ready(); const r = prep(sql).run(...norm(params)); return { changes: Number(r.changes) } },
+    async exec(sql) { await ready(); raw.exec(sql) },
+    /** Runs `fn` in a transaction (nested calls join the outer one) */
+    async tx(fn) {
+      if (inTx.getStore()) return fn()
+      const prev = lock
+      let release
+      lock = new Promise(r => { release = r })
+      await prev
       try {
-        const out = fn()
-        raw.exec('COMMIT')
-        return out
-      } catch (err) {
-        raw.exec('ROLLBACK')
-        throw err
+        return await inTx.run(true, async () => {
+          raw.exec('BEGIN IMMEDIATE')
+          try {
+            const out = await fn()
+            raw.exec('COMMIT')
+            return out
+          } catch (err) {
+            raw.exec('ROLLBACK')
+            throw err
+          }
+        })
       } finally {
-        depth--
+        release()
       }
     },
-    close: () => raw.close(),
+    async close() { await lock; raw.close() },
   }
-  migrate(db)
+  await migrate(db, { bigint: 'INTEGER', blob: 'BLOB' })
   return db
-}
-
-function migrate(db) {
-  db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)')
-  const done = new Set(db.all('SELECT version FROM schema_migrations').map(r => r.version))
-  MIGRATIONS.forEach((sql, i) => {
-    const version = i + 1
-    if (done.has(version)) return
-    db.tx(() => {
-      db.exec(sql)
-      db.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', version, Date.now())
-    })
-  })
 }

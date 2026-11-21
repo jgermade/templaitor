@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { openSqlite } from './db/sqlite.js'
+import { openDatabase } from './db/index.js'
 import { createRepo, ROLES, roleAtLeast, normEmail } from './repo.js'
 import { createAuth } from './auth.js'
 import { createMailer } from './mailer.js'
@@ -24,7 +24,7 @@ const VIEWER_POSTS = new Set(['/api/preview', '/api/pdf', '/api/pdf/validate', '
 
 export async function createApp(config, { transportFactory, mailTransportFactory, log = console.log, editorDist = EDITOR_DIST } = {}) {
   setPdfSandbox(true)
-  const db = await openSqlite(config.database.file)
+  const db = await openDatabase(config.database)
   const repo = createRepo(db)
   const mailer = createMailer(config, { transportFactory: mailTransportFactory, log })
   const auth = createAuth({ config, repo, mailer })
@@ -38,10 +38,10 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     if (!ctx.auth) throw httpError(401, 'Sign in first')
     return ctx.auth.user
   }
-  const orgFor = (ctx, id, minRole = 'viewer') => {
+  const orgFor = async (ctx, id, minRole = 'viewer') => {
     const user = requireUser(ctx)
-    const org = repo.orgById(id)
-    const m = org && repo.membership(org.id, user.id)
+    const org = await repo.orgById(id)
+    const m = org && await repo.membership(org.id, user.id)
     if (!m) throw httpError(404, 'Organization not found')
     if (!roleAtLeast(m.role, minRole)) throw httpError(403, `This action needs the ${minRole} role`)
     return { org, role: m.role, user }
@@ -58,10 +58,10 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   async function apiKeyOrg(req) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(tpl_([A-Za-z0-9]{8})_[A-Za-z0-9_-]+)$/)
     if (!m) throw httpError(401, 'Missing API key (Authorization: Bearer tpl_…)')
-    const key = repo.apiKeyByPrefix(m[2])
+    const key = await repo.apiKeyByPrefix(m[2])
     if (!key || key.key_hash !== hashToken(config.secret, m[1])) throw httpError(401, 'Invalid API key')
-    if (!key.last_used_at || Date.now() - key.last_used_at > 60e3) repo.touchApiKey(key.id)
-    return { org: repo.orgById(key.org_id), key }
+    if (!key.last_used_at || Date.now() - key.last_used_at > 60e3) await repo.touchApiKey(key.id)
+    return { org: await repo.orgById(key.org_id), key }
   }
 
   // ── JSON routes ──
@@ -69,131 +69,131 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     ['GET', '/healthz', () => ({ ok: true })],
 
     // session and account
-    ['GET', '/auth/session', (ctx) => {
+    ['GET', '/auth/session', async (ctx) => {
       if (!ctx.auth) return { mode: 'service', user: null, signup: config.signup, appName: config.appName }
       const { user, session } = ctx.auth
-      const orgs = repo.orgsOfUser(user.id)
+      const orgs = await repo.orgsOfUser(user.id)
       const active = orgs.find(o => o.id === session.active_org_id) ?? orgs[0] ?? null
       return {
         mode: 'service',
         appName: config.appName,
-        user: { id: user.id, email: user.email, name: user.name, passkeys: repo.passkeysOf(user.id).length },
+        user: { id: user.id, email: user.email, name: user.name, passkeys: (await repo.passkeysOf(user.id)).length },
         orgs: orgs.map(o => orgView(o, o.role)),
         activeOrg: active ? orgView(active, active.role) : null,
       }
     }],
-    ['POST', '/auth/code', (ctx) => auth.requestCode(ctx.req, ctx.body)],
-    ['POST', '/auth/code/verify', (ctx) => auth.verifyCode(ctx.req, ctx.res, ctx.body)],
-    ['POST', '/auth/logout', (ctx) => auth.logout(ctx.req, ctx.res)],
-    ['POST', '/auth/passkeys/login/options', (ctx) => auth.passkeyLoginOptions(ctx.req, ctx.res)],
-    ['POST', '/auth/passkeys/login', (ctx) => auth.passkeyLoginVerify(ctx.req, ctx.res, ctx.body)],
-    ['GET', '/auth/passkeys', (ctx) => auth.passkeys(requireUser(ctx))],
-    ['POST', '/auth/passkeys/register/options', (ctx) => auth.passkeyRegisterOptions(requireUser(ctx))],
-    ['POST', '/auth/passkeys/register', (ctx) => auth.passkeyRegisterVerify(requireUser(ctx), ctx.body)],
-    ['PATCH', '/auth/passkeys/:id', (ctx) => { repo.renamePasskey(requireUser(ctx).id, ctx.params.id, String(ctx.body.name || '').slice(0, 60)); return { ok: true } }],
-    ['DELETE', '/auth/passkeys/:id', (ctx) => { repo.deletePasskey(requireUser(ctx).id, ctx.params.id); return { ok: true } }],
-    ['PATCH', '/auth/me', (ctx) => { repo.updateUser(requireUser(ctx).id, { name: String(ctx.body.name || '').trim().slice(0, 80) }); return { ok: true } }],
+    ['POST', '/auth/code', async (ctx) => auth.requestCode(ctx.req, ctx.body)],
+    ['POST', '/auth/code/verify', async (ctx) => auth.verifyCode(ctx.req, ctx.res, ctx.body)],
+    ['POST', '/auth/logout', async (ctx) => auth.logout(ctx.req, ctx.res)],
+    ['POST', '/auth/passkeys/login/options', async (ctx) => auth.passkeyLoginOptions(ctx.req, ctx.res)],
+    ['POST', '/auth/passkeys/login', async (ctx) => auth.passkeyLoginVerify(ctx.req, ctx.res, ctx.body)],
+    ['GET', '/auth/passkeys', async (ctx) => auth.passkeys(requireUser(ctx))],
+    ['POST', '/auth/passkeys/register/options', async (ctx) => auth.passkeyRegisterOptions(requireUser(ctx))],
+    ['POST', '/auth/passkeys/register', async (ctx) => auth.passkeyRegisterVerify(requireUser(ctx), ctx.body)],
+    ['PATCH', '/auth/passkeys/:id', async (ctx) => { await repo.renamePasskey(requireUser(ctx).id, ctx.params.id, String(ctx.body.name || '').slice(0, 60)); return { ok: true } }],
+    ['DELETE', '/auth/passkeys/:id', async (ctx) => { await repo.deletePasskey(requireUser(ctx).id, ctx.params.id); return { ok: true } }],
+    ['PATCH', '/auth/me', async (ctx) => { await repo.updateUser(requireUser(ctx).id, { name: String(ctx.body.name || '').trim().slice(0, 80) }); return { ok: true } }],
 
     // organizations
-    ['GET', '/orgs', (ctx) => repo.orgsOfUser(requireUser(ctx).id).map(o => orgView(o, o.role))],
+    ['GET', '/orgs', async (ctx) => (await repo.orgsOfUser(requireUser(ctx).id)).map(o => orgView(o, o.role))],
     ['POST', '/orgs', async (ctx) => {
       const user = requireUser(ctx)
       const name = String(ctx.body.name || '').trim().slice(0, 80)
       if (!name) throw httpError(400, 'The organization needs a name')
-      const slug = uniqueSlug(repo, ctx.body.slug || name)
-      const org = repo.createOrg({ name, slug, ownerId: user.id })
+      const slug = await uniqueSlug(repo, ctx.body.slug || name)
+      const org = await repo.createOrg({ name, slug, ownerId: user.id })
       try {
         await storage.scaffold(org, { starter: ctx.body.starter === 'demo' ? 'demo' : 'blank' })
       } catch (e) {
-        repo.deleteOrg(org.id)
+        await repo.deleteOrg(org.id)
         throw httpError(500, `Could not create the project: ${e.message}`)
       }
-      repo.setActiveOrg(ctx.auth.session.id, org.id)
+      await repo.setActiveOrg(ctx.auth.session.id, org.id)
       return orgView(org, 'owner')
     }],
-    ['POST', '/orgs/:id/activate', (ctx) => {
-      const { org, role } = orgFor(ctx, ctx.params.id)
-      repo.setActiveOrg(ctx.auth.session.id, org.id)
+    ['POST', '/orgs/:id/activate', async (ctx) => {
+      const { org, role } = await orgFor(ctx, ctx.params.id)
+      await repo.setActiveOrg(ctx.auth.session.id, org.id)
       return orgView(org, role)
     }],
-    ['GET', '/orgs/:id', (ctx) => {
-      const { org, role } = orgFor(ctx, ctx.params.id)
+    ['GET', '/orgs/:id', async (ctx) => {
+      const { org, role } = await orgFor(ctx, ctx.params.id)
       return { ...orgView(org, role), smtp: roleAtLeast(role, 'admin') ? smtpView(org) : undefined }
     }],
-    ['PATCH', '/orgs/:id', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id, 'admin')
+    ['PATCH', '/orgs/:id', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id, 'admin')
       const name = String(ctx.body.name || '').trim().slice(0, 80)
       if (!name) throw httpError(400, 'The organization needs a name')
-      repo.renameOrg(org.id, name)
+      await repo.renameOrg(org.id, name)
       return { ok: true }
     }],
-    ['DELETE', '/orgs/:id', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id, 'owner')
+    ['DELETE', '/orgs/:id', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id, 'owner')
       if (ctx.body.confirm !== org.slug) throw httpError(400, `Confirm with the organization slug (${org.slug})`)
-      repo.deleteOrg(org.id)
+      await repo.deleteOrg(org.id)
       storage.remove(org)
       workspaces.invalidate(org.id)
       return { ok: true }
     }],
 
     // members and invitations
-    ['GET', '/orgs/:id/members', (ctx) => {
-      const { org, role } = orgFor(ctx, ctx.params.id)
-      return { members: repo.members(org.id), invitations: roleAtLeast(role, 'admin') ? repo.invitations(org.id) : [] }
+    ['GET', '/orgs/:id/members', async (ctx) => {
+      const { org, role } = await orgFor(ctx, ctx.params.id)
+      return { members: await repo.members(org.id), invitations: roleAtLeast(role, 'admin') ? await repo.invitations(org.id) : [] }
     }],
     ['POST', '/orgs/:id/invitations', async (ctx) => {
-      const { org, role, user } = orgFor(ctx, ctx.params.id, 'admin')
+      const { org, role, user } = await orgFor(ctx, ctx.params.id, 'admin')
       const email = normEmail(ctx.body.email)
       const newRole = checkRole(ctx.body.role || 'editor', role)
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'Enter a valid email address')
-      const existing = repo.userByEmail(email)
-      if (existing && repo.membership(org.id, existing.id)) throw httpError(409, `${email} is already a member`)
-      const inv = repo.invite({ orgId: org.id, email, role: newRole, invitedBy: user.id })
+      const existing = await repo.userByEmail(email)
+      if (existing && await repo.membership(org.id, existing.id)) throw httpError(409, `${email} is already a member`)
+      const inv = await repo.invite({ orgId: org.id, email, role: newRole, invitedBy: user.id })
       await mailer.sendInvitation(email, { orgName: org.name, inviter: user.name || user.email }).catch(e => log?.(`invitation email: ${e.message}`))
       return inv
     }],
-    ['DELETE', '/orgs/:id/invitations/:iid', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id, 'admin')
-      repo.deleteInvitation(org.id, ctx.params.iid)
+    ['DELETE', '/orgs/:id/invitations/:iid', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id, 'admin')
+      await repo.deleteInvitation(org.id, ctx.params.iid)
       return { ok: true }
     }],
-    ['PATCH', '/orgs/:id/members/:uid', (ctx) => {
-      const { org, role } = orgFor(ctx, ctx.params.id, 'admin')
-      const target = repo.membership(org.id, ctx.params.uid)
+    ['PATCH', '/orgs/:id/members/:uid', async (ctx) => {
+      const { org, role } = await orgFor(ctx, ctx.params.id, 'admin')
+      const target = await repo.membership(org.id, ctx.params.uid)
       if (!target) throw httpError(404, 'Member not found')
       const newRole = checkRole(ctx.body.role, role)
       if (target.role === 'owner' && role !== 'owner') throw httpError(403, 'Only an owner can change an owner')
-      if (target.role === 'owner' && newRole !== 'owner' && repo.countOwners(org.id) <= 1) throw httpError(409, 'The organization needs at least one owner')
-      repo.setRole(org.id, target.user_id, newRole)
+      if (target.role === 'owner' && newRole !== 'owner' && await repo.countOwners(org.id) <= 1) throw httpError(409, 'The organization needs at least one owner')
+      await repo.setRole(org.id, target.user_id, newRole)
       return { ok: true }
     }],
-    ['DELETE', '/orgs/:id/members/:uid', (ctx) => {
+    ['DELETE', '/orgs/:id/members/:uid', async (ctx) => {
       const self = ctx.params.uid === requireUser(ctx).id
-      const { org, role } = orgFor(ctx, ctx.params.id, self ? 'viewer' : 'admin')
-      const target = repo.membership(org.id, ctx.params.uid)
+      const { org, role } = await orgFor(ctx, ctx.params.id, self ? 'viewer' : 'admin')
+      const target = await repo.membership(org.id, ctx.params.uid)
       if (!target) throw httpError(404, 'Member not found')
       if (target.role === 'owner' && !self && role !== 'owner') throw httpError(403, 'Only an owner can remove an owner')
-      if (target.role === 'owner' && repo.countOwners(org.id) <= 1) throw httpError(409, 'The organization needs at least one owner')
-      repo.removeMember(org.id, target.user_id)
+      if (target.role === 'owner' && await repo.countOwners(org.id) <= 1) throw httpError(409, 'The organization needs at least one owner')
+      await repo.removeMember(org.id, target.user_id)
       return { ok: true }
     }],
 
     // SMTP of the organization
-    ['GET', '/orgs/:id/smtp', (ctx) => smtpView(orgFor(ctx, ctx.params.id, 'admin').org)],
-    ['PUT', '/orgs/:id/smtp', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id, 'admin')
+    ['GET', '/orgs/:id/smtp', async (ctx) => smtpView((await orgFor(ctx, ctx.params.id, 'admin')).org)],
+    ['PUT', '/orgs/:id/smtp', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id, 'admin')
       const b = ctx.body
       const host = String(b.host || '').trim()
       if (host && !/^[a-z0-9.-]+$/i.test(host)) throw httpError(400, 'Invalid SMTP host')
       const port = Number(b.port || 587)
       if (!Number.isInteger(port) || port < 1 || port > 65535) throw httpError(400, 'Invalid SMTP port')
       const passEnc = b.password === undefined || b.password === null ? org.smtp?.passEnc || '' : encrypt(config.secret, b.password)
-      repo.setOrgSmtp(org.id, host ? { host, port, secure: !!b.secure, user: String(b.user || ''), passEnc, from: String(b.from || '').trim() } : {})
+      await repo.setOrgSmtp(org.id, host ? { host, port, secure: !!b.secure, user: String(b.user || ''), passEnc, from: String(b.from || '').trim() } : {})
       workspaces.invalidate(org.id)
-      return smtpView(repo.orgById(org.id))
+      return smtpView(await repo.orgById(org.id))
     }],
     ['POST', '/orgs/:id/smtp/test', async (ctx) => {
-      const { org, user } = orgFor(ctx, ctx.params.id, 'admin')
+      const { org, user } = await orgFor(ctx, ctx.params.id, 'admin')
       const { message } = await sender.enqueue(org, {
         to: ctx.body.to || user.email,
         subject: `SMTP test · ${org.name}`,
@@ -203,27 +203,27 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     }],
 
     // API keys
-    ['GET', '/orgs/:id/keys', (ctx) => repo.apiKeys(orgFor(ctx, ctx.params.id, 'admin').org.id)],
-    ['POST', '/orgs/:id/keys', (ctx) => {
-      const { org, user } = orgFor(ctx, ctx.params.id, 'admin')
+    ['GET', '/orgs/:id/keys', async (ctx) => await repo.apiKeys((await orgFor(ctx, ctx.params.id, 'admin')).org.id)],
+    ['POST', '/orgs/:id/keys', async (ctx) => {
+      const { org, user } = await orgFor(ctx, ctx.params.id, 'admin')
       const prefix = randomToken(12).replace(/[^A-Za-z0-9]/g, '').slice(0, 8).padEnd(8, '0')
       const key = `tpl_${prefix}_${randomToken(24)}`
-      const row = repo.createApiKey({ orgId: org.id, name: String(ctx.body.name || 'API key').slice(0, 60), prefix, keyHash: hashToken(config.secret, key), createdBy: user.id })
+      const row = await repo.createApiKey({ orgId: org.id, name: String(ctx.body.name || 'API key').slice(0, 60), prefix, keyHash: hashToken(config.secret, key), createdBy: user.id })
       return { ...row, key } // shown once
     }],
-    ['DELETE', '/orgs/:id/keys/:kid', (ctx) => {
-      repo.revokeApiKey(orgFor(ctx, ctx.params.id, 'admin').org.id, ctx.params.kid)
+    ['DELETE', '/orgs/:id/keys/:kid', async (ctx) => {
+      await repo.revokeApiKey((await orgFor(ctx, ctx.params.id, 'admin')).org.id, ctx.params.kid)
       return { ok: true }
     }],
 
     // send log
-    ['GET', '/orgs/:id/messages', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id)
-      return repo.messages(org.id, { limit: ctx.query.get('limit'), before: Number(ctx.query.get('before')) || null, status: ctx.query.get('status') || null }).map(messageView)
+    ['GET', '/orgs/:id/messages', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id)
+      return (await repo.messages(org.id, { limit: ctx.query.get('limit'), before: Number(ctx.query.get('before')) || null, status: ctx.query.get('status') || null })).map(messageView)
     }],
-    ['GET', '/orgs/:id/messages/:mid', (ctx) => {
-      const { org } = orgFor(ctx, ctx.params.id)
-      const m = repo.message(org.id, ctx.params.mid)
+    ['GET', '/orgs/:id/messages/:mid', async (ctx) => {
+      const { org } = await orgFor(ctx, ctx.params.id)
+      const m = await repo.message(org.id, ctx.params.mid)
       if (!m) throw httpError(404, 'Message not found')
       return { ...messageView(m), html: m.payload.html, text: m.payload.text }
     }],
@@ -242,13 +242,13 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     }],
     ['GET', '/v1/messages/:mid', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
-      const m = repo.message(org.id, ctx.params.mid)
+      const m = await repo.message(org.id, ctx.params.mid)
       if (!m) throw httpError(404, 'Message not found')
       return messageView(m)
     }],
     ['GET', '/v1/templates', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
-      const ws = workspaces.get(org.id)
+      const ws = await workspaces.get(org.id)
       return listTemplates(ws.project).map(t => ({ id: t.id, format: t.format, langs: t.langs }))
     }],
   ].map(([method, pattern, fn]) => ({ method, fn, ...compile(pattern) }))
@@ -267,7 +267,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
         const o = req.headers.origin
         if (o ? o !== origin : req.headers['sec-fetch-site'] === 'cross-site') throw httpError(403, 'Cross-site request blocked')
       }
-      const ctx = { req, res, query: url.searchParams, auth: isApiV1 ? null : auth.sessionOf(req), status: 200 }
+      const ctx = { req, res, query: url.searchParams, auth: isApiV1 ? null : await auth.sessionOf(req), status: 200 }
 
       // org-scoped editor API and static files of the active org
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/')) return await editorRequest(ctx, url)
@@ -294,16 +294,28 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   async function editorRequest(ctx, url) {
     const user = requireUser(ctx)
     const orgId = ctx.auth.session.active_org_id
-    const m = orgId && repo.membership(orgId, user.id)
+    const m = orgId && await repo.membership(orgId, user.id)
     if (!m) throw httpError(409, 'Choose or create an organization first')
     const write = !['GET', 'HEAD'].includes(ctx.req.method)
     if (write && !roleAtLeast(m.role, 'editor') && !(ctx.req.method === 'POST' && VIEWER_POSTS.has(url.pathname))) {
       throw httpError(403, 'Your role in this organization is read-only (viewer)')
     }
-    const ws = workspaces.get(orgId)
+    const ws = await workspaces.get(orgId)
+    if (write && storage.driver === 'db' && !VIEWER_POSTS.has(url.pathname)) {
+      // db storage: the changes reach the database before the response is sent (read-your-writes,
+      // also from other instances)
+      const res = ctx.res
+      const end = res.end.bind(res)
+      res.end = (...args) => {
+        const finish = () => end(...args)
+        if (res.statusCode >= 400) return finish()
+        // (on error the headers are already written: the change stays in the cache and the next sync,
+        // which compares every file, stores it)
+        storage.sync(ws.org).then(finish, (err) => { log?.(`db storage sync (${ws.org.slug}): ${err.message}`); finish() })
+        return res
+      }
+    }
     await ws.handler(ctx.req, ctx.res)
-    // db storage: copy the changes back to the database
-    if (write && ctx.res.statusCode < 400 && !VIEWER_POSTS.has(url.pathname)) storage.sync(ws.org)
   }
 
   return {
@@ -313,9 +325,15 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     sender,
     storage,
     workspaces,
+    /** Hourly housekeeping: expired sessions/codes/challenges and the send-log retention */
+    async maintenance() {
+      await repo.deleteExpired()
+      const purged = config.send.retentionDays > 0 ? await repo.purgePayloads(Date.now() - config.send.retentionDays * 86400e3) : 0
+      return { purged }
+    },
     async close() {
       await sender.stop()
-      db.close()
+      await db.close()
     },
   }
 }
@@ -332,10 +350,10 @@ function checkRole(role, actorRole) {
   return role
 }
 
-function uniqueSlug(repo, text) {
+async function uniqueSlug(repo, text) {
   const base = String(text).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'org'
   let slug = base
-  for (let i = 2; repo.orgBySlug(slug); i++) slug = `${base}-${i}`
+  for (let i = 2; await repo.orgBySlug(slug); i++) slug = `${base}-${i}`
   return slug
 }
 

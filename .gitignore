@@ -6,3 +6,4 @@ examples/*/dist/
 artifacts/
 templaitor.server.yml
 data/
+deploy/.env

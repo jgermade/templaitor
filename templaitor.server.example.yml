@@ -5,6 +5,9 @@ dataDir: ./data
 # secret: …              # prefer TEMPLAITOR_SECRET in the environment
 signup: invite           # open · invite
 trustProxy: true
+database:
+  driver: sqlite         # sqlite (file in dataDir) · postgres (several instances)
+  # url: postgres://user:pass@host:5432/templaitor   # or TEMPLAITOR_DATABASE_URL
 storage:
   driver: fs             # fs (folder per org) · db (files in the database)
   dir: orgs              # fs: one project per org under dataDir/orgs/<slug>
@@ -18,3 +21,4 @@ smtp:                    # sign-in codes and invitations
 send:
   maxAttempts: 6
   rateLimitPerMinute: 120
+  retentionDays: 30      # HTML/text/attachments of sent messages are purged after this (0 = keep)

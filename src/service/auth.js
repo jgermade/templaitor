@@ -18,35 +18,35 @@ export function createAuth({ config, repo, mailer }) {
   const cookieOpts = { secure: config.secure }
 
   /** Session of a request (cookie) → { session, user } or null */
-  function sessionOf(req) {
+  async function sessionOf(req) {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
     if (!token) return null
-    const session = repo.sessionByTokenHash(hashToken(config.secret, token))
+    const session = await repo.sessionByTokenHash(hashToken(config.secret, token))
     if (!session) return null
-    const user = repo.userById(session.user_id)
+    const user = await repo.userById(session.user_id)
     if (!user) return null
     // sliding expiration (at most once an hour)
-    if (Date.now() - session.last_seen_at > 3600e3) repo.touchSession(session.id, SESSION_TTL)
+    if (Date.now() - session.last_seen_at > 3600e3) await repo.touchSession(session.id, SESSION_TTL)
     return { session, user }
   }
 
-  function startSession(req, res, user) {
+  async function startSession(req, res, user) {
     const token = randomToken()
-    const orgs = repo.orgsOfUser(user.id)
-    repo.createSession({ tokenHash: hashToken(config.secret, token), userId: user.id, ttlMs: SESSION_TTL, userAgent: req.headers['user-agent'], activeOrgId: orgs[0]?.id ?? null })
-    repo.touchLogin(user.id)
+    const orgs = await repo.orgsOfUser(user.id)
+    await repo.createSession({ tokenHash: hashToken(config.secret, token), userId: user.id, ttlMs: SESSION_TTL, userAgent: req.headers['user-agent'], activeOrgId: orgs[0]?.id ?? null })
+    await repo.touchLogin(user.id)
     appendCookie(res, serializeCookie(SESSION_COOKIE, token, { ...cookieOpts, maxAge: SESSION_TTL }))
   }
 
   /** Users allowed to sign in: existing users, invited emails, or anyone when signup is open */
-  function canSignIn(email) {
-    return config.signup === 'open' || !!repo.userByEmail(email) || repo.pendingInvitationsFor(email).length > 0
+  async function canSignIn(email) {
+    return config.signup === 'open' || !!(await repo.userByEmail(email)) || (await repo.pendingInvitationsFor(email)).length > 0
   }
 
-  function userFor(email) {
-    let user = repo.userByEmail(email)
-    if (!user) user = repo.createUser(email, email.split('@')[0])
-    repo.acceptInvitations(user)
+  async function userFor(email) {
+    let user = await repo.userByEmail(email)
+    if (!user) user = await repo.createUser(email, email.split('@')[0])
+    await repo.acceptInvitations(user)
     return user
   }
 
@@ -57,11 +57,11 @@ export function createAuth({ config, repo, mailer }) {
       email = normEmail(email)
       if (!EMAIL_RE.test(email)) throw httpError(400, 'Enter a valid email address')
       if (!ipLimiter.allow(`otp:${clientIp(req)}`)) throw httpError(429, 'Too many attempts; try again later')
-      if (repo.countOtpsSince(email, Date.now() - 15 * 60e3) >= OTP_MAX_PER_15_MIN) throw httpError(429, 'Too many codes requested; wait a few minutes')
+      if (await repo.countOtpsSince(email, Date.now() - 15 * 60e3) >= OTP_MAX_PER_15_MIN) throw httpError(429, 'Too many codes requested; wait a few minutes')
       // same answer whether the email can sign in or not (no account enumeration)
-      if (!canSignIn(email)) return { ok: true }
+      if (!(await canSignIn(email))) return { ok: true }
       const code = otpCode()
-      repo.createOtp({ email, codeHash: hashToken(config.secret, `otp:${email}:${code}`), ttlMs: OTP_TTL })
+      await repo.createOtp({ email, codeHash: hashToken(config.secret, `otp:${email}:${code}`), ttlMs: OTP_TTL })
       await mailer.sendCode(email, code)
       return { ok: true }
     },
@@ -69,22 +69,22 @@ export function createAuth({ config, repo, mailer }) {
     async verifyCode(req, res, { email, code }) {
       email = normEmail(email)
       if (!ipLimiter.allow(`verify:${clientIp(req)}`)) throw httpError(429, 'Too many attempts; try again later')
-      const otp = repo.activeOtp(email)
+      const otp = await repo.activeOtp(email)
       if (!otp || otp.attempts >= OTP_MAX_ATTEMPTS) throw httpError(400, 'The code has expired; request a new one')
-      repo.otpAttempt(otp.id)
+      await repo.otpAttempt(otp.id)
       if (!safeEqual(otp.code_hash, hashToken(config.secret, `otp:${email}:${String(code || '').trim()}`))) {
         throw httpError(400, otp.attempts + 1 >= OTP_MAX_ATTEMPTS ? 'Wrong code; request a new one' : 'Wrong code')
       }
-      repo.useOtp(otp.id)
-      if (!canSignIn(email)) throw httpError(403, 'This email is not invited')
-      const user = userFor(email)
-      startSession(req, res, user)
+      await repo.useOtp(otp.id)
+      if (!(await canSignIn(email))) throw httpError(403, 'This email is not invited')
+      const user = await userFor(email)
+      await startSession(req, res, user)
       return { ok: true }
     },
 
-    logout(req, res) {
-      const s = sessionOf(req)
-      if (s) repo.deleteSession(s.session.id)
+    async logout(req, res) {
+      const s = await sessionOf(req)
+      if (s) await repo.deleteSession(s.session.id)
       appendCookie(res, serializeCookie(SESSION_COOKIE, '', { ...cookieOpts, maxAge: 0 }))
       return { ok: true }
     },
@@ -99,16 +99,16 @@ export function createAuth({ config, repo, mailer }) {
         userName: user.email,
         userDisplayName: user.name || user.email,
         attestationType: 'none',
-        excludeCredentials: repo.passkeysOf(user.id).map(p => ({ id: p.credential_id, transports: p.transports })),
+        excludeCredentials: (await repo.passkeysOf(user.id)).map(p => ({ id: p.credential_id, transports: p.transports })),
         authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
       })
-      const challengeId = repo.createChallenge({ challenge: options.challenge, userId: user.id, kind: 'register' })
+      const challengeId = await repo.createChallenge({ challenge: options.challenge, userId: user.id, kind: 'register' })
       return { options, challengeId }
     },
 
     async passkeyRegisterVerify(user, { challengeId, response, name }) {
       const { verifyRegistrationResponse } = await loadWebauthn()
-      const ch = repo.takeChallenge(challengeId, 'register')
+      const ch = await repo.takeChallenge(challengeId, 'register')
       if (!ch || ch.user_id !== user.id) throw httpError(400, 'The passkey request expired; try again')
       let v
       try {
@@ -118,7 +118,7 @@ export function createAuth({ config, repo, mailer }) {
       }
       if (!v.verified) throw httpError(400, 'Passkey not verified')
       const c = v.registrationInfo.credential
-      repo.addPasskey({
+      await repo.addPasskey({
         userId: user.id,
         credentialId: c.id,
         publicKey: Buffer.from(c.publicKey).toString('base64url'),
@@ -134,17 +134,17 @@ export function createAuth({ config, repo, mailer }) {
       const { generateAuthenticationOptions } = await loadWebauthn()
       // discoverable credentials: the browser offers the passkeys it has for this site
       const options = await generateAuthenticationOptions({ rpID: config.rpId, userVerification: 'preferred' })
-      const id = repo.createChallenge({ challenge: options.challenge, kind: 'login' })
+      const id = await repo.createChallenge({ challenge: options.challenge, kind: 'login' })
       appendCookie(res, serializeCookie(CHALLENGE_COOKIE, id, { ...cookieOpts, maxAge: 5 * 60e3 }))
       return { options }
     },
 
     async passkeyLoginVerify(req, res, { response }) {
       const { verifyAuthenticationResponse } = await loadWebauthn()
-      const ch = repo.takeChallenge(parseCookies(req.headers.cookie)[CHALLENGE_COOKIE], 'login')
+      const ch = await repo.takeChallenge(parseCookies(req.headers.cookie)[CHALLENGE_COOKIE], 'login')
       appendCookie(res, serializeCookie(CHALLENGE_COOKIE, '', { ...cookieOpts, maxAge: 0 }))
       if (!ch) throw httpError(400, 'The passkey request expired; try again')
-      const pk = repo.passkeyByCredentialId(response?.id)
+      const pk = await repo.passkeyByCredentialId(response?.id)
       if (!pk) throw httpError(400, 'Unknown passkey (it may have been removed)')
       let v
       try {
@@ -159,14 +159,14 @@ export function createAuth({ config, repo, mailer }) {
         throw httpError(400, `Passkey not valid: ${e.message}`)
       }
       if (!v.verified) throw httpError(400, 'Passkey not verified')
-      repo.usePasskey(pk.id, v.authenticationInfo.newCounter)
-      const user = repo.userById(pk.user_id)
-      repo.acceptInvitations(user)
-      startSession(req, res, user)
+      await repo.usePasskey(pk.id, v.authenticationInfo.newCounter)
+      const user = await repo.userById(pk.user_id)
+      await repo.acceptInvitations(user)
+      await startSession(req, res, user)
       return { ok: true }
     },
 
-    passkeys: (user) => repo.passkeysOf(user.id).map(p => ({ id: p.id, name: p.name, created_at: p.created_at, last_used_at: p.last_used_at })),
+    passkeys: async (user) => (await repo.passkeysOf(user.id)).map(p => ({ id: p.id, name: p.name, created_at: p.created_at, last_used_at: p.last_used_at })),
   }
 }
 

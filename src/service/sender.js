@@ -42,7 +42,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
     const from = fromAddress(org, body.from)
     const headers = { replyTo: body.replyTo ? list(body.replyTo, 'replyTo')[0] : undefined }
     if (body.template) {
-      const ws = workspaces.get(org.id)
+      const ws = await workspaces.get(org.id)
       let tpl
       try { tpl = readTemplate(ws.project, body.template) } catch (e) { throw httpError(e.status === 404 ? 404 : 400, e.message) }
       const i18n = YAML.parse(tpl.yml || '') || {}
@@ -109,7 +109,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
   async function renderAttachmentsOf(org, payload) {
     if (!payload.attachments) return []
     if (payload.attachments.snapshot) {
-      const ws = workspaces.get(org.id)
+      const ws = await workspaces.get(org.id)
       const out = await renderDraftAttachments(ws.project, payload.attachments.snapshot, { values: payload.attachments.data })
       return out.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
     }
@@ -127,7 +127,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
   }
 
   async function deliver(m) {
-    const org = repo.orgById(m.org_id)
+    const org = await repo.orgById(m.org_id)
     const smtp = org && workspaces.smtpOf(org)
     if (!smtp) throw Object.assign(new Error('The organization has no SMTP configured'), { permanent: true })
     const p = m.payload
@@ -150,15 +150,15 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
 
   async function drain() {
     {
-      for (let m = repo.claimNext(); m && !stopped; m = repo.claimNext()) {
+      for (let m = await repo.claimNext(); m && !stopped; m = await repo.claimNext()) {
         try {
           const id = await deliver(m)
-          repo.markSent(m.id, id || null)
+          await repo.markSent(m.id, id || null)
         } catch (err) {
           const permanent = err.permanent || (err.responseCode >= 500 && err.responseCode < 600) || err.code === 'EENVELOPE' || err.status === 400
           const msg = String(err.response || err.message || err).slice(0, 500)
-          if (permanent || m.attempts >= config.send.maxAttempts) repo.markFailed(m.id, msg)
-          else repo.markRetry(m.id, msg, Date.now() + BACKOFF[Math.min(m.attempts - 1, BACKOFF.length - 1)])
+          if (permanent || m.attempts >= config.send.maxAttempts) await repo.markFailed(m.id, msg)
+          else await repo.markRetry(m.id, msg, Date.now() + BACKOFF[Math.min(m.attempts - 1, BACKOFF.length - 1)])
           log?.(`✉ ${m.id} ${permanent ? 'failed' : `retry ${m.attempts}`}: ${msg}`)
         }
       }
@@ -170,15 +170,15 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
     /** Validates, renders and queues a message → message row */
     async enqueue(org, body, { apiKeyId = null, userId = null, idempotencyKey = null } = {}) {
       if (idempotencyKey) {
-        const prev = repo.messageByIdempotencyKey(org.id, String(idempotencyKey).slice(0, 200))
+        const prev = await repo.messageByIdempotencyKey(org.id, String(idempotencyKey).slice(0, 200))
         if (prev) return { message: prev, replayed: true }
       }
       if (!workspaces.smtpOf(org)) throw httpError(409, 'The organization has no SMTP configured (Settings → SMTP)')
-      if (repo.countRecentSends(org.id, Date.now() - 60e3) >= config.send.rateLimitPerMinute) {
+      if (await repo.countRecentSends(org.id, Date.now() - 60e3) >= config.send.rateLimitPerMinute) {
         throw httpError(429, `Rate limit: ${config.send.rateLimitPerMinute} messages per minute`)
       }
       const b = await build(org, body)
-      const message = repo.enqueue({
+      const message = await repo.enqueue({
         orgId: org.id, apiKeyId, userId, kind: b.kind, template: b.template, locale: b.locale, recipients: b.recipients,
         subject: b.subject, idempotencyKey: idempotencyKey ? String(idempotencyKey).slice(0, 200) : null,
         payload: { from: b.from, headers: b.headers, html: b.html, text: b.text, attachments: b.attachments },
@@ -187,12 +187,14 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
       return { message, warnings: b.warnings }
     },
     tick,
-    start(intervalMs = 2000) {
+    async start(intervalMs = 2000) {
       stopped = false
-      repo.requeueStuck(10 * 60e3)
+      await repo.requeueStuck(10 * 60e3)
       timer = setInterval(() => { tick().catch(e => log?.(e)) }, intervalMs)
       timer.unref?.()
     },
+    /** Lets tick() drain again after stop() (without the interval) */
+    resume() { stopped = false },
     async stop() {
       stopped = true
       clearInterval(timer)
@@ -208,7 +210,7 @@ export function messageView(m) {
     id: m.id, status: m.status, kind: m.kind, template: m.template, locale: m.locale, subject: m.subject,
     to: m.recipients.to, cc: m.recipients.cc, bcc: m.recipients.bcc, attempts: m.attempts,
     attachments: m.payload?.attachments?.names ?? m.payload?.attachments?.list?.map(a => a.filename) ?? [],
-    lastError: m.last_error, smtpMessageId: m.smtp_message_id,
+    lastError: m.last_error, smtpMessageId: m.smtp_message_id, purged: !!m.payload?.purged,
     createdAt: m.created_at, sentAt: m.sent_at, nextAttemptAt: m.status === 'queued' ? m.next_attempt_at : null,
   }
 }

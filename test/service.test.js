@@ -1,5 +1,5 @@
 // Hosted service: login, organizations, roles, org-scoped editor API, send API and storage drivers.
-import { test, before, after } from 'node:test'
+import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -13,7 +13,34 @@ import { listEngines, setPdfSandbox } from '../src/engine/pdf.js'
 
 const SECRET = 'test-secret-0123456789-0123456789-abcdef'
 
-async function startService(overrides = {}) {
+// Postgres runs only when a server is given: TEMPLAITOR_TEST_POSTGRES_URL=postgres://user@host:port/postgres
+const PG_URL = process.env.TEMPLAITOR_TEST_POSTGRES_URL
+const DRIVERS = [['sqlite', null], ...(PG_URL ? [['postgres', PG_URL]] : [])]
+
+/** A fresh, empty Postgres database for one service instance (dropped by close()) */
+async function freshPostgres(adminUrl) {
+  const { default: pg } = await import('pg')
+  const name = `tpl_test_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const admin = new pg.Client({ connectionString: adminUrl })
+  await admin.connect()
+  await admin.query(`CREATE DATABASE ${name}`)
+  await admin.end()
+  const url = new URL(adminUrl)
+  url.pathname = `/${name}`
+  return {
+    url: url.href,
+    async drop() {
+      const c = new pg.Client({ connectionString: adminUrl })
+      await c.connect()
+      await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`)
+      await c.end()
+    },
+  }
+}
+
+async function startService(overrides = {}, pgAdminUrl = null) {
+  const pgDb = pgAdminUrl ? await freshPostgres(pgAdminUrl) : null
+  if (pgDb) overrides = { ...overrides, database: { driver: 'postgres', url: pgDb.url } }
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-svc-'))
   const sent = []
   let failNext = null
@@ -28,12 +55,12 @@ async function startService(overrides = {}) {
   await new Promise(r => server.listen(0, '127.0.0.1', r))
   const baseUrl = `http://127.0.0.1:${server.address().port}`
   const config = loadServiceConfig({ cwd: dataDir, env: {}, overrides: { secret: SECRET, dataDir, baseUrl, ...overrides } })
-  const app = await createApp(config, { transportFactory, log: null })
+  const app = await createApp(config, { transportFactory, log: process.env.DEBUG_SVC ? console.log : null })
   server.on('request', app.handler)
   return {
     app, baseUrl, sent, config,
     failWith: (e) => { failNext = e },
-    async close() { await app.close(); await new Promise(r => server.close(r)) },
+    async close() { await app.close(); await new Promise(r => server.close(r)); await pgDb?.drop() },
   }
 }
 
@@ -76,175 +103,235 @@ function client(svc) {
   }
 }
 
-let svc
-before(async () => { svc = await startService() })
-after(async () => { await svc?.close(); setPdfSandbox(false) })
+for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, () => {
+  let svc
+  before(async () => { svc = await startService({}, pgUrl) })
+  after(async () => { await svc?.close() })
 
-test('service: email OTP login, wrong codes and session', async () => {
-  const c = client(svc)
-  assert.equal((await c.get('/auth/session')).data.user, null)
-  assert.equal((await c.get('/api/templates')).status, 401)
-  await c.post('/auth/code', { email: 'Wrong@Example.com' })
-  for (let i = 0; i < 4; i++) assert.equal((await c.post('/auth/code/verify', { email: 'wrong@example.com', code: '000000x' })).status, 400)
-  const fifth = await c.post('/auth/code/verify', { email: 'wrong@example.com', code: '000000x' })
-  assert.match(fifth.data.error, /request a new one/)
-  // even the right code is refused after 5 attempts
-  const code = svc.app.mailer.outbox.findLast(m => m.to === 'wrong@example.com').text.match(/\b(\d{6})\b/)[1]
-  assert.equal((await c.post('/auth/code/verify', { email: 'wrong@example.com', code })).status, 400)
+  test(`service (${driver}): email OTP login, wrong codes and session`, async () => {
+    const c = client(svc)
+    assert.equal((await c.get('/auth/session')).data.user, null)
+    assert.equal((await c.get('/api/templates')).status, 401)
+    await c.post('/auth/code', { email: 'Wrong@Example.com' })
+    for (let i = 0; i < 4; i++) assert.equal((await c.post('/auth/code/verify', { email: 'wrong@example.com', code: '000000x' })).status, 400)
+    const fifth = await c.post('/auth/code/verify', { email: 'wrong@example.com', code: '000000x' })
+    assert.match(fifth.data.error, /request a new one/)
+    // even the right code is refused after 5 attempts
+    const code = svc.app.mailer.outbox.findLast(m => m.to === 'wrong@example.com').text.match(/\b(\d{6})\b/)[1]
+    assert.equal((await c.post('/auth/code/verify', { email: 'wrong@example.com', code })).status, 400)
 
-  await c.login('ada@example.com')
-  const s = (await c.get('/auth/session')).data
-  assert.equal(s.user.email, 'ada@example.com')
-  assert.deepEqual(s.orgs, [])
-  assert.equal((await c.get('/api/templates')).status, 409) // no organization yet
-  await c.post('/auth/logout')
-  assert.equal((await c.get('/auth/session')).data.user, null)
+    await c.login('ada@example.com')
+    const s = (await c.get('/auth/session')).data
+    assert.equal(s.user.email, 'ada@example.com')
+    assert.deepEqual(s.orgs, [])
+    assert.equal((await c.get('/api/templates')).status, 409) // no organization yet
+    await c.post('/auth/logout')
+    assert.equal((await c.get('/auth/session')).data.user, null)
+  })
+
+  test(`service (${driver}): organizations, org-scoped editor, roles and CSRF`, async () => {
+    const ada = client(svc)
+    await ada.login('ada@example.com')
+    const org = (await ada.post('/orgs', { name: 'Acme Corp', starter: 'demo' })).data
+    assert.equal(org.slug, 'acme-corp')
+    assert.equal(org.role, 'owner')
+    const tpls = (await ada.get('/api/templates')).data
+    assert.ok(tpls.some(t => t.id === 'orders/order-confirmation'))
+    const blank = (await ada.post('/orgs', { name: 'Acme Corp' })).data
+    assert.equal(blank.slug, 'acme-corp-2')
+    assert.deepEqual((await ada.get('/api/templates')).data.map(t => t.id), ['general/welcome'])
+    await ada.post(`/orgs/${org.id}/activate`)
+
+    // cross-site writes are blocked
+    assert.equal((await ada.post('/orgs', { name: 'x' }, { Origin: 'https://evil.example' })).status, 403)
+
+    // invite a viewer: read and preview, no writes
+    const inv = await ada.post(`/orgs/${org.id}/invitations`, { email: 'bob@example.com', role: 'viewer' })
+    assert.equal(inv.status, 200)
+    assert.match(svc.app.mailer.outbox.findLast(m => m.to === 'bob@example.com').subject, /invited you to Acme Corp/)
+    const bob = client(svc)
+    await bob.login('bob@example.com')
+    const bs = (await bob.get('/auth/session')).data
+    assert.equal(bs.activeOrg.slug, 'acme-corp')
+    assert.equal(bs.activeOrg.role, 'viewer')
+    const tpl = (await bob.get('/api/template?id=orders/order-confirmation')).data
+    assert.equal((await bob.post('/api/preview', { ...tpl, lang: 'en', mode: 'preview' })).status, 200)
+    assert.equal((await bob.put('/api/template', { ...tpl, mjml: `${tpl.mjml}\n` })).status, 403)
+    assert.equal((await bob.get(`/orgs/${org.id}/keys`)).status, 403)
+    assert.equal((await bob.get(`/orgs/${blank.id}`)).status, 404) // not a member
+
+    // promote to editor → can write
+    const members = (await ada.get(`/orgs/${org.id}/members`)).data.members
+    const bobId = members.find(m => m.email === 'bob@example.com').id
+    assert.equal((await ada.patch(`/orgs/${org.id}/members/${bobId}`, { role: 'editor' })).status, 200)
+    assert.equal((await bob.put('/api/template', { ...tpl, mjml: tpl.mjml.replace('layout:', '# edited\nlayout:') })).status, 200)
+    // the last owner cannot leave
+    const adaId = members.find(m => m.email === 'ada@example.com').id
+    assert.equal((await ada.del(`/orgs/${org.id}/members/${adaId}`)).status, 409)
+    // an editor cannot grant roles
+    assert.equal((await bob.patch(`/orgs/${org.id}/members/${adaId}`, { role: 'viewer' })).status, 403)
+  })
+
+  test(`service (${driver}): send API — hosted template (with its PDF attachment), raw HTML, idempotency and retries`, { timeout: 120000 }, async () => {
+    const ada = client(svc)
+    await ada.login('ada@example.com')
+    const org = (await ada.get('/orgs')).data.find(o => o.slug === 'acme-corp')
+    await ada.post(`/orgs/${org.id}/activate`)
+    const noKey = await fetch(`${svc.baseUrl}/v1/send`, { method: 'POST', body: '{}' })
+    assert.equal(noKey.status, 401)
+
+    const { key } = (await ada.post(`/orgs/${org.id}/keys`, { name: 'backend' })).data
+    assert.match(key, /^tpl_[A-Za-z0-9]{8}_/)
+    const api = (url, body, headers = {}) => fetch(svc.baseUrl + url, {
+      method: body ? 'POST' : 'GET', body: body && JSON.stringify(body),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...headers },
+    }).then(async r => ({ status: r.status, data: await r.json() }))
+
+    // without SMTP the org cannot send
+    assert.equal((await api('/v1/send', { to: 'x@example.com', subject: 'a', html: '<p>a</p>' })).status, 409)
+    const smtp = await ada.put(`/orgs/${org.id}/smtp`, { host: 'smtp.acme.test', port: 587, user: 'acme', password: 's3cret', from: 'Acme <no-reply@acme.test>' })
+    assert.deepEqual(smtp.data, { host: 'smtp.acme.test', port: 587, secure: false, user: 'acme', from: 'Acme <no-reply@acme.test>', hasPassword: true })
+    assert.notEqual((await svc.app.repo.orgById(org.id)).smtp.passEnc, 's3cret') // encrypted at rest
+
+    // hosted template in English, with its demo data
+    const data = JSON.parse(JSON.stringify((await import('json5')).default.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../examples/demo/templates/orders/order-confirmation/order-confirmation.json5'), 'utf8'))))
+    const r = await api('/v1/send', { template: 'orders/order-confirmation', lang: 'en-US', data, to: ['ada@example.com'] })
+    assert.equal(r.status, 202, JSON.stringify(r.data))
+    assert.equal(r.data.status, 'queued')
+    assert.equal(r.data.subject, 'Order #A-1042 confirmed')
+    assert.deepEqual(r.data.attachments, ['invoice-2026-0042.pdf'])
+    const pdfEngine = listEngines().some(e => e.available && e.id !== 'prince')
+    await svc.app.sender.tick()
+    const done = (await api(`/v1/messages/${r.data.id}`)).data
+    if (pdfEngine) {
+      assert.equal(done.status, 'sent', done.lastError)
+      const mail = svc.sent.at(-1)
+      assert.equal(mail.from, 'Acme <no-reply@acme.test>')
+      assert.match(mail.html, /Mechanical keyboard/)
+      assert.equal(mail.attachments[0].filename, 'invoice-2026-0042.pdf')
+      assert.equal(mail.attachments[0].content.subarray(0, 5).toString(), '%PDF-')
+    }
+
+    // render without sending; unknown language
+    const rendered = (await api('/v1/render', { template: 'orders/order-confirmation', lang: 'es', data })).data
+    assert.equal(rendered.subject, 'Pedido #A-1042 confirmado')
+    assert.match((await api('/v1/render', { template: 'orders/order-confirmation', lang: 'fr', data })).data.error, /Language not available/)
+
+    // raw HTML with a base64 attachment + idempotency
+    const raw = { to: 'bob@example.com', subject: 'Hi', html: '<p>Hello <b>Bob</b></p>', attachments: [{ filename: 'a.txt', content: Buffer.from('hello').toString('base64') }] }
+    // the first delivery attempt hits a temporary SMTP error → retried later
+    svc.failWith(Object.assign(new Error('421 try later'), { responseCode: 421 }))
+    const first = await api('/v1/send', raw, { 'Idempotency-Key': 'order-1' })
+    const again = await api('/v1/send', raw, { 'Idempotency-Key': 'order-1' })
+    assert.equal(first.status, 202)
+    assert.equal(again.status, 200)
+    assert.equal(again.data.id, first.data.id)
+    await svc.app.sender.tick()
+    let m = (await api(`/v1/messages/${first.data.id}`)).data
+    assert.equal(m.status, 'queued')
+    assert.equal(m.attempts, 1)
+    assert.match(m.lastError, /421/)
+    await svc.app.repo.db.run('UPDATE messages SET next_attempt_at = 0 WHERE id = ?', first.data.id)
+    await svc.app.sender.tick()
+    m = (await api(`/v1/messages/${first.data.id}`)).data
+    assert.equal(m.status, 'sent')
+    assert.match(svc.sent.at(-1).text, /Hello BOB|Hello Bob/)
+    assert.equal(svc.sent.at(-1).attachments[0].content.toString(), 'hello')
+
+    // `from` must stay in the org's domain; validation errors
+    assert.equal((await api('/v1/send', { ...raw, from: 'ceo@other.test' })).status, 400)
+    assert.equal((await api('/v1/send', { subject: 'x', html: '<p>x</p>', to: 'not-an-email' })).status, 400)
+
+    // the send log is visible to members
+    const log = (await ada.get(`/orgs/${org.id}/messages`)).data
+    assert.ok(log.length >= 2)
+    // a revoked key stops working
+    const keys = (await ada.get(`/orgs/${org.id}/keys`)).data
+    await ada.del(`/orgs/${org.id}/keys/${keys[0].id}`)
+    assert.equal((await api('/v1/render', raw)).status, 401)
+  })
+
+  test(`service (${driver}): two instances share the queue without double sends; retention purges old content`, { timeout: 60000 }, async () => {
+    const ada = client(svc)
+    await ada.login('queue@example.com')
+    const org = (await ada.post('/orgs', { name: 'Queue Org' })).data
+    await ada.put(`/orgs/${org.id}/smtp`, { host: 'smtp.queue.test', from: 'Q <no-reply@queue.test>' })
+    const { key } = (await ada.post(`/orgs/${org.id}/keys`, { name: 'k' })).data
+    // Postgres: a second instance on the same database, with its own SMTP transport
+    // (SQLite is single-instance: concurrent drains inside one instance)
+    const sentB = []
+    const appB = driver === 'sqlite' ? svc.app : await createApp(svc.config, { log: null, transportFactory: () => ({ sendMail: async (m) => { sentB.push(m); return { messageId: 'b' } } }) })
+    await svc.app.sender.stop() // no automatic drain: both instances drain together below
+    const ids = []
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch(`${svc.baseUrl}/v1/send`, {
+        method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: `n${i}@example.com`, subject: `#${i}`, html: `<p>${i}</p>` }),
+      })
+      ids.push((await r.json()).id)
+    }
+    const before = svc.sent.length
+    svc.app.sender.resume()
+    await Promise.all([svc.app.sender.tick(), appB.sender.tick(), svc.app.sender.tick(), appB.sender.tick()])
+    const subjects = [...svc.sent.slice(before), ...sentB].map(m => m.subject).filter(s => s.startsWith('#'))
+    assert.equal(subjects.length, 12, 'each message is delivered once')
+    assert.equal(new Set(subjects).size, 12)
+    for (const id of ids) assert.equal((await svc.app.repo.message(org.id, id)).status, 'sent')
+
+    // retention: content of messages older than retentionDays is purged, metadata stays
+    await svc.app.repo.db.run('UPDATE messages SET created_at = ? WHERE id = ?', Date.now() - 40 * 86400e3, ids[0])
+    const { purged } = await svc.app.maintenance()
+    assert.equal(purged, 1)
+    const old = (await ada.get(`/orgs/${org.id}/messages/${ids[0]}`)).data
+    assert.equal(old.subject, '#0')
+    assert.equal(old.html, undefined)
+    assert.equal(old.purged, true)
+    if (appB !== svc.app) await appB.close()
+  })
+
+  test(`service (${driver}): db storage driver keeps the projects in the database`, async () => {
+    const s = await startService({ storage: { driver: 'db' } }, pgUrl)
+    try {
+      const c = client(s)
+      await c.login('carol@example.com')
+      const org = (await c.post('/orgs', { name: 'Db Org' })).data
+      assert.equal(org.storage, 'db')
+      const tpl = (await c.get('/api/template?id=general/welcome')).data
+      assert.equal((await c.put('/api/template', { ...tpl, mjml: tpl.mjml.replace('$t(\'body\')', 'Stored in the DB') })).status, 200)
+      const row = await s.app.repo.db.get('SELECT content FROM files WHERE org_id = ? AND path = ?', org.id, 'templates/general/welcome/welcome.mjml')
+      assert.match(Buffer.from(row.content).toString(), /Stored in the DB/)
+      // a new instance (empty cache) materializes the project from the database
+      fs.rmSync(s.config.storage.cacheDir, { recursive: true, force: true })
+      s.app.workspaces.invalidate(org.id)
+      const s2app = await createApp(s.config, { log: null })
+      const ws = await s2app.workspaces.get(org.id)
+      assert.match(fs.readFileSync(path.join(ws.project.templatesDir, 'general/welcome/welcome.mjml'), 'utf8'), /Stored in the DB/)
+      await s2app.close()
+
+      if (driver === 'postgres') {
+        // two live instances (each with its own cache): what one saves, the other serves
+        const appB = await createApp({ ...s.config, storage: { ...s.config.storage, cacheDir: `${s.config.storage.cacheDir}-b` } }, { log: null })
+        const wsB = await appB.workspaces.get(org.id)
+        const fileB = path.join(wsB.project.templatesDir, 'general/welcome/welcome.mjml')
+        assert.equal((await c.put('/api/template', { ...tpl, mjml: tpl.mjml.replace('$t(\'body\')', 'Second edit') })).status, 200)
+        await appB.workspaces.get(org.id)
+        assert.match(fs.readFileSync(fileB, 'utf8'), /Second edit/)
+        // B writes (as its editor API would) → A serves it
+        fs.writeFileSync(fileB, fs.readFileSync(fileB, 'utf8').replace('Second edit', 'Edited on B'))
+        await appB.storage.sync(wsB.org)
+        assert.match((await c.get('/api/template?id=general/welcome')).data.mjml, /Edited on B/)
+        // SMTP changed on A is used by B's editor (test sends)
+        await c.put(`/orgs/${org.id}/smtp`, { host: 'smtp.b.test', from: 'X <x@b.test>' })
+        assert.equal((await appB.workspaces.get(org.id)).project.smtp.host, 'smtp.b.test')
+        await appB.close()
+      }
+    } finally {
+      await s.close()
+    }
+  })
 })
 
-test('service: organizations, org-scoped editor, roles and CSRF', async () => {
-  const ada = client(svc)
-  await ada.login('ada@example.com')
-  const org = (await ada.post('/orgs', { name: 'Acme Corp', starter: 'demo' })).data
-  assert.equal(org.slug, 'acme-corp')
-  assert.equal(org.role, 'owner')
-  const tpls = (await ada.get('/api/templates')).data
-  assert.ok(tpls.some(t => t.id === 'orders/order-confirmation'))
-  const blank = (await ada.post('/orgs', { name: 'Acme Corp' })).data
-  assert.equal(blank.slug, 'acme-corp-2')
-  assert.deepEqual((await ada.get('/api/templates')).data.map(t => t.id), ['general/welcome'])
-  await ada.post(`/orgs/${org.id}/activate`)
-
-  // cross-site writes are blocked
-  assert.equal((await ada.post('/orgs', { name: 'x' }, { Origin: 'https://evil.example' })).status, 403)
-
-  // invite a viewer: read and preview, no writes
-  const inv = await ada.post(`/orgs/${org.id}/invitations`, { email: 'bob@example.com', role: 'viewer' })
-  assert.equal(inv.status, 200)
-  assert.match(svc.app.mailer.outbox.findLast(m => m.to === 'bob@example.com').subject, /invited you to Acme Corp/)
-  const bob = client(svc)
-  await bob.login('bob@example.com')
-  const bs = (await bob.get('/auth/session')).data
-  assert.equal(bs.activeOrg.slug, 'acme-corp')
-  assert.equal(bs.activeOrg.role, 'viewer')
-  const tpl = (await bob.get('/api/template?id=orders/order-confirmation')).data
-  assert.equal((await bob.post('/api/preview', { ...tpl, lang: 'en', mode: 'preview' })).status, 200)
-  assert.equal((await bob.put('/api/template', { ...tpl, mjml: `${tpl.mjml}\n` })).status, 403)
-  assert.equal((await bob.get(`/orgs/${org.id}/keys`)).status, 403)
-  assert.equal((await bob.get(`/orgs/${blank.id}`)).status, 404) // not a member
-
-  // promote to editor → can write
-  const members = (await ada.get(`/orgs/${org.id}/members`)).data.members
-  const bobId = members.find(m => m.email === 'bob@example.com').id
-  assert.equal((await ada.patch(`/orgs/${org.id}/members/${bobId}`, { role: 'editor' })).status, 200)
-  assert.equal((await bob.put('/api/template', { ...tpl, mjml: tpl.mjml.replace('layout:', '# edited\nlayout:') })).status, 200)
-  // the last owner cannot leave
-  const adaId = members.find(m => m.email === 'ada@example.com').id
-  assert.equal((await ada.del(`/orgs/${org.id}/members/${adaId}`)).status, 409)
-  // an editor cannot grant roles
-  assert.equal((await bob.patch(`/orgs/${org.id}/members/${adaId}`, { role: 'viewer' })).status, 403)
-})
-
-test('service: send API — hosted template (with its PDF attachment), raw HTML, idempotency and retries', { timeout: 120000 }, async () => {
-  const ada = client(svc)
-  await ada.login('ada@example.com')
-  const org = (await ada.get('/orgs')).data.find(o => o.slug === 'acme-corp')
-  await ada.post(`/orgs/${org.id}/activate`)
-  const noKey = await fetch(`${svc.baseUrl}/v1/send`, { method: 'POST', body: '{}' })
-  assert.equal(noKey.status, 401)
-
-  const { key } = (await ada.post(`/orgs/${org.id}/keys`, { name: 'backend' })).data
-  assert.match(key, /^tpl_[A-Za-z0-9]{8}_/)
-  const api = (url, body, headers = {}) => fetch(svc.baseUrl + url, {
-    method: body ? 'POST' : 'GET', body: body && JSON.stringify(body),
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...headers },
-  }).then(async r => ({ status: r.status, data: await r.json() }))
-
-  // without SMTP the org cannot send
-  assert.equal((await api('/v1/send', { to: 'x@example.com', subject: 'a', html: '<p>a</p>' })).status, 409)
-  const smtp = await ada.put(`/orgs/${org.id}/smtp`, { host: 'smtp.acme.test', port: 587, user: 'acme', password: 's3cret', from: 'Acme <no-reply@acme.test>' })
-  assert.deepEqual(smtp.data, { host: 'smtp.acme.test', port: 587, secure: false, user: 'acme', from: 'Acme <no-reply@acme.test>', hasPassword: true })
-  assert.notEqual(svc.app.repo.orgById(org.id).smtp.passEnc, 's3cret') // encrypted at rest
-
-  // hosted template in English, with its demo data
-  const data = JSON.parse(JSON.stringify((await import('json5')).default.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../examples/demo/templates/orders/order-confirmation/order-confirmation.json5'), 'utf8'))))
-  const r = await api('/v1/send', { template: 'orders/order-confirmation', lang: 'en-US', data, to: ['ada@example.com'] })
-  assert.equal(r.status, 202, JSON.stringify(r.data))
-  assert.equal(r.data.status, 'queued')
-  assert.equal(r.data.subject, 'Order #A-1042 confirmed')
-  assert.deepEqual(r.data.attachments, ['invoice-2026-0042.pdf'])
-  const pdfEngine = listEngines().some(e => e.available && e.id !== 'prince')
-  await svc.app.sender.tick()
-  const done = (await api(`/v1/messages/${r.data.id}`)).data
-  if (pdfEngine) {
-    assert.equal(done.status, 'sent', done.lastError)
-    const mail = svc.sent.at(-1)
-    assert.equal(mail.from, 'Acme <no-reply@acme.test>')
-    assert.match(mail.html, /Mechanical keyboard/)
-    assert.equal(mail.attachments[0].filename, 'invoice-2026-0042.pdf')
-    assert.equal(mail.attachments[0].content.subarray(0, 5).toString(), '%PDF-')
-  }
-
-  // render without sending; unknown language
-  const rendered = (await api('/v1/render', { template: 'orders/order-confirmation', lang: 'es', data })).data
-  assert.equal(rendered.subject, 'Pedido #A-1042 confirmado')
-  assert.match((await api('/v1/render', { template: 'orders/order-confirmation', lang: 'fr', data })).data.error, /Language not available/)
-
-  // raw HTML with a base64 attachment + idempotency
-  const raw = { to: 'bob@example.com', subject: 'Hi', html: '<p>Hello <b>Bob</b></p>', attachments: [{ filename: 'a.txt', content: Buffer.from('hello').toString('base64') }] }
-  // the first delivery attempt hits a temporary SMTP error → retried later
-  svc.failWith(Object.assign(new Error('421 try later'), { responseCode: 421 }))
-  const first = await api('/v1/send', raw, { 'Idempotency-Key': 'order-1' })
-  const again = await api('/v1/send', raw, { 'Idempotency-Key': 'order-1' })
-  assert.equal(first.status, 202)
-  assert.equal(again.status, 200)
-  assert.equal(again.data.id, first.data.id)
-  await svc.app.sender.tick()
-  let m = (await api(`/v1/messages/${first.data.id}`)).data
-  assert.equal(m.status, 'queued')
-  assert.equal(m.attempts, 1)
-  assert.match(m.lastError, /421/)
-  svc.app.repo.db.run('UPDATE messages SET next_attempt_at = 0 WHERE id = ?', first.data.id)
-  await svc.app.sender.tick()
-  m = (await api(`/v1/messages/${first.data.id}`)).data
-  assert.equal(m.status, 'sent')
-  assert.match(svc.sent.at(-1).text, /Hello BOB|Hello Bob/)
-  assert.equal(svc.sent.at(-1).attachments[0].content.toString(), 'hello')
-
-  // `from` must stay in the org's domain; validation errors
-  assert.equal((await api('/v1/send', { ...raw, from: 'ceo@other.test' })).status, 400)
-  assert.equal((await api('/v1/send', { subject: 'x', html: '<p>x</p>', to: 'not-an-email' })).status, 400)
-
-  // the send log is visible to members
-  const log = (await ada.get(`/orgs/${org.id}/messages`)).data
-  assert.ok(log.length >= 2)
-  // a revoked key stops working
-  const keys = (await ada.get(`/orgs/${org.id}/keys`)).data
-  await ada.del(`/orgs/${org.id}/keys/${keys[0].id}`)
-  assert.equal((await api('/v1/render', raw)).status, 401)
-})
-
-test('service: db storage driver keeps the projects in the database', async () => {
-  const s = await startService({ storage: { driver: 'db' } })
-  try {
-    const c = client(s)
-    await c.login('carol@example.com')
-    const org = (await c.post('/orgs', { name: 'Db Org' })).data
-    assert.equal(org.storage, 'db')
-    const tpl = (await c.get('/api/template?id=general/welcome')).data
-    assert.equal((await c.put('/api/template', { ...tpl, mjml: tpl.mjml.replace('$t(\'body\')', 'Stored in the DB') })).status, 200)
-    const row = s.app.repo.db.get('SELECT content FROM files WHERE org_id = ? AND path = ?', org.id, 'templates/general/welcome/welcome.mjml')
-    assert.match(Buffer.from(row.content).toString(), /Stored in the DB/)
-    // a new instance (empty cache) materializes the project from the database
-    fs.rmSync(s.config.storage.cacheDir, { recursive: true, force: true })
-    s.app.workspaces.invalidate(org.id)
-    const s2app = await createApp(s.config, { log: null })
-    const ws = s2app.workspaces.get(org.id)
-    assert.match(fs.readFileSync(path.join(ws.project.templatesDir, 'general/welcome/welcome.mjml'), 'utf8'), /Stored in the DB/)
-    await s2app.close()
-  } finally {
-    await s.close()
-  }
-})
+after(() => setPdfSandbox(false))
 
 test('service: SSRF guard and secret encryption', async () => {
   for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.1.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:127.0.0.1', '100.64.0.1']) assert.ok(isPrivateAddress(ip), ip)

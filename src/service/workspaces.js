@@ -6,6 +6,7 @@ import { safeFetch } from './netguard.js'
 
 export function createWorkspaces({ config, repo, storage }) {
   const cache = new Map()
+  const loading = new Map()
 
   /** SMTP of an org in the shape the engine expects (password decrypted) or null */
   function smtpOf(org) {
@@ -25,18 +26,31 @@ export function createWorkspaces({ config, repo, storage }) {
 
   return {
     smtpOf,
-    get(orgId) {
-      let ws = cache.get(orgId)
-      if (!ws) {
-        const org = repo.orgById(orgId)
-        if (!org) return null
-        const project = loadProject(storage.projectDir(org))
-        project.smtp = smtpOf(org) // test sends use the org's SMTP, never the project file's
-        project.fetchImpl = safeFetch // remote attachments: public hosts only
-        ws = { org, project, handler: createHandler(project) }
-        cache.set(orgId, ws)
+    async get(orgId) {
+      if (cache.has(orgId)) {
+        // other instances may have changed the org (SMTP) or its files (db storage)
+        const ws = cache.get(orgId)
+        const org = await repo.orgById(orgId)
+        if (!org) { cache.delete(orgId); return null }
+        ws.org = org
+        ws.project.smtp = smtpOf(org)
+        if (storage.driver === 'db') await storage.projectDir(org)
+        return ws
       }
-      return ws
+      // concurrent first requests share the same load
+      if (!loading.has(orgId)) {
+        loading.set(orgId, (async () => {
+          const org = await repo.orgById(orgId)
+          if (!org) return null
+          const project = loadProject(await storage.projectDir(org))
+          project.smtp = smtpOf(org) // test sends use the org's SMTP, never the project file's
+          project.fetchImpl = safeFetch // remote attachments: public hosts only
+          const ws = { org, project, handler: createHandler(project) }
+          cache.set(orgId, ws)
+          return ws
+        })().finally(() => loading.delete(orgId)))
+      }
+      return loading.get(orgId)
     },
     invalidate: (orgId) => cache.delete(orgId),
   }

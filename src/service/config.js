@@ -6,7 +6,10 @@
 //   secret: …                                    # or TEMPLAITOR_SECRET (≥ 32 chars): encrypts SMTP passwords
 //   trustProxy: false                            # true behind a reverse proxy (X-Forwarded-For)
 //   signup: open                                 # open · invite (only invited emails can sign in)
-//   database: { driver: sqlite, file: templaitor.db }
+//   database:
+//     driver: sqlite                             # sqlite (file in dataDir) · postgres
+//     file: templaitor.db                        # sqlite
+//     url: postgres://user:pass@host:5432/db      # postgres (or TEMPLAITOR_DATABASE_URL)
 //   storage:
 //     driver: fs                                 # fs (a project folder per org) · db (files in the database)
 //     dir: orgs                                  # fs: folder holding one project per org (relative to dataDir)
@@ -22,6 +25,7 @@
 //   send:
 //     maxAttempts: 6
 //     rateLimitPerMinute: 120                    # per organization (API sends)
+//     retentionDays: 30                          # then the HTML/text/attachments of sent messages are purged (0 = keep)
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -68,10 +72,7 @@ export function loadServiceConfig({ cwd = process.cwd(), file, env = process.env
     trustProxy: String(env.TEMPLAITOR_TRUST_PROXY ?? raw.trustProxy ?? 'false') === 'true',
     signup: (env.TEMPLAITOR_SIGNUP || raw.signup || 'open') === 'invite' ? 'invite' : 'open',
     appName: raw.appName || 'templaitor',
-    database: {
-      driver: raw.database?.driver || 'sqlite',
-      file: path.resolve(dataDir, raw.database?.file || 'templaitor.db'),
-    },
+    database: databaseConfig(raw.database || {}, env, dataDir),
     storage: {
       driver: (env.TEMPLAITOR_STORAGE || storage.driver || 'fs') === 'db' ? 'db' : 'fs',
       dir: path.resolve(dataDir, storage.dir || 'orgs'),
@@ -79,8 +80,20 @@ export function loadServiceConfig({ cwd = process.cwd(), file, env = process.env
       projects: Object.fromEntries(Object.entries(storage.projects || {}).map(([slug, dir]) => [slug, path.resolve(cwd, dir)])),
     },
     smtp: smtpConfig?.host ? smtpConfig : null,
-    send: { maxAttempts: Number(raw.send?.maxAttempts || 6), rateLimitPerMinute: Number(raw.send?.rateLimitPerMinute || 120) },
+    send: {
+      maxAttempts: Number(raw.send?.maxAttempts || 6),
+      rateLimitPerMinute: Number(raw.send?.rateLimitPerMinute || 120),
+      retentionDays: Number(env.TEMPLAITOR_RETENTION_DAYS ?? raw.send?.retentionDays ?? 30),
+    },
   }
+}
+
+function databaseConfig(db, env, dataDir) {
+  const url = env.TEMPLAITOR_DATABASE_URL || db.url || ''
+  const driver = String(env.TEMPLAITOR_DATABASE || db.driver || (url ? 'postgres' : 'sqlite')).toLowerCase()
+  if (!['sqlite', 'postgres'].includes(driver)) throw new Error(`Unknown database driver: ${driver} (sqlite · postgres)`)
+  if (driver === 'postgres' && !url) throw new Error('database.url (or TEMPLAITOR_DATABASE_URL) is required with Postgres')
+  return { driver, url, file: path.resolve(dataDir, db.file || 'templaitor.db') }
 }
 
 function deepMerge(a, b) {

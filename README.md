@@ -330,7 +330,8 @@ tools do not change: `templaitor editor`, `make up` and `compile` keep working a
   and are materialized into a cache for the engine.
 - **Sending service** with each organization's **SMTP** (SES, Postmark, Mailgun, Brevo, your own server…;
   the password is stored encrypted), a persistent **queue** with retries (30 s → 6 h, 6 attempts) and a
-  **send log**:
+  **send log** (the HTML, text and attachments of sent messages are purged after `send.retentionDays`,
+  30 by default; the metadata stays):
 
 ```bash
 # hosted template + data (rendered in the requested language, with its attachments)
@@ -366,6 +367,19 @@ Put it behind a TLS reverse proxy (passkeys need HTTPS on the real domain). Conf
 `templaitor.server.yml` (see `templaitor.server.example.yml`) or `TEMPLAITOR_*` environment variables. Back
 up the data volume (SQLite database and organization projects). Plan: [`ROADMAP/2026-11-21/hosted-service.md`](ROADMAP/2026-11-21/hosted-service.md).
 
+**Database**: SQLite (a file in the data volume) by default — one instance. **Postgres** for several
+instances behind a load balancer: `TEMPLAITOR_DATABASE_URL=postgres://…` (or `database.url`), together with
+`TEMPLAITOR_STORAGE=db` so the templates are not on one instance's disk. With Docker:
+
+```bash
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.postgres.yml --env-file deploy/.env up -d --build
+```
+
+Migrations run on start (an advisory lock serializes them between instances), the send queue is claimed
+with `FOR UPDATE SKIP LOCKED` (no message is sent twice), and with `db` storage every instance re-reads the
+templates another instance changed and stores its own changes before answering. The service tests run
+against Postgres too when `TEMPLAITOR_TEST_POSTGRES_URL` points to a server (CI does it).
+
 ## Architecture
 
 ```
@@ -387,7 +401,7 @@ src/server/server.js       editor HTTP API + static files (local editor; reused 
 src/service/               hosted service (templaitor serve)
   app.js                   routes: auth, organizations, org-scoped editor API, /v1 send API, editor SPA
   auth.js · mailer.js      email codes, passkeys (WebAuthn), sessions · service emails
-  repo.js · db/            data access (portable SQL) · SQLite adapter and migrations
+  repo.js · db/            data access (portable SQL, async) · SQLite and Postgres adapters, migrations
   storage.js · workspaces.js   fs/db template storage · one project + editor handler per org
   sender.js · netguard.js  send queue and SMTP delivery · SSRF-safe fetch for remote attachments
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)

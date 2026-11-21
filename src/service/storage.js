@@ -11,7 +11,7 @@ const DEMO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const SKIP = new Set(['dist', 'node_modules', '.git'])
 
 export function createStorage({ config, repo }) {
-  const materialized = new Set()
+  const materialized = new Map() // org id → stamp of the files written to the cache
 
   const fsDir = (org) => config.storage.projects[org.slug] ?? path.join(config.storage.dir, org.slug)
   const isMapped = (org) => config.storage.driver === 'fs' && !!config.storage.projects[org.slug]
@@ -21,38 +21,47 @@ export function createStorage({ config, repo }) {
     isMapped,
 
     /** Project directory of an org, ready for the engine */
-    projectDir(org) {
+    async projectDir(org) {
       if (config.storage.driver === 'fs') return fsDir(org)
       const dir = path.join(config.storage.cacheDir, org.id)
-      if (!materialized.has(org.id)) {
-        fs.rmSync(dir, { recursive: true, force: true })
-        fs.mkdirSync(dir, { recursive: true })
-        for (const f of repo.fileContents(org.id)) {
-          const full = safeJoin(dir, f.path)
+      // another instance may have changed the files: re-materialize when the stamp changes
+      const stamp = await repo.filesStamp(org.id)
+      if (materialized.get(org.id) !== stamp || !fs.existsSync(dir)) {
+        // written next to it and swapped, so requests in flight never see a half-written project
+        const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`
+        fs.mkdirSync(tmp, { recursive: true })
+        for (const f of await repo.fileContents(org.id)) {
+          const full = safeJoin(tmp, f.path)
           fs.mkdirSync(path.dirname(full), { recursive: true })
           fs.writeFileSync(full, Buffer.from(f.content))
         }
-        materialized.add(org.id)
+        const old = `${dir}.old-${process.pid}-${Date.now()}`
+        if (fs.existsSync(dir)) fs.renameSync(dir, old)
+        fs.renameSync(tmp, dir)
+        fs.rmSync(old, { recursive: true, force: true })
+        materialized.set(org.id, stamp)
       }
       return dir
     },
 
     /** After a write through the editor API: copy changes back to the database (db driver) */
-    sync(org) {
+    async sync(org) {
       if (config.storage.driver !== 'db') return 0
-      const dir = storage.projectDir(org)
-      const stored = new Map(repo.files(org.id).map(f => [f.path, f.hash]))
+      const dir = await storage.projectDir(org)
+      const stored = new Map((await repo.files(org.id)).map(f => [f.path, f.hash]))
       const seen = new Set()
       let changes = 0
-      repo.db.tx(() => {
+      await repo.db.tx(async () => {
         for (const rel of walkFiles(dir)) {
           seen.add(rel)
           const content = fs.readFileSync(path.join(dir, rel))
           const hash = sha256(content)
-          if (stored.get(rel) !== hash) { repo.putFile(org.id, rel, content, hash); changes++ }
+          if (stored.get(rel) !== hash) { await repo.putFile(org.id, rel, content, hash); changes++ }
         }
-        for (const rel of stored.keys()) if (!seen.has(rel)) { repo.deleteFile(org.id, rel); changes++ }
+        for (const rel of stored.keys()) if (!seen.has(rel)) { await repo.deleteFile(org.id, rel); changes++ }
       })
+      // our own writes: the cache is already up to date
+      materialized.set(org.id, await repo.filesStamp(org.id))
       return changes
     },
 
@@ -80,7 +89,7 @@ export function createStorage({ config, repo }) {
         createLayout(project, 'base.layout')
         createTemplate(loadProject(dir), 'general/welcome', { layout: 'base.layout.mjml', langs: Object.keys(loc) })
       }
-      if (config.storage.driver === 'db') { materialized.add(org.id); storage.sync(org) }
+      if (config.storage.driver === 'db') { materialized.set(org.id, await repo.filesStamp(org.id)); await storage.sync(org) }
       return dir
     },
 
