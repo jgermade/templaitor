@@ -8,7 +8,10 @@ import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
 import { annotateBody, chipify } from '../src/engine/design.js'
 import { loadProject, readTemplate, createTemplate, listTemplates, listComponents, readLinks, listLayouts, readLayout, writeLayout } from '../src/engine/project.js'
-import { compileProject, previewDraft, compileSource } from '../src/engine/pipeline.js'
+import { compileProject, previewDraft, compileSource, renderDraftAttachments } from '../src/engine/pipeline.js'
+import { normalizeAttachments } from '../src/shared/attachments.js'
+import { renderAttachment, attachmentData } from '../src/engine/attachments.js'
+import { listEngines } from '../src/engine/pdf.js'
 import { findImportCalls, parseImportCall, formatImportCall, applyParams } from '../src/shared/imports.js'
 import { accessibilityReport, contrast, parseColor } from '../src/engine/a11y.js'
 import { pdfOptions, contentWidthPx, marginBoxContent } from '../src/engine/pdf.js'
@@ -89,7 +92,8 @@ test('demo project compilation: Jinja2 intact in HTML/TXT/subject', async () => 
   const { files, issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0, JSON.stringify(issues))
   // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (per language)
-  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0)
+  // (+ .attachments.json per language for emails with attachments)
+  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0) + 2
   assert.equal(files.length, expected)
   const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
   const html = fs.readFileSync(`${base}.html`, 'utf8')
@@ -279,4 +283,79 @@ test('PDF: every available engine renders; veraPDF confirms PDF/UA-1 for the eng
     }
   }
   await closePdfBrowser()
+})
+
+test('attachments: normalized short and long forms', () => {
+  assert.deepEqual(normalizeAttachments(['documents/invoice', 'https://x.y/a.pdf', { url: 'https://x.y/b', filename: 'b.pdf' }, { template: 'a/b', context: 'inv' }, { foo: 1 }]).map(a => [a.type, a.ref, a.filename, a.context]), [
+    ['template', 'documents/invoice', '', ''],
+    ['url', 'https://x.y/a.pdf', '', ''],
+    ['url', 'https://x.y/b', 'b.pdf', ''],
+    ['template', 'a/b', '', 'inv'],
+    ['invalid', '', '', ''],
+  ])
+  assert.deepEqual(normalizeAttachments(undefined), [])
+  assert.deepEqual(attachmentData({ context: 'invoice' }, { invoice: { number: 1 } }, { number: 0, year: 2026 }), { number: 1, year: 2026 })
+  assert.deepEqual(attachmentData({}, { a: 1 }, { a: 0, b: 2 }), { a: 1, b: 2 })
+})
+
+test('attachments: local PDF templates follow the email language; remote URLs resolve $ commands', async () => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-'))
+  const project = loadProject(DEMO, { outDir })
+  const tpl = readTemplate(project, 'orders/order-confirmation')
+  const mjml = tpl.mjml.replace('    context: invoice', '    context: invoice\n  - url: "https://example.com/terms-$lang.pdf?v={{ year }}"')
+  const i18n = YAML.parse(tpl.yml)
+  const es = await compileSource(project, { mjml, i18n, links: readLinks(project), langKey: 'es' })
+  assert.deepEqual(es.warnings, [])
+  assert.equal(es.attachments.length, 2)
+  assert.deepEqual(es.attachments[0], {
+    index: 0, type: 'template', template: 'documents/invoice', langKey: 'es', locale: 'es-ES', context: 'invoice',
+    filename: 'factura-{{ invoice.number }}.pdf', html: 'documents/invoice/invoice.es-ES.html',
+    options: 'documents/invoice/invoice.es-ES.pdf.json', contentType: 'application/pdf',
+  })
+  assert.deepEqual(es.attachments[1], { index: 1, type: 'url', url: 'https://example.com/terms-es-ES.pdf?v={{ year }}', filename: 'terms-es-ES.pdf' })
+
+  // preview: names and URLs rendered with the demo data
+  const en = await previewDraft(project, { mjml, yml: tpl.yml, data: tpl.data, langKey: 'en' })
+  assert.deepEqual(en.attachments.map(a => a.filename), ['invoice-2026-0042.pdf', 'terms-en-US.pdf'])
+  assert.equal(en.attachments[1].url, 'https://example.com/terms-en-US.pdf?v=2026')
+
+  // compile: <name>.<locale>.attachments.json for the backend
+  await compileProject(project, { target: 'orders/order-confirmation', log: null })
+  const json = JSON.parse(fs.readFileSync(path.join(outDir, 'orders/order-confirmation/order-confirmation.en-US.attachments.json'), 'utf8'))
+  assert.equal(json[0].html, 'documents/invoice/invoice.en-US.html')
+  assert.equal(json[0].filename, 'invoice-{{ invoice.number }}.pdf')
+
+  // missing template / missing language / not a PDF → warnings
+  const bad = await compileSource(project, {
+    mjml: '---\nattachments:\n  - template: nope/missing\n  - orders/order-confirmation\n---\n<mjml><mj-body></mj-body></mjml>',
+    i18n: { messages: { fr: {} } }, links: {}, langKey: 'fr',
+  })
+  assert.equal(bad.attachments.length, 1)
+  assert.match(bad.warnings.join('\n'), /nope\/missing does not exist/)
+  assert.match(bad.warnings.join('\n'), /is not a PDF template/)
+  assert.match(bad.warnings.join('\n'), /no "fr" texts; it is attached in "es"/)
+})
+
+test('attachments: remote files are downloaded with the rendered URL', async () => {
+  const project = loadProject(DEMO)
+  const seen = []
+  const fetchImpl = async (url) => { seen.push(url); return new Response('%PDF-1.7 demo', { headers: { 'content-type': 'application/pdf' } }) }
+  const att = { type: 'url', url: 'https://example.com/{{ doc }}.pdf', filename: '{{ doc }}.pdf' }
+  const out = await renderAttachment(project, att, { doc: 'terms' }, { render: (t, d) => t.replace('{{ doc }}', d.doc), fetchImpl })
+  assert.deepEqual(seen, ['https://example.com/terms.pdf'])
+  assert.equal(out.filename, 'terms.pdf')
+  assert.equal(out.contentType, 'application/pdf')
+  assert.equal(out.content.toString(), '%PDF-1.7 demo')
+  const failing = async () => new Response('no', { status: 404 })
+  await assert.rejects(renderAttachment(project, att, { doc: 'x' }, { render: t => t.replace('{{ doc }}', 'x'), fetchImpl: failing }), /HTTP 404/)
+})
+
+test('attachments: the local invoice is rendered as a PDF in the email language', { timeout: 120000 }, async (t) => {
+  if (!listEngines().some(e => e.available)) return t.skip('no PDF engine available')
+  const project = loadProject(DEMO)
+  const tpl = readTemplate(project, 'orders/order-confirmation')
+  const [att] = await renderDraftAttachments(project, { ...tpl, langKey: 'es' })
+  assert.equal(att.filename, 'factura-2026-0042.pdf')
+  assert.equal(att.contentType, 'application/pdf')
+  assert.equal(att.content.subarray(0, 5).toString(), '%PDF-')
 })

@@ -105,6 +105,13 @@
         {/if}
         {#if store.loadingPreview}<span class="spinner" aria-label="Updating"></span>{/if}
         <span class="grow"></span>
+        {#if store.attachments.length && store.preview.attachments?.length}
+          <ul class="attachments" aria-label="Attachments">
+            {#each store.preview.attachments as a (a.index)}
+              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}>📎 {a.filename}</button></li>
+            {/each}
+          </ul>
+        {/if}
         {#if store.preview.a11yReport}
           {@const vp = store.view === 'pdf' && store.pdfValidation?.status === 'done' && !store.pdfValidation.stale ? store.pdfValidation.result : null}
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
@@ -186,6 +193,8 @@
   .subject .label { color: #3f3f46; min-width: 76px; }
   .subject input { flex: 1; max-width: 760px; border-color: transparent; background: transparent; font-size: 15px; padding: 4px 6px; }
   .subject input:hover { border-color: var(--border); background: #fff; }
+  .attachments { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; min-width: 0; overflow: hidden; }
+  .attachments .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
   .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }

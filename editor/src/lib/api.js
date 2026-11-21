@@ -33,6 +33,15 @@ export const api = {
     }
     return { blob: await res.blob(), engine: res.headers.get('X-Templaitor-Engine') }
   },
+  /** One attachment of the draft rendered with the demo data → Blob */
+  attachment: async (draft, index) => {
+    const res = await fetch('/api/attachment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, index }) })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    return res.blob()
+  },
   validatePdf: (draft) => request('POST', '/api/pdf/validate', draft),
   assets: () => request('GET', '/api/assets'),
   uploadAsset: async (file) => {

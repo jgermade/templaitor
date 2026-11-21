@@ -13,6 +13,7 @@ rendered at runtime (minijinja, Jinja2, Tera…).
 template.mjml + template.yml (texts per language) ──► dist/<id>/<name>.<locale>.html
                                                   ──► dist/<id>/<name>.<locale>.txt
                                                   ──► dist/<id>/<name>.<locale>.subject.txt
+                                                  ──► dist/<id>/<name>.<locale>.attachments.json (if any)
 ```
 
 ## Quick start
@@ -224,6 +225,37 @@ does not reach PDF/UA-1: use it only for quick previews or when no other engine 
 `make verapdf` pulls it and `make pdf-tools` checks engines and validator. Failing rules are shown with
 their ISO 14289-1 clause and an explanation.
 
+## Email attachments
+
+An email lists its attachments in the frontmatter. They can be **local** (a PDF template of the project,
+rendered in the same language as the email) or **remote** (a URL):
+
+```
+---
+layout: base.layout.mjml
+attachments:
+  - template: documents/invoice                      # local PDF template
+    filename: "$t('invoice_file')"                   # optional (default: invoice.pdf)
+    context: invoice                                 # optional: email variable used as the document's data
+  - url: "https://example.com/terms-$lang.pdf"       # remote file
+    filename: terms.pdf                              # optional (default: last segment of the URL)
+  - documents/delivery-note                          # short forms: template id…
+  - https://example.com/catalogue.pdf                # …or URL
+---
+```
+
+- `$lang`, `$t()` and `$link{}` are resolved at compile time in `url` and `filename`; Jinja2 (`{{ }}`) is
+  kept and rendered at runtime with the email's data.
+- A local attachment is rendered with the locale of the email. If the document has no texts in that
+  language it falls back to its first language (with a warning). Without `context`, the document is
+  rendered with the whole email context; with `context: invoice`, with the email's `invoice` variable.
+- `templaitor compile` writes `<name>.<locale>.attachments.json` for the backend: local entries point to the
+  compiled document (`html`, `options` → its `.pdf.json`, relative to `outDir`) and remote ones carry the `url`.
+- In the editor: **Attachments** under "Template" (add a local PDF or a remote file, file name, context),
+  📎 chips in the subject bar to open each attachment rendered with the demo data, and **Send a test**
+  attaches them (local PDFs rendered with the engine, remote files downloaded).
+- Accessibility: local PDFs are rendered as PDF/UA-1 like any other document; remote files are not checked.
+
 ## Accessibility
 
 Emails and PDFs are checked against **WCAG 2.1 AA / EN 301 549** (the standard required by the European
@@ -290,11 +322,13 @@ src/shared/                code shared by Node and the browser
   components.js            component catalog (attributes, valid nesting)
   imports.js               $import calls with parameters
   semantics.js             paragraph / heading semantics
+  attachments.js           attachments frontmatter (normalized list)
 src/engine/                compilation engine (ported from doomus-rs)
   pipeline.js              frontmatter → $import/layout → $ commands → guard → MJML → HTML/TXT
   design.js                design-mode annotation (node ids, editable regions, chips)
   a11y.js                  accessibility checker (WCAG 2.1 AA)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
+  attachments.js           email attachments (local PDF templates per language, remote files)
   commands.js · guard.js · resolver.js · render.js · project.js
 src/server/server.js       editor HTTP API + static files
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
@@ -327,5 +361,5 @@ Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · 
 - [ ] Floating format toolbar (bold, italic, link) for inline editing.
 - [ ] Variable validation: warn about `{{ var }}` without demo data.
 - [ ] Render the preview with minijinja (Rust) so it matches the runtime exactly.
-- [ ] Attach a PDF (PDF template) to an email when sending a test.
+- [x] Email attachments: local PDF templates (per language) and remote files.
 - [ ] Template compare mode: code diff (MJML/YAML/data) and visual diff (side by side / overlay).

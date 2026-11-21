@@ -12,7 +12,8 @@ import { accessibilityReport, imagesWithoutAlt } from './a11y.js'
 import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
-import { tryRenderJinja } from './render.js'
+import { tryRenderJinja, renderJinja } from './render.js'
+import { resolveAttachments, renderAttachment } from './attachments.js'
 import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
 const CONTENT_SLOT = `<mj-section css-class="tpl-slot" padding="16px 24px">
@@ -117,7 +118,10 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 8. Accessibility (WCAG 2.1 AA)
   const a11yReport = accessibilityReport(html, { format, sourceImages: imagesWithoutAlt(resolved) })
 
-  return { locale, langKey, html, text, subject, meta, format, pdf, warnings, errors, a11y: a11yReport.issues, a11yReport }
+  // 9. Attachments (emails): local PDF templates in this language and remote files
+  const attachments = format === 'email' && kind === 'template' ? resolveAttachments(project, meta, ctx) : []
+
+  return { locale, langKey, html, text, subject, meta, format, pdf, attachments, warnings, errors, a11y: a11yReport.issues, a11yReport }
 }
 
 /** Compiles a project template and writes the files to outDir */
@@ -161,6 +165,11 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
     } else {
       if (project.output.text) { fs.writeFileSync(`${base}.txt`, r.text); files.push(`${base}.txt`) }
       if (project.output.subject) { fs.writeFileSync(`${base}.subject.txt`, r.subject); files.push(`${base}.subject.txt`) }
+      if (r.attachments.length) {
+        // for the backend: what to attach (local documents point to their compiled files)
+        fs.writeFileSync(`${base}.attachments.json`, `${JSON.stringify(r.attachments.map(({ index, ...a }) => a), null, 2)}\n`)
+        files.push(`${base}.attachments.json`)
+      }
     }
     for (const w of r.warnings) issues.push({ level: 'warn', template: p.id, locale: r.locale, message: w })
     for (const e of r.errors) issues.push({ level: 'mjml', template: p.id, locale: r.locale, message: e })
@@ -205,8 +214,48 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
     html: tryRenderJinja(r.html, demo, warnings),
     text: tryRenderJinja(r.text, demo, warnings),
     subject: tryRenderJinja(r.subject, demo, warnings),
+    attachments: r.attachments.map(a => ({
+      ...a,
+      filename: tryRenderJinja(a.filename, demo, warnings),
+      ...(a.url ? { url: tryRenderJinja(a.url, demo, warnings) } : {}),
+    })),
     warnings,
   }
+}
+
+/** PDF of a project template rendered in one language with the given data */
+export async function renderTemplatePdf(project, id, langKey, data, { engine } = {}) {
+  const tpl = readTemplate(project, id)
+  const i18n = tpl.yml ? YAML.parse(tpl.yml) || {} : {}
+  const r = await compileSource(project, { mjml: tpl.mjml, i18n, links: readLinks(project), langKey })
+  if (r.format !== 'pdf') {
+    const err = new Error(`${id} is not a PDF document (add \`format: pdf\` to its frontmatter)`)
+    err.status = 400
+    throw err
+  }
+  const out = await renderPdf(renderJinja(r.html, data), r.pdf, { staticDir: project.staticDir, engine: engine || undefined })
+  return out.pdf
+}
+
+/**
+ * Attachments of a draft rendered with its demo data (or `data`):
+ * [{ filename, content, contentType }]. `index` renders only that attachment.
+ */
+export async function renderDraftAttachments(project, { mjml, yml = '', data = '{}', langKey }, { index, values } = {}) {
+  const i18n = YAML.parse(yml || '') || {}
+  const demo = values ?? JSON5.parse(data || '{}')
+  const lang = langKey || langsOf(project, i18n)[0]
+  const r = await compileSource(project, { mjml, i18n, links: readLinks(project), langKey: lang })
+  const list = index == null ? r.attachments : r.attachments.filter(a => a.index === Number(index))
+  if (index != null && !list.length) {
+    const err = new Error(`Attachment ${Number(index) + 1} not found${r.warnings.length ? `: ${r.warnings.join(' · ')}` : ''}`)
+    err.status = 404
+    throw err
+  }
+  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d) }
+  const out = []
+  for (const att of list) out.push(await renderAttachment(project, att, demo, opts))
+  return out
 }
 
 /**

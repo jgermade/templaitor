@@ -10,7 +10,7 @@ import {
   listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
   listLayouts, readLayout, writeLayout, createLayout, deleteLayout,
 } from '../engine/project.js'
-import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf, validateDraftPdf } from '../engine/pipeline.js'
+import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf, validateDraftPdf, renderDraftAttachments } from '../engine/pipeline.js'
 import { listEngines, resolveEngine } from '../engine/pdf.js'
 import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
@@ -122,6 +122,10 @@ export function createHandler(project) {
       const data = JSON5.parse(body.data || '{}')
       const lang = body.lang || langsOf(project, i18n)[0]
       const r = await compileSource(project, { mjml: body.mjml, i18n, links: readLinks(project), langKey: lang, kind: kindOf(body.kind) })
+      // attachments: local PDF templates rendered in this language, remote files downloaded
+      const attachments = r.attachments.length
+        ? await renderDraftAttachments(project, { mjml: body.mjml, yml: body.yml, langKey: lang }, { values: data })
+        : []
       const transport = nodemailer.createTransport({
         host: project.smtp.host || 'localhost',
         port: Number(project.smtp.port || 1025),
@@ -134,11 +138,12 @@ export function createHandler(project) {
         subject: renderJinja(r.subject, data),
         html: renderJinja(r.html, data),
         text: renderJinja(r.text, data),
+        attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
       }).catch((err) => {
         const where = `${project.smtp.host || 'localhost'}:${project.smtp.port || 1025}`
         throw httpError(502, /ECONNREFUSED/.test(`${err.code} ${err.message}`) ? `No SMTP server at ${where} (is Mailpit running? make up)` : err.message)
       })
-      return { ok: true, messageId: info.messageId }
+      return { ok: true, messageId: info.messageId, attachments: attachments.map(a => a.filename) }
     },
   }
 
@@ -162,6 +167,18 @@ export function createHandler(project) {
           'X-Templaitor-Warnings': encodeURIComponent(JSON.stringify(result.warnings || [])),
         })
         return res.end(pdf)
+      }
+      if (url.pathname === '/api/attachment' && req.method === 'POST') {
+        // one attachment of the draft rendered with the demo data (local PDF or downloaded remote file)
+        const body = await readJson(req)
+        const [att] = await renderDraftAttachments(project, {
+          mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang,
+        }, { index: body.index ?? 0 })
+        res.writeHead(200, {
+          'Content-Type': att.contentType,
+          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(att.filename)}`,
+        })
+        return res.end(att.content)
       }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]

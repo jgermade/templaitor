@@ -51,11 +51,11 @@
     if (!to) return
     try { localStorage.setItem('tpl:send-to', to) } catch {}
     try {
-      const { messageId } = await api.send({ ...draft(), to })
+      const { messageId, attachments = [] } = await api.send({ ...draft(), to })
       const web = store.project.smtp.web
       const href = web ? (await mailpitMessageUrl(web, messageId)) ?? web : null
       if (href) store.lastSentUrl = href
-      store.notify(`Sent to ${to}`, 'success', href ? { href, label: `Open in ${store.project.smtp.label}` } : null)
+      store.notify(`Sent to ${to}${attachments.length ? ` · 📎 ${attachments.join(', ')}` : ''}`, 'success', href ? { href, label: `Open in ${store.project.smtp.label}` } : null)
     } catch (e) {
       store.notify(e.message, 'error')
     }
