@@ -302,6 +302,16 @@ of its own, so the preview uses those of the first template using it (not saved 
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
 - **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
+- **Compare**: the current draft (B) against a base (A) — the **saved version**, a **git commit** of the
+  document (when the project is in a repository: the commits that touched its `.mjml`/`.yml`/`.json5`),
+  or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
+  own demo data (or the same data for both).
+  - *Visual*: **side by side** (one scroll), **overlay** (opacity of B), **difference** (identical pixels
+    are black, changes show in color) and **swipe**; desktop or mobile width.
+  - *Code*: line diff of MJML, texts, demo data, the rendered text and the compiled HTML (Jinja2 kept),
+    with the number of changed blocks per tab. The draft side is editable and **⇥ copies a chunk from A**
+    into it (e.g. restore a text from the last commit).
+  - A summary of what changed: subject, accessibility result, HTML size and attachments.
 - Undo/redo, `Ctrl+S`, mobile view, compile and SMTP test sending. Dialogs are `<dialog>` modals.
 
 Visual edits rewrite the MJML with a normalized format (2-space indentation).
@@ -396,6 +406,7 @@ src/engine/                compilation engine (ported from doomus-rs)
   a11y.js                  accessibility checker (WCAG 2.1 AA)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
   attachments.js           email attachments (local PDF templates per language, remote files)
+  history.js               git history of a document (compare mode)
   commands.js · guard.js · resolver.js · render.js · project.js
 src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
 src/service/               hosted service (templaitor serve)

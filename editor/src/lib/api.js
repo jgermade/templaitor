@@ -43,6 +43,9 @@ export const api = {
     return res.blob()
   },
   validatePdf: (draft) => request('POST', '/api/pdf/validate', draft),
+  /** Compare mode: git commits of a document and the document at a commit */
+  history: (id, kind = 'template') => request('GET', `/api/history?${q({ id, kind })}`),
+  version: (id, kind, rev) => request('GET', `/api/version?${q({ id, kind, rev })}`),
   assets: () => request('GET', '/api/assets'),
   uploadAsset: async (file) => {
     const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })

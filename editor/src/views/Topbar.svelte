@@ -17,6 +17,7 @@
     ['preview', 'Preview'],
     ...(store.isPdf ? [['pdf', 'PDF']] : []),
     ['code', 'Code'],
+    ['compare', 'Compare'],
   ])
 
   const draft = () => ({ kind: store.kind, mjml: store.doc.mjml, yml: store.doc.yml, data: store.doc.data, lang: store.lang })

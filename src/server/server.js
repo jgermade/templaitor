@@ -15,6 +15,7 @@ import { listEngines, resolveEngine } from '../engine/pdf.js'
 import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
+import { documentHistory, documentAt } from '../engine/history.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EDITOR_DIST = path.resolve(__dirname, '../../dist/editor')
@@ -62,6 +63,10 @@ export function createHandler(project) {
     }, { engine: body.engine }),
 
     'POST /api/layouts': ({ body }) => createLayout(project, body.id),
+
+    // compare mode: git history of a document and the document at a commit
+    'GET /api/history': ({ query }) => documentHistory(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
+    'GET /api/version': ({ query }) => documentAt(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
 
     // `kind`: 'template' (default) | 'component' | 'layout'
     'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
@@ -221,6 +226,7 @@ function pdfInfo(project) {
 }
 
 const kindOf = (k) => (k === 'component' ? 'component' : 'template')
+const docKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')
 const previewKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')
 
 function rel(project, file) {

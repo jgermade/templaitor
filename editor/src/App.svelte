@@ -6,6 +6,7 @@
   import Inspector from './views/Inspector.svelte'
   import CodeView from './views/CodeView.svelte'
   import PdfView from './views/PdfView.svelte'
+  import CompareView from './views/CompareView.svelte'
   import A11yReport from './views/A11yReport.svelte'
   import NewTemplateDialog from './views/NewTemplateDialog.svelte'
   import Toast from './components/Toast.svelte'
@@ -158,6 +159,8 @@
         </div>
       {:else if store.view === 'code'}
         <CodeView />
+      {:else if store.view === 'compare'}
+        <CompareView />
       {:else}
         {@const report = store.view === 'preview' || store.view === 'pdf'}
         <div class="layout" class:with-inspector={(store.view === 'design' && store.selected && !showText) || report}>
