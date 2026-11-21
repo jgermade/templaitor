@@ -1,0 +1,12 @@
+apiVersion: v2
+name: templaitor
+description: templaitor hosted service — users, organizations, MJML template editor and send API with accessible PDFs
+type: application
+# version and appVersion are stamped with the release version by the release workflow
+version: 0.1.2
+appVersion: "0.1.2"
+home: https://jgermade.github.io/templaitor/
+sources:
+  - https://github.com/jgermade/templaitor
+icon: https://jgermade.github.io/templaitor/assets/logo-512.png
+keywords: [mjml, email, templates, jinja2, pdf, accessibility]
