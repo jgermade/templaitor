@@ -4,3 +4,6 @@ examples/*/dist/
 .DS_Store
 *.log
 artifacts/
+templaitor.server.yml
+data/
+deploy/.env

@@ -10,11 +10,12 @@ import {
   listMjmlFiles, resolveAuxFile, httpError, listComponents, createComponent, listAssets, saveAsset,
   listLayouts, readLayout, writeLayout, createLayout, deleteLayout,
 } from '../engine/project.js'
-import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf, validateDraftPdf } from '../engine/pipeline.js'
+import { previewDraft, compileProject, compileSource, langsOf, renderDraftPdf, validateDraftPdf, renderDraftAttachments } from '../engine/pipeline.js'
 import { listEngines, resolveEngine } from '../engine/pdf.js'
 import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
+import { documentHistory, documentAt } from '../engine/history.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EDITOR_DIST = path.resolve(__dirname, '../../dist/editor')
@@ -62,6 +63,10 @@ export function createHandler(project) {
     }, { engine: body.engine }),
 
     'POST /api/layouts': ({ body }) => createLayout(project, body.id),
+
+    // compare mode: git history of a document and the document at a commit
+    'GET /api/history': ({ query }) => documentHistory(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
+    'GET /api/version': ({ query }) => documentAt(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
 
     // `kind`: 'template' (default) | 'component' | 'layout'
     'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
@@ -122,11 +127,15 @@ export function createHandler(project) {
       const data = JSON5.parse(body.data || '{}')
       const lang = body.lang || langsOf(project, i18n)[0]
       const r = await compileSource(project, { mjml: body.mjml, i18n, links: readLinks(project), langKey: lang, kind: kindOf(body.kind) })
+      // attachments: local PDF templates rendered in this language, remote files downloaded
+      const attachments = r.attachments.length
+        ? await renderDraftAttachments(project, { mjml: body.mjml, yml: body.yml, langKey: lang }, { values: data })
+        : []
       const transport = nodemailer.createTransport({
         host: project.smtp.host || 'localhost',
         port: Number(project.smtp.port || 1025),
         secure: !!project.smtp.secure,
-        ...(project.smtp.user ? { auth: { user: project.smtp.user, pass: process.env[project.smtp.passEnv || 'SMTP_PASS'] } } : {}),
+        ...(project.smtp.user ? { auth: { user: project.smtp.user, pass: project.smtp.pass ?? process.env[project.smtp.passEnv || 'SMTP_PASS'] } } : {}),
       })
       const info = await transport.sendMail({
         from: project.smtp.from || 'templaitor@localhost',
@@ -134,11 +143,12 @@ export function createHandler(project) {
         subject: renderJinja(r.subject, data),
         html: renderJinja(r.html, data),
         text: renderJinja(r.text, data),
+        attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
       }).catch((err) => {
         const where = `${project.smtp.host || 'localhost'}:${project.smtp.port || 1025}`
         throw httpError(502, /ECONNREFUSED/.test(`${err.code} ${err.message}`) ? `No SMTP server at ${where} (is Mailpit running? make up)` : err.message)
       })
-      return { ok: true, messageId: info.messageId }
+      return { ok: true, messageId: info.messageId, attachments: attachments.map(a => a.filename) }
     },
   }
 
@@ -162,6 +172,18 @@ export function createHandler(project) {
           'X-Templaitor-Warnings': encodeURIComponent(JSON.stringify(result.warnings || [])),
         })
         return res.end(pdf)
+      }
+      if (url.pathname === '/api/attachment' && req.method === 'POST') {
+        // one attachment of the draft rendered with the demo data (local PDF or downloaded remote file)
+        const body = await readJson(req)
+        const [att] = await renderDraftAttachments(project, {
+          mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang,
+        }, { index: body.index ?? 0 })
+        res.writeHead(200, {
+          'Content-Type': att.contentType,
+          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(att.filename)}`,
+        })
+        return res.end(att.content)
       }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]
@@ -204,6 +226,7 @@ function pdfInfo(project) {
 }
 
 const kindOf = (k) => (k === 'component' ? 'component' : 'template')
+const docKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')
 const previewKind = (k) => (['component', 'layout'].includes(k) ? k : 'template')
 
 function rel(project, file) {

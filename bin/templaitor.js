@@ -19,6 +19,9 @@ Usage:
   templaitor engines                          Available PDF engines and validator
   templaitor editor [--port 3333] [--open]    Open the visual editor
   templaitor new <group/name> [--layout x]    Create a new template
+  templaitor serve [--config templaitor.server.yml] [--port 3000]
+                                              Hosted service: users, organizations, editor and send API
+                                              (Node ≥ 22.13; see "Hosted service" in the README)
 
 Global options:
   --cwd <dir>     Project directory (where templaitor.config.yml lives)
@@ -37,6 +40,13 @@ const [cmd, target] = positional
 const cwd = path.resolve(flag('cwd', process.cwd()))
 
 async function main() {
+  if (cmd === 'serve') {
+    const { serve } = await import('../src/service/serve.js')
+    const file = flag('config')
+    await serve({ cwd, file: typeof file === 'string' ? file : undefined, port: typeof flag('port') === 'string' ? flag('port') : undefined })
+    return
+  }
+
   const project = loadProject(cwd)
 
   if (cmd === 'compile') {

@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+.git
+artifacts
+examples/*/dist
+site/screenshots
+*.log

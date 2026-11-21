@@ -91,10 +91,16 @@ function walkDocs(root) {
       const id = rel ? `${rel}/${entry.name}` : entry.name
       if (fs.existsSync(path.join(full, `${entry.name}.mjml`))) {
         const i18n = readYaml(path.join(full, `${entry.name}.yml`))
+        let format = 'email'
+        try {
+          const { meta } = parseFrontmatter(fs.readFileSync(path.join(full, `${entry.name}.mjml`), 'utf8'))
+          if (String(meta.format || '').toLowerCase() === 'pdf') format = 'pdf'
+        } catch {}
         out.push({
           id,
           name: entry.name,
           group: rel || null,
+          format,
           langs: Object.keys(i18n?.messages || {}),
         })
       } else {

@@ -11,6 +11,7 @@ messages:
     total: "Total: {{ total }} €"
     track: Seguir envío
     banner_caption: Tu pedido ya está en preparación
+    invoice_file: "factura-{{ invoice.number }}.pdf"
   en:
     title: Thanks for your order, {{ first_name }}!
     intro: We've received your order <b>#{{ order_id }}</b>. We'll let you know when it ships.
@@ -19,3 +20,4 @@ messages:
     total: "Total: {{ total }} €"
     track: Track shipment
     banner_caption: Your order is being prepared
+    invoice_file: "invoice-{{ invoice.number }}.pdf"

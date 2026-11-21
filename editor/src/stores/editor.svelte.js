@@ -13,6 +13,7 @@ import {
 } from '@shared/mjml-tree.js'
 import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js'
 import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
+import { normalizeAttachments } from '@shared/attachments.js'
 import { COMPONENTS, canContain } from '@shared/components.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
@@ -59,6 +60,8 @@ class EditorStore {
   /** PDF template (`format: pdf` in the frontmatter) */
   isPdf = $derived(this.isTemplate && String(this.frontmatter.format || '').toLowerCase() === 'pdf')
   pdfSettings = $derived(this.frontmatter.pdf || {})
+  /** Email attachments (`attachments` in the frontmatter) */
+  attachments = $derived(this.isTemplate && !this.isPdf ? normalizeAttachments(this.frontmatter.attachments) : [])
   /** Parameters declared in the frontmatter (when editing a component) */
   componentParams = $derived(normalizeParams(this.frontmatter.params))
   isFragment = $derived(!!this.frontmatter.layout || (this.isComponent && !/<mjml[\s>]/.test(this.doc?.mjml || '')))
@@ -436,6 +439,56 @@ class EditorStore {
       }
     })
     if (format !== 'pdf' && this.view === 'pdf') this.view = 'preview'
+  }
+
+  // ── Attachments (email frontmatter) ──
+  /** Adds a local PDF template (`{ template }`) or a remote file (`{ url }`) */
+  addAttachment(entry) {
+    this.#editFrontmatter((fm) => {
+      const node = fm.createNode(entry)
+      const list = fm.get('attachments', true)
+      if (YAML.isSeq(list)) list.items.push(node)
+      else fm.set('attachments', fm.createNode([...(list == null ? [] : [YAML.isNode(list) ? list.toJSON() : list]), entry]))
+    })
+  }
+
+  /** Sets (or removes, when empty) a field of an attachment: template · url · filename · context */
+  setAttachment(index, field, value) {
+    this.#editFrontmatter((fm) => {
+      const list = fm.get('attachments', true)
+      if (!YAML.isSeq(list) || !list.items[index]) return
+      // short form (`- documents/invoice` · `- https://…`) → full form
+      if (!YAML.isMap(list.items[index])) {
+        const a = normalizeAttachments([list.items[index].value ?? ''])[0]
+        list.items[index] = fm.createNode({ [a.type === 'url' ? 'url' : 'template']: a.ref })
+      }
+      const item = list.items[index]
+      if (value === '' || value == null) { if (field !== 'template' && field !== 'url') item.delete(field) } else item.set(field, value)
+    }, `att:${index}:${field}`)
+  }
+
+  removeAttachment(index) {
+    this.#editFrontmatter((fm) => {
+      const list = fm.get('attachments', true)
+      if (YAML.isSeq(list)) list.items.splice(index, 1)
+      if (!YAML.isSeq(list) || !list.items.length) fm.delete('attachments')
+    })
+  }
+
+  /** Opens an attachment rendered with the demo data (local PDF) or its URL (remote) */
+  async openAttachment(index) {
+    const att = this.preview.attachments?.find(a => a.index === index)
+    if (att?.type === 'url') return window.open(att.url, '_blank', 'noopener')
+    const win = window.open('', '_blank')
+    try {
+      const blob = await api.attachment({ kind: this.kind, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data, lang: this.lang }, index)
+      const url = URL.createObjectURL(blob)
+      win.location.href = url
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e) {
+      win?.close()
+      this.notify(e.message, 'error')
+    }
   }
 
   addParamDecl(name) {

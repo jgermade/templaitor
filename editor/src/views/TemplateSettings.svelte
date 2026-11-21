@@ -2,9 +2,11 @@
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
+  import { defaultFilename } from '@shared/attachments.js'
 
   const comp = $derived(store.isComponent ? store.components.find(c => c.id === store.doc.id) : null)
   const lay = $derived(store.isLayout ? store.layouts.find(l => l.id === store.doc.id) : null)
+  const pdfTemplates = $derived(store.templates.filter(t => t.format === 'pdf'))
 
   async function remove() {
     const what = store.isComponent ? 'component' : store.isLayout ? 'layout' : 'template'
@@ -85,6 +87,45 @@
           {/if}
         </div>
       </label>
+      {#if !store.isPdf}
+        <div class="field" role="group" aria-labelledby="att-title"><span id="att-title">Attachments</span>
+          {#each store.attachments as a, i (i)}
+            <div class="att">
+              <div class="atthead">
+                <span>📎 {a.type === 'url' ? 'Remote file' : a.type === 'template' ? 'Local PDF' : 'Invalid entry'}</span>
+                <button class="ghost" aria-label={`Remove attachment ${i + 1}`} title="Remove" onclick={() => store.removeAttachment(i)}>✕</button>
+              </div>
+              {#if a.type === 'url'}
+                <label class="field"><span>URL</span>
+                  <input class="mono" value={a.ref} placeholder="https://example.com/terms-$lang.pdf" oninput={(e) => store.setAttachment(i, 'url', e.currentTarget.value)} />
+                </label>
+              {:else if a.type === 'template'}
+                <label class="field"><span>Template</span>
+                  <select value={a.ref} onchange={(e) => store.setAttachment(i, 'template', e.currentTarget.value)}>
+                    {#if !pdfTemplates.some(t => t.id === a.ref)}<option value={a.ref}>{a.ref} (not a PDF template)</option>{/if}
+                    {#each pdfTemplates as t}<option value={t.id}>{t.id}</option>{/each}
+                  </select>
+                </label>
+                <label class="field"><span>Context (email variable)</span>
+                  <input class="mono" value={a.context} placeholder="whole email context" oninput={(e) => store.setAttachment(i, 'context', e.currentTarget.value)} />
+                </label>
+              {/if}
+              {#if a.type !== 'invalid'}
+                <label class="field"><span>File name</span>
+                  <input class="mono" value={a.filename} placeholder={defaultFilename(a)} oninput={(e) => store.setAttachment(i, 'filename', e.currentTarget.value)} />
+                </label>
+              {:else}
+                <p class="muted tip">Fix it in the Code view: use <code>template:</code> or <code>url:</code>.</p>
+              {/if}
+            </div>
+          {:else}<div class="muted">No attachments</div>{/each}
+          <div class="attadd">
+            <button onclick={() => store.addAttachment({ template: pdfTemplates[0].id })} disabled={!pdfTemplates.length} title={pdfTemplates.length ? 'Attach a PDF template of this project' : 'There are no PDF templates'}>+ Local PDF</button>
+            <button onclick={() => store.addAttachment({ url: 'https://' })}>+ Remote file</button>
+          </div>
+          <p class="muted tip">Local PDFs are rendered in the email's language. <code>$lang</code>, <code>$t()</code> and <code>{'{{ }}'}</code> work in URLs and file names.</p>
+        </div>
+      {/if}
     {/if}
 
     {#if store.missing.length}
@@ -116,5 +157,9 @@
   .pdfgrid .full { grid-column: 1 / -1; }
   .tip { margin: 0 0 8px; font-size: 11px; }
   .layrow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+  .att { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px 0; margin-bottom: 6px; }
+  .atthead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-weight: 600; }
+  .atthead button { padding: 0 4px; }
+  .attadd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px; }
   .uselink { display: block; padding: 2px 0; font-size: 12px; color: #2563eb; }
 </style>

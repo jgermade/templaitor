@@ -6,20 +6,26 @@
   import Inspector from './views/Inspector.svelte'
   import CodeView from './views/CodeView.svelte'
   import PdfView from './views/PdfView.svelte'
+  import CompareView from './views/CompareView.svelte'
   import A11yReport from './views/A11yReport.svelte'
   import NewTemplateDialog from './views/NewTemplateDialog.svelte'
   import Toast from './components/Toast.svelte'
   import DialogHost from './components/DialogHost.svelte'
   import { store } from './stores/editor.svelte.js'
   import { api } from './lib/api.js'
+  import { session } from './lib/service.svelte.js'
+  import ServiceGate from './views/ServiceGate.svelte'
 
   let error = $state(null)
   let showNew = $state(false)
   let showIssues = $state(false)
   let showText = $state(false)
 
-  onMount(() => {
-    store.init().catch((e) => (error = e.message))
+  // hosted service: sign in and pick an organization first (local mode: straight to the editor)
+  const gated = $derived(session.isService && (!session.user || !session.activeOrg))
+  onMount(async () => {
+    await session.load()
+    if (!gated) store.init().catch((e) => (error = e.message))
   })
 
   // Preview: recomputed (debounced) on any change of the draft
@@ -78,7 +84,11 @@
 
 <svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
 
-{#if error}
+{#if session.mode === 'unknown'}
+  <div class="fatal muted" aria-busy="true">Loading…</div>
+{:else if gated}
+  <ServiceGate />
+{:else if error}
   <div class="fatal">
     <h2>Could not load the project</h2>
     <p class="mono">{error}</p>
@@ -105,6 +115,13 @@
         {/if}
         {#if store.loadingPreview}<span class="spinner" aria-label="Updating"></span>{/if}
         <span class="grow"></span>
+        {#if store.attachments.length && store.preview.attachments?.length}
+          <ul class="attachments" aria-label="Attachments">
+            {#each store.preview.attachments as a (a.index)}
+              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}>📎 {a.filename}</button></li>
+            {/each}
+          </ul>
+        {/if}
         {#if store.preview.a11yReport}
           {@const vp = store.view === 'pdf' && store.pdfValidation?.status === 'done' && !store.pdfValidation.stale ? store.pdfValidation.result : null}
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
@@ -142,6 +159,8 @@
         </div>
       {:else if store.view === 'code'}
         <CodeView />
+      {:else if store.view === 'compare'}
+        <CompareView />
       {:else}
         {@const report = store.view === 'preview' || store.view === 'pdf'}
         <div class="layout" class:with-inspector={(store.view === 'design' && store.selected && !showText) || report}>
@@ -186,6 +205,8 @@
   .subject .label { color: #3f3f46; min-width: 76px; }
   .subject input { flex: 1; max-width: 760px; border-color: transparent; background: transparent; font-size: 15px; padding: 4px 6px; }
   .subject input:hover { border-color: var(--border); background: #fff; }
+  .attachments { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; min-width: 0; overflow: hidden; }
+  .attachments .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
   .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }

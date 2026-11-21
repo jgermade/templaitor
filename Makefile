@@ -1,4 +1,4 @@
-.PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots
+.PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots serve docker
 
 # Project opened by `make up` (override: make up PROJECT=path/to/project)
 PROJECT  ?= examples/demo
@@ -79,6 +79,20 @@ pdf-tools: verapdf
 
 build: node_modules
 	npm run build
+
+# Hosted service locally (users, organizations, send API) on http://localhost:$(SERVE_PORT).
+# Sign-in codes are printed in this terminal (no system SMTP). Data in ./data (git-ignored).
+# Development secret only: production sets TEMPLAITOR_SECRET (see deploy/.env.example).
+SERVE_PORT   ?= 3000
+SERVE_SECRET ?= dev-only-secret-change-me-0123456789abcdef
+serve: build
+	TEMPLAITOR_SECRET="$${TEMPLAITOR_SECRET:-$(SERVE_SECRET)}" \
+	TEMPLAITOR_BASE_URL="$${TEMPLAITOR_BASE_URL:-http://localhost:$(SERVE_PORT)}" \
+	PORT=$(SERVE_PORT) node bin/templaitor.js serve
+
+# Docker image of the hosted service
+docker:
+	docker build -t templaitor:latest .
 
 # Landing page for GitHub Pages → dist/site
 site: node_modules

@@ -1,5 +1,10 @@
 ---
 layout: base.layout.mjml
+# attached to the email: local PDF templates are rendered in the email's language
+attachments:
+  - template: documents/invoice
+    filename: "$t('invoice_file')"
+    context: invoice            # the invoice is rendered with the email's `invoice` variable
 ---
 
 $import(_components/banner, show_caption="true", caption="$t('banner_caption')")

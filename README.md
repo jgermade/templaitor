@@ -13,6 +13,7 @@ rendered at runtime (minijinja, Jinja2, Tera…).
 template.mjml + template.yml (texts per language) ──► dist/<id>/<name>.<locale>.html
                                                   ──► dist/<id>/<name>.<locale>.txt
                                                   ──► dist/<id>/<name>.<locale>.subject.txt
+                                                  ──► dist/<id>/<name>.<locale>.attachments.json (if any)
 ```
 
 ## Quick start
@@ -224,6 +225,37 @@ does not reach PDF/UA-1: use it only for quick previews or when no other engine 
 `make verapdf` pulls it and `make pdf-tools` checks engines and validator. Failing rules are shown with
 their ISO 14289-1 clause and an explanation.
 
+## Email attachments
+
+An email lists its attachments in the frontmatter. They can be **local** (a PDF template of the project,
+rendered in the same language as the email) or **remote** (a URL):
+
+```
+---
+layout: base.layout.mjml
+attachments:
+  - template: documents/invoice                      # local PDF template
+    filename: "$t('invoice_file')"                   # optional (default: invoice.pdf)
+    context: invoice                                 # optional: email variable used as the document's data
+  - url: "https://example.com/terms-$lang.pdf"       # remote file
+    filename: terms.pdf                              # optional (default: last segment of the URL)
+  - documents/delivery-note                          # short forms: template id…
+  - https://example.com/catalogue.pdf                # …or URL
+---
+```
+
+- `$lang`, `$t()` and `$link{}` are resolved at compile time in `url` and `filename`; Jinja2 (`{{ }}`) is
+  kept and rendered at runtime with the email's data.
+- A local attachment is rendered with the locale of the email. If the document has no texts in that
+  language it falls back to its first language (with a warning). Without `context`, the document is
+  rendered with the whole email context; with `context: invoice`, with the email's `invoice` variable.
+- `templaitor compile` writes `<name>.<locale>.attachments.json` for the backend: local entries point to the
+  compiled document (`html`, `options` → its `.pdf.json`, relative to `outDir`) and remote ones carry the `url`.
+- In the editor: **Attachments** under "Template" (add a local PDF or a remote file, file name, context),
+  📎 chips in the subject bar to open each attachment rendered with the demo data, and **Send a test**
+  attaches them (local PDFs rendered with the engine, remote files downloaded).
+- Accessibility: local PDFs are rendered as PDF/UA-1 like any other document; remote files are not checked.
+
 ## Accessibility
 
 Emails and PDFs are checked against **WCAG 2.1 AA / EN 301 549** (the standard required by the European
@@ -270,6 +302,16 @@ of its own, so the preview uses those of the first template using it (not saved 
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
 - **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
+- **Compare**: the current draft (B) against a base (A) — the **saved version**, a **git commit** of the
+  document (when the project is in a repository: the commits that touched its `.mjml`/`.yml`/`.json5`),
+  or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
+  own demo data (or the same data for both).
+  - *Visual*: **side by side** (one scroll), **overlay** (opacity of B), **difference** (identical pixels
+    are black, changes show in color) and **swipe**; desktop or mobile width.
+  - *Code*: line diff of MJML, texts, demo data, the rendered text and the compiled HTML (Jinja2 kept),
+    with the number of changed blocks per tab. The draft side is editable and **⇥ copies a chunk from A**
+    into it (e.g. restore a text from the last commit).
+  - A summary of what changed: subject, accessibility result, HTML size and attachments.
 - Undo/redo, `Ctrl+S`, mobile view, compile and SMTP test sending. Dialogs are `<dialog>` modals.
 
 Visual edits rewrite the MJML with a normalized format (2-space indentation).
@@ -281,22 +323,98 @@ Visual edits rewrite the MJML with a normalized format (2-space indentation).
 use paths and linear gradients (no filters, masks or fonts), so they embed as vectors in PDFs; in emails
 use the PNGs (Gmail/Outlook do not display SVG).
 
+## Hosted service
+
+templaitor can also run on a server as a multi-user service: `templaitor serve` (Node ≥ 22.13). The local
+tools do not change: `templaitor editor`, `make up` and `compile` keep working as before (Node ≥ 20, no login).
+
+- **Login** without passwords: a 6-digit **code by email** (10 min, 5 attempts) or a **passkey** (WebAuthn).
+  Sessions are `HttpOnly` cookies; cross-site writes are rejected.
+- **Organizations** with members and roles: `viewer` (reads and previews) · `editor` (edits, sends tests)
+  · `admin` (members, SMTP, API keys) · `owner` (deletes the organization). Invitations by email; `signup:
+  invite` only lets invited emails in. A new organization starts blank or from the demo project.
+- **Editor per organization**: the same editor, working on the organization's project; an organization
+  switcher and the settings (members, SMTP, API keys, send log, account and passkeys) are in the top bar.
+- **Template storage** (configurable): `fs` — a project folder per organization (`dataDir/orgs/<slug>`), or
+  an existing folder such as a git checkout (`storage.projects`) — or `db` — the files live in the database
+  and are materialized into a cache for the engine.
+- **Sending service** with each organization's **SMTP** (SES, Postmark, Mailgun, Brevo, your own server…;
+  the password is stored encrypted), a persistent **queue** with retries (30 s → 6 h, 6 attempts) and a
+  **send log** (the HTML, text and attachments of sent messages are purged after `send.retentionDays`,
+  30 by default; the metadata stays):
+
+```bash
+# hosted template + data (rendered in the requested language, with its attachments)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-A-1042" \
+  -d '{"template": "orders/order-confirmation", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
+# raw HTML (your own rendering)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -d '{"to": ["ada@example.com"], "subject": "Hi", "html": "<p>Hello</p>",
+       "attachments": [{"filename": "a.pdf", "content": "<base64>"}, {"filename": "terms.pdf", "url": "https://…"}]}'
+```
+
+| Endpoint | |
+|---|---|
+| `POST /v1/send` | `template` + `lang` + `data` (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
+| `POST /v1/render` | same body, returns `{ subject, html, text, attachments }` without sending |
+| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error |
+| `GET /v1/templates` | the organization's templates and languages |
+
+- **Security**: PDFs are rendered in a **sandbox** (only `data:` URLs and the project's static files load:
+  no `file:///…` of the server, no network); remote attachments can only reach public hosts (SSRF guard
+  checked at connection time); API keys, codes and session tokens are stored as HMAC hashes; per-org rate
+  limit on sends.
+
+**Run it**: `make serve` (local trial; codes are printed in the terminal) or with Docker:
+
+```bash
+cp deploy/.env.example deploy/.env      # TEMPLAITOR_SECRET, TEMPLAITOR_BASE_URL, system SMTP…
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
+Put it behind a TLS reverse proxy (passkeys need HTTPS on the real domain). Configuration:
+`templaitor.server.yml` (see `templaitor.server.example.yml`) or `TEMPLAITOR_*` environment variables. Back
+up the data volume (SQLite database and organization projects). Plan: [`ROADMAP/2026-11-21/hosted-service.md`](ROADMAP/2026-11-21/hosted-service.md).
+
+**Database**: SQLite (a file in the data volume) by default — one instance. **Postgres** for several
+instances behind a load balancer: `TEMPLAITOR_DATABASE_URL=postgres://…` (or `database.url`), together with
+`TEMPLAITOR_STORAGE=db` so the templates are not on one instance's disk. With Docker:
+
+```bash
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.postgres.yml --env-file deploy/.env up -d --build
+```
+
+Migrations run on start (an advisory lock serializes them between instances), the send queue is claimed
+with `FOR UPDATE SKIP LOCKED` (no message is sent twice), and with `db` storage every instance re-reads the
+templates another instance changed and stores its own changes before answering. The service tests run
+against Postgres too when `TEMPLAITOR_TEST_POSTGRES_URL` points to a server (CI does it).
+
 ## Architecture
 
 ```
-bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new)
+bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · serve)
 src/shared/                code shared by Node and the browser
   mjml-tree.js             MJML parser/serializer that keeps $ commands and Jinja2
   components.js            component catalog (attributes, valid nesting)
   imports.js               $import calls with parameters
   semantics.js             paragraph / heading semantics
+  attachments.js           attachments frontmatter (normalized list)
 src/engine/                compilation engine (ported from doomus-rs)
   pipeline.js              frontmatter → $import/layout → $ commands → guard → MJML → HTML/TXT
   design.js                design-mode annotation (node ids, editable regions, chips)
   a11y.js                  accessibility checker (WCAG 2.1 AA)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
+  attachments.js           email attachments (local PDF templates per language, remote files)
+  history.js               git history of a document (compare mode)
   commands.js · guard.js · resolver.js · render.js · project.js
-src/server/server.js       editor HTTP API + static files
+src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
+src/service/               hosted service (templaitor serve)
+  app.js                   routes: auth, organizations, org-scoped editor API, /v1 send API, editor SPA
+  auth.js · mailer.js      email codes, passkeys (WebAuthn), sessions · service emails
+  repo.js · db/            data access (portable SQL, async) · SQLite and Postgres adapters, migrations
+  storage.js · workspaces.js   fs/db template storage · one project + editor handler per org
+  sender.js · netguard.js  send queue and SMTP delivery · SSRF-safe fetch for remote attachments
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
   src/stores/editor.svelte.js   state: the source texts are the single source of truth
   src/lib/bridge.js             iframe script (selection, inline editing, serialization)
@@ -327,5 +445,5 @@ Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · 
 - [ ] Floating format toolbar (bold, italic, link) for inline editing.
 - [ ] Variable validation: warn about `{{ var }}` without demo data.
 - [ ] Render the preview with minijinja (Rust) so it matches the runtime exactly.
-- [ ] Attach a PDF (PDF template) to an email when sending a test.
+- [x] Email attachments: local PDF templates (per language) and remote files.
 - [ ] Template compare mode: code diff (MJML/YAML/data) and visual diff (side by side / overlay).
