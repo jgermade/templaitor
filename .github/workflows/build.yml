@@ -1,4 +1,5 @@
-# Installs dependencies, runs the tests and builds the editor, the npm package and the landing site.
+# Installs dependencies, runs the tests and builds the editor, the npm package, the binary bundles, the Helm
+# chart and the landing site; also builds the Docker image and smoke-tests it.
 # Also reusable from other workflows (release.yml) with an optional `version` to stamp the build.
 name: build
 
@@ -76,6 +77,40 @@ jobs:
           mkdir -p artifacts
           npm pack --pack-destination artifacts
           (cd dist && zip -q -r "../artifacts/templaitor-editor-${version}.zip" editor)
+
+      # Self-contained bundles (app + production deps + official Node.js) for linux/darwin × x64/arm64
+      - name: Build binaries
+        run: node scripts/build-binary.mjs
+
+      - name: Smoke-test the linux-x64 binary
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" && tar -xzf artifacts/templaitor-linux-x64.tar.gz -C "$RUNNER_TEMP/bin"
+          tpl="$RUNNER_TEMP/bin/templaitor/bin/templaitor"
+          test "$("$tpl" version)" = "$(node -p "require('./package.json').version")"
+          cp -r examples/demo "$RUNNER_TEMP/demo" && "$tpl" compile --cwd "$RUNNER_TEMP/demo" --strict
+          TEMPLAITOR_SECRET=ci-only-secret-0123456789abcdef0123456789 TEMPLAITOR_DATA_DIR="$RUNNER_TEMP/data" PORT=3999 "$tpl" serve & pid=$!
+          for _ in $(seq 30); do curl -fs http://127.0.0.1:3999/healthz && break; sleep 1; done
+          curl -fs http://127.0.0.1:3999/healthz
+          kill "$pid"
+
+      - uses: azure/setup-helm@v4
+
+      - name: Helm chart (lint, render, package)
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          chart=deploy/helm/templaitor
+          helm lint "$chart" --strict
+          helm template t "$chart" > /dev/null
+          helm template t "$chart" --set ingress.enabled=true --set 'ingress.tls[0].secretName=tls' \
+            --set 'ingress.tls[0].hosts[0]=templaitor.example.com' --set config.smtp.host=smtp.example.com > /dev/null
+          helm template t "$chart" --set replicaCount=3 --set config.database.driver=postgres \
+            --set config.database.url=postgres://u:p@db/templaitor --set config.storage=db > /dev/null
+          if helm template t "$chart" --set replicaCount=2 > /dev/null 2>&1; then
+            echo "::error::replicaCount=2 with SQLite must be rejected"; exit 1
+          fi
+          # npm pack already writes templaitor-<version>.tgz: the chart gets its own name
+          helm package "$chart" --version "$version" --app-version "$version" -d "$RUNNER_TEMP/chart"
+          mv "$RUNNER_TEMP/chart/templaitor-${version}.tgz" "artifacts/templaitor-chart-${version}.tgz"
           ls -l artifacts
 
       - uses: actions/upload-artifact@v4
@@ -90,3 +125,33 @@ jobs:
           path: dist/site/
           include-hidden-files: true
           if-no-files-found: error
+
+  # Builds the hosted-service image (no push: release.yml publishes it) and checks that it serves.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp version
+        if: ${{ inputs.version }}
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: templaitor:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the image
+        run: |
+          docker run -d --name tpl -p 3000:3000 -e TEMPLAITOR_SECRET=ci-only-secret-0123456789abcdef0123456789 templaitor:ci
+          for _ in $(seq 30); do curl -fs http://127.0.0.1:3000/healthz && break; sleep 1; done
+          curl -fs http://127.0.0.1:3000/healthz || { docker logs tpl; exit 1; }
+          docker exec tpl node bin/templaitor.js version
+          docker exec tpl sh -c 'cd /tmp && cp -r /app/examples/demo d && node /app/bin/templaitor.js pdf documents/invoice --cwd d -o /tmp/i.pdf'
+          docker rm -f tpl

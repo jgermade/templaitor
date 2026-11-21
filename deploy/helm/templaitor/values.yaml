@@ -1,0 +1,101 @@
+# templaitor hosted service (`templaitor serve`).
+#
+#   helm install templaitor oci://ghcr.io/jgermade/charts/templaitor -n templaitor --create-namespace \
+#     --set config.baseUrl=https://templaitor.example.com --set ingress.enabled=true \
+#     --set ingress.hosts[0].host=templaitor.example.com
+#
+# Passkeys need HTTPS on a real domain: expose it through an ingress with TLS.
+
+image:
+  repository: ghcr.io/jgermade/templaitor
+  tag: ""                      # default: the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# SQLite (the default) is single-instance: more than one replica needs config.database.driver=postgres
+# and config.storage=db.
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+config:
+  baseUrl: ""                  # public URL (default: http://<release>.<namespace>.svc:<port>); set it in production
+  signup: invite               # open · invite
+  storage: fs                  # fs (a project folder per org on the volume) · db (projects in the database)
+  trustProxy: true             # take the client IP from X-Forwarded-For (behind the ingress)
+  retentionDays: 30            # days the HTML/text/attachments of sent messages are kept (0 = forever)
+  database:
+    driver: sqlite             # sqlite (file on the volume) · postgres
+    url: ""                    # postgres://user:pass@host:5432/templaitor (stored in the Secret)
+  smtp:                        # system SMTP for sign-in codes and invitations (empty: codes go to the pod logs)
+    host: ""
+    port: 587
+    secure: false
+    user: ""
+    password: ""               # stored in the Secret
+    from: "templaitor <no-reply@example.com>"
+  extraEnv: []                 # more environment variables (list of {name, value} / valueFrom)
+
+# TEMPLAITOR_SECRET encrypts the organizations' SMTP passwords: it must stay stable.
+# Empty → a random one is generated on install and kept on upgrades (the Secret survives `helm uninstall`).
+secret:
+  value: ""
+  existingSecret: ""           # use your own Secret instead (keys: TEMPLAITOR_SECRET, optional
+                               # TEMPLAITOR_DATABASE_URL and TEMPLAITOR_SMTP_PASS)
+  keep: true                   # helm.sh/resource-policy: keep
+
+persistence:
+  enabled: true                # /data: SQLite database and org projects
+  size: 5Gi
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  existingClaim: ""
+  keep: true                   # keep the PVC on `helm uninstall` (setup.sh uninstall --purge deletes it)
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: templaitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: templaitor-tls
+  #    hosts: [templaitor.example.com]
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000              # the image's `node` user
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -31,7 +31,7 @@
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body { margin: 0; font: 17px/1.6 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg); }
-    img { max-width: 100%; display: block; }
+    img { max-width: 100%; height: auto; display: block; }
     a { color: var(--indigo); }
     a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; border-radius: 6px; }
     code, pre { font-family: var(--mono); font-size: .9em; }
@@ -124,7 +124,9 @@
     .start { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
     pre { margin: 0; padding: 22px 24px; border-radius: var(--radius); background: #1e1b4b; color: #e0e7ff; overflow-x: auto; line-height: 1.7; font-size: 14.5px; }
     pre .c { color: #a5b4fc; }
-    .start h3 { margin: 0 0 10px; font-size: 19px; }
+    .start h3, .install h3 { margin: 0 0 10px; font-size: 19px; }
+    .install { margin: 0 0 32px; }
+    .install p { color: var(--muted); font-size: 16px; margin: 12px 0 0; }
 
     .cta { text-align: center; color: #fff; background: var(--grad); border-radius: 28px; padding: 64px 32px; margin: 0 auto 96px; }
     .cta h2 { color: #fff; }
@@ -146,6 +148,7 @@
       .features { grid-template-columns: 1fr; }
       section { padding: 64px 0; }
       .pdfpage { grid-template-columns: 1fr; }
+      .pdfpage img { max-width: 240px; margin: 0 auto; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -373,7 +376,15 @@
       <div class="wrap">
         <p class="kicker">Get started</p>
         <h2 id="start-title">Up and running in a minute</h2>
-        <p class="intro">Node.js 20 or later. Docker is optional (local Mailpit and veraPDF).</p>
+        <p class="intro">One command installs a self-contained binary (no Node.js needed) or runs the hosted service
+          with Docker or Helm. From source: Node.js 20 or later.</p>
+        <div class="install">
+          <h3>Install</h3>
+<pre tabindex="0" aria-label="Command to install templaitor"><code>curl -fsSL https://jgermade.github.io/templaitor/setup.sh | sh</code></pre>
+          <p>Interactive menu: install, update, reinstall or uninstall, as a <strong>binary</strong> (Linux and macOS),
+            with <strong>Docker</strong> or on Kubernetes with <strong>Helm</strong>. Non-interactive:
+            <code>… | sh -s -- install --method docker</code>.</p>
+        </div>
         <div class="start">
           <div>
             <h3>Try the demo</h3>

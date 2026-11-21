@@ -16,6 +16,53 @@ template.mjml + template.yml (texts per language) ──► dist/<id>/<name>.<lo
                                                   ──► dist/<id>/<name>.<locale>.attachments.json (if any)
 ```
 
+## Install
+
+One line, interactive (install · update · reinstall · uninstall):
+
+```bash
+curl -fsSL https://jgermade.github.io/templaitor/setup.sh | sh
+```
+
+Or non-interactive: `curl -fsSL https://jgermade.github.io/templaitor/setup.sh | sh -s -- <action> [options]`.
+
+| Method | What you get | Example |
+|---|---|---|
+| `binary` (default) | Self-contained bundle with its own Node.js (Linux/macOS, x64/arm64) in `<prefix>/lib/templaitor`, linked as `<prefix>/bin/templaitor` (`/usr/local` as root, `~/.local` otherwise) | `sh -s -- install` |
+| `docker` | The hosted service (`templaitor serve`) as the `templaitor` container, data in the `templaitor-data` volume, config in `~/.config/templaitor/docker.env` (secret generated) | `sh -s -- install --method docker --port 3000` |
+| `helm` | The hosted service on Kubernetes, chart `oci://ghcr.io/jgermade/charts/templaitor` | `sh -s -- install --method helm --namespace templaitor --values my-values.yml` |
+
+Actions: `install` (does nothing if it is already installed) · `update` (only when there is a newer
+release) · `reinstall` · `uninstall` (keeps data; `--purge` deletes the Docker volume / the Helm PVC and
+Secret) · `status`. Options: `--version 0.2.0` (default: latest), `--prefix`, `--port`, `--namespace`,
+`--values`, `-y` (no confirmations). Downloads are verified against the published SHA-256.
+
+Without the script:
+
+```bash
+# binary: every release has templaitor-<linux|darwin>-<x64|arm64>.tar.gz (+ .sha256)
+curl -fsSL https://github.com/jgermade/templaitor/releases/latest/download/templaitor-linux-x64.tar.gz | tar -xz
+./templaitor/bin/templaitor --help
+
+# Docker (hosted service)
+docker run -d --name templaitor -p 3000:3000 -v templaitor-data:/data \
+  -e TEMPLAITOR_SECRET="$(openssl rand -hex 32)" -e TEMPLAITOR_BASE_URL=http://localhost:3000 \
+  ghcr.io/jgermade/templaitor:latest
+
+# Helm (hosted service)
+helm install templaitor oci://ghcr.io/jgermade/charts/templaitor -n templaitor --create-namespace \
+  --set config.baseUrl=https://templaitor.example.com --set ingress.enabled=true \
+  --set 'ingress.hosts[0].host=templaitor.example.com' --set 'ingress.hosts[0].paths[0].path=/' \
+  --set 'ingress.hosts[0].paths[0].pathType=Prefix'
+```
+
+The binary bundle covers the CLI, the local editor and `templaitor serve`; PDFs still need an engine on the
+machine (`pip install weasyprint`). The Docker image ships WeasyPrint. Helm chart values:
+[`deploy/helm/templaitor/values.yaml`](deploy/helm/templaitor/values.yaml) — SQLite (default) runs one
+replica with a `ReadWriteOnce` PVC; more replicas need `config.database.driver=postgres` and
+`config.storage=db` (the chart refuses other combinations). `TEMPLAITOR_SECRET` is generated on install and
+kept across upgrades; the PVC and the Secret survive `helm uninstall`.
+
 ## Quick start
 
 ```bash
@@ -428,12 +475,21 @@ examples/demo/             demo project
   from the demo project.
 - **`build.yml`** (push to `main`, pull requests, manual, reusable): installs dependencies, installs
   WeasyPrint and veraPDF so the tests validate the demo PDF against PDF/UA-1, runs the tests, builds the
-  editor and the site, and uploads two artifacts: `build` (npm package `.tgz` + editor `.zip`) and `site`.
+  editor, the site, the binary bundles (`scripts/build-binary.mjs`, smoke-tested: `version`, `compile`,
+  `serve`) and the Helm chart (`helm lint` + render checks), and uploads two artifacts: `build` (npm package
+  `.tgz`, editor `.zip`, `templaitor-<os>-<arch>.tar.gz` + `.sha256`, `templaitor-chart-<version>.tgz`) and
+  `site`. A second job builds the Docker image and smoke-tests it (`/healthz`, a PDF with WeasyPrint).
 - **`release.yml`** (manual, input `version`: `patch` · `minor` · `major`): computes the next version,
   runs `build.yml` with it, commits the version bump, tags `vX.Y.Z`, creates the GitHub release with the
-  build attached and deploys the site to GitHub Pages.
-  Requires *Settings → Pages → Source: GitHub Actions*, and permission for the workflow to push the
-  version commit and tag to the branch it runs on.
+  build attached, pushes the Docker image to `ghcr.io/jgermade/templaitor` (`X.Y.Z`, `X.Y`, `latest`;
+  amd64 + arm64) and the chart to `oci://ghcr.io/jgermade/charts/templaitor`, and deploys the site
+  (with `setup.sh`) to GitHub Pages.
+  Requires *Settings → Pages → Source: GitHub Actions*, permission for the workflow to push the version
+  commit and tag to the branch it runs on, and — after the first release — the `templaitor` and
+  `charts/templaitor` packages set to **public** in GitHub (*Packages → Package settings*) so they can be
+  pulled without logging in.
+- **Local builds**: `make binary` (bundle for this machine, reusing the local Node), `make docker`,
+  `make helm` (lint + package, needs `helm`).
 - **`pages.yml`** (manual, or called by `release.yml`): builds `site/` and deploys it to GitHub Pages,
   with upload and deployment in separate jobs. Run it on its own to redeploy the landing page.
 

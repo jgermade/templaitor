@@ -22,6 +22,7 @@ Usage:
   templaitor serve [--config templaitor.server.yml] [--port 3000]
                                               Hosted service: users, organizations, editor and send API
                                               (Node ≥ 22.13; see "Hosted service" in the README)
+  templaitor version                          Print the version (also --version, -v)
 
 Global options:
   --cwd <dir>     Project directory (where templaitor.config.yml lives)
@@ -40,6 +41,12 @@ const [cmd, target] = positional
 const cwd = path.resolve(flag('cwd', process.cwd()))
 
 async function main() {
+  if (cmd === 'version' || args[0] === '--version' || args[0] === '-v') {
+    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    console.log(pkg.version)
+    return
+  }
+
   if (cmd === 'serve') {
     const { serve } = await import('../src/service/serve.js')
     const file = flag('config')

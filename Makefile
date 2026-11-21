@@ -1,4 +1,4 @@
-.PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots serve docker
+.PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots serve docker binary helm
 
 # Project opened by `make up` (override: make up PROJECT=path/to/project)
 PROJECT  ?= examples/demo
@@ -93,6 +93,17 @@ serve: build
 # Docker image of the hosted service
 docker:
 	docker build -t templaitor:latest .
+
+# Self-contained binary bundle for this machine (reuses the local Node >= 22.13) -> artifacts/
+# Every target (downloads Node.js): node scripts/build-binary.mjs
+BINARY_TARGET ?= $(shell node -p "({linux:'linux',darwin:'darwin'})[process.platform] + '-' + process.arch")
+binary: build
+	node scripts/build-binary.mjs --targets $(BINARY_TARGET) --node "$$(command -v node)"
+
+# Helm chart: lint and package -> artifacts/
+helm:
+	helm lint deploy/helm/templaitor --strict
+	helm package deploy/helm/templaitor -d artifacts
 
 # Landing page for GitHub Pages → dist/site
 site: node_modules

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "templaitor.fullname" . }}
+  labels:
+    {{- include "templaitor.labels" . | nindent 4 }}
+data:
+  TEMPLAITOR_BASE_URL: {{ include "templaitor.baseUrl" . | quote }}
+  TEMPLAITOR_SIGNUP: {{ .Values.config.signup | quote }}
+  TEMPLAITOR_STORAGE: {{ .Values.config.storage | quote }}
+  TEMPLAITOR_DATABASE: {{ .Values.config.database.driver | quote }}
+  TEMPLAITOR_TRUST_PROXY: {{ .Values.config.trustProxy | quote }}
+  TEMPLAITOR_RETENTION_DAYS: {{ .Values.config.retentionDays | quote }}
+  {{- with .Values.config.smtp }}
+  {{- if .host }}
+  TEMPLAITOR_SMTP_HOST: {{ .host | quote }}
+  TEMPLAITOR_SMTP_PORT: {{ .port | quote }}
+  TEMPLAITOR_SMTP_SECURE: {{ .secure | quote }}
+  TEMPLAITOR_SMTP_USER: {{ .user | quote }}
+  TEMPLAITOR_SMTP_FROM: {{ .from | quote }}
+  {{- end }}
+  {{- end }}

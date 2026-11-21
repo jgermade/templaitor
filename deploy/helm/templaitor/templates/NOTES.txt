@@ -1,0 +1,19 @@
+templaitor {{ .Chart.AppVersion }} is deployed as {{ include "templaitor.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Public URL (TEMPLAITOR_BASE_URL): {{ include "templaitor.baseUrl" . }}
+{{- if not .Values.ingress.enabled }}
+
+Open it locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "templaitor.fullname" . }} 3000:{{ .Values.service.port }}
+  → http://localhost:3000 (passkeys need HTTPS on a real domain: enable the ingress with TLS)
+{{- end }}
+{{- if not .Values.config.smtp.host }}
+
+No system SMTP: sign-in codes are printed in the logs:
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "templaitor.fullname" . }}
+{{- end }}
+{{- if .Values.persistence.keep }}
+
+The data PVC and the Secret are kept on `helm uninstall`; delete them to start from scratch:
+  kubectl -n {{ .Release.Namespace }} delete pvc,secret -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- end }}
