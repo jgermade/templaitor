@@ -225,10 +225,65 @@ export function chromiumPdfOptions(opts) {
  */
 export async function renderPdf(html, opts, { staticDir, engine } = {}) {
   const id = resolveEngine(engine ?? opts.engine)
+  if (sandbox && id === 'prince') throw httpErr(501, 'Prince cannot be restricted to the static directory: use WeasyPrint or Chromium in the hosted service')
   const pdf = id === 'chromium'
     ? await renderChromium(html, opts, { staticDir })
-    : await renderCli(id, html, { staticDir })
+    : sandbox ? await renderWeasyprintSandboxed(html, { staticDir }) : await renderCli(id, html, { staticDir })
   return { pdf, engine: id }
+}
+
+// ── Sandbox (hosted service) ──────────────────────────────────
+// Templates written by users must not read server files (file:///etc/…) or reach the network
+// (internal hosts, cloud metadata). In sandbox mode only `data:` URLs and files of `staticDir` load.
+let sandbox = false
+export function setPdfSandbox(on) { sandbox = !!on }
+
+const WEASYPRINT_SANDBOX = `
+import sys, os
+from urllib.parse import urlparse, unquote
+import weasyprint
+static = os.path.realpath(sys.argv[1]) if sys.argv[1] else None
+def allowed(url):
+    if url.startswith('data:'):
+        return True
+    u = urlparse(url)
+    if u.scheme == 'file' and static:
+        p = os.path.realpath(unquote(u.path))
+        return p.startswith(static + os.sep) and os.path.isfile(p)
+    return False
+def blocked(url):
+    raise ValueError('blocked by the templaitor sandbox: ' + url[:80])
+try:
+    from weasyprint.urls import URLFetcher  # WeasyPrint >= 67
+    class Sandboxed(URLFetcher):
+        def fetch(self, url, headers=None):
+            return super().fetch(url, headers) if allowed(url) else blocked(url)
+    fetcher = Sandboxed(allow_redirects=False)
+except ImportError:
+    from weasyprint import default_url_fetcher  # older versions
+    def fetcher(url, *args, **kwargs):
+        return default_url_fetcher(url, *args, **kwargs) if allowed(url) else blocked(url)
+base = 'file://' + static + '/' if static else None
+HTML = weasyprint.HTML
+HTML(filename=sys.argv[2], base_url=base, url_fetcher=fetcher).write_pdf(sys.argv[3], pdf_variant='pdf/ua-1')
+`
+
+async function renderWeasyprintSandboxed(html, { staticDir }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-pdf-'))
+  try {
+    const input = path.join(dir, 'document.html')
+    const output = path.join(dir, 'document.pdf')
+    const local = staticDir ? html.replace(/(["'(])\/static\//g, `$1${pathToFileUrl(staticDir)}/`) : html
+    fs.writeFileSync(input, local)
+    const python = process.env.TEMPLAITOR_PYTHON || 'python3'
+    const { code, stderr } = await run(python, ['-I', '-c', WEASYPRINT_SANDBOX, staticDir ? fs.realpathSync(staticDir) : '', input, output], 120000)
+    if (code !== 0 || !fs.existsSync(output)) {
+      throw httpErr(500, `WeasyPrint failed (${code}): ${stderr.split('\n').filter(l => l.trim() && !/^WARNING/i.test(l)).slice(-3).join(' ').trim()}`)
+    }
+    return fs.readFileSync(output)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 async function renderCli(id, html, { staticDir }) {
@@ -286,6 +341,8 @@ async function renderChromium(html, opts, { staticDir }) {
   const browser = await getBrowser()
   const page = await browser.newPage()
   try {
+    // sandbox: everything but the static directory is blocked (data: URLs are not routed)
+    if (sandbox) await page.route(url => !url.href.startsWith(BASE), route => route.abort('blockedbyclient'))
     await page.route(`${BASE}**`, async (route) => {
       const rel = decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\/static\//, '')
       const file = staticDir && path.resolve(staticDir, rel)

@@ -130,7 +130,7 @@ export function createHandler(project) {
         host: project.smtp.host || 'localhost',
         port: Number(project.smtp.port || 1025),
         secure: !!project.smtp.secure,
-        ...(project.smtp.user ? { auth: { user: project.smtp.user, pass: process.env[project.smtp.passEnv || 'SMTP_PASS'] } } : {}),
+        ...(project.smtp.user ? { auth: { user: project.smtp.user, pass: project.smtp.pass ?? process.env[project.smtp.passEnv || 'SMTP_PASS'] } } : {}),
       })
       const info = await transport.sendMail({
         from: project.smtp.from || 'templaitor@localhost',

@@ -313,10 +313,63 @@ Visual edits rewrite the MJML with a normalized format (2-space indentation).
 use paths and linear gradients (no filters, masks or fonts), so they embed as vectors in PDFs; in emails
 use the PNGs (Gmail/Outlook do not display SVG).
 
+## Hosted service
+
+templaitor can also run on a server as a multi-user service: `templaitor serve` (Node ≥ 22.13). The local
+tools do not change: `templaitor editor`, `make up` and `compile` keep working as before (Node ≥ 20, no login).
+
+- **Login** without passwords: a 6-digit **code by email** (10 min, 5 attempts) or a **passkey** (WebAuthn).
+  Sessions are `HttpOnly` cookies; cross-site writes are rejected.
+- **Organizations** with members and roles: `viewer` (reads and previews) · `editor` (edits, sends tests)
+  · `admin` (members, SMTP, API keys) · `owner` (deletes the organization). Invitations by email; `signup:
+  invite` only lets invited emails in. A new organization starts blank or from the demo project.
+- **Editor per organization**: the same editor, working on the organization's project; an organization
+  switcher and the settings (members, SMTP, API keys, send log, account and passkeys) are in the top bar.
+- **Template storage** (configurable): `fs` — a project folder per organization (`dataDir/orgs/<slug>`), or
+  an existing folder such as a git checkout (`storage.projects`) — or `db` — the files live in the database
+  and are materialized into a cache for the engine.
+- **Sending service** with each organization's **SMTP** (SES, Postmark, Mailgun, Brevo, your own server…;
+  the password is stored encrypted), a persistent **queue** with retries (30 s → 6 h, 6 attempts) and a
+  **send log**:
+
+```bash
+# hosted template + data (rendered in the requested language, with its attachments)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-A-1042" \
+  -d '{"template": "orders/order-confirmation", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
+# raw HTML (your own rendering)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -d '{"to": ["ada@example.com"], "subject": "Hi", "html": "<p>Hello</p>",
+       "attachments": [{"filename": "a.pdf", "content": "<base64>"}, {"filename": "terms.pdf", "url": "https://…"}]}'
+```
+
+| Endpoint | |
+|---|---|
+| `POST /v1/send` | `template` + `lang` + `data` (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
+| `POST /v1/render` | same body, returns `{ subject, html, text, attachments }` without sending |
+| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error |
+| `GET /v1/templates` | the organization's templates and languages |
+
+- **Security**: PDFs are rendered in a **sandbox** (only `data:` URLs and the project's static files load:
+  no `file:///…` of the server, no network); remote attachments can only reach public hosts (SSRF guard
+  checked at connection time); API keys, codes and session tokens are stored as HMAC hashes; per-org rate
+  limit on sends.
+
+**Run it**: `make serve` (local trial; codes are printed in the terminal) or with Docker:
+
+```bash
+cp deploy/.env.example deploy/.env      # TEMPLAITOR_SECRET, TEMPLAITOR_BASE_URL, system SMTP…
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
+Put it behind a TLS reverse proxy (passkeys need HTTPS on the real domain). Configuration:
+`templaitor.server.yml` (see `templaitor.server.example.yml`) or `TEMPLAITOR_*` environment variables. Back
+up the data volume (SQLite database and organization projects). Plan: [`ROADMAP/2026-11-21/hosted-service.md`](ROADMAP/2026-11-21/hosted-service.md).
+
 ## Architecture
 
 ```
-bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new)
+bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · serve)
 src/shared/                code shared by Node and the browser
   mjml-tree.js             MJML parser/serializer that keeps $ commands and Jinja2
   components.js            component catalog (attributes, valid nesting)
@@ -330,7 +383,13 @@ src/engine/                compilation engine (ported from doomus-rs)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
   attachments.js           email attachments (local PDF templates per language, remote files)
   commands.js · guard.js · resolver.js · render.js · project.js
-src/server/server.js       editor HTTP API + static files
+src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
+src/service/               hosted service (templaitor serve)
+  app.js                   routes: auth, organizations, org-scoped editor API, /v1 send API, editor SPA
+  auth.js · mailer.js      email codes, passkeys (WebAuthn), sessions · service emails
+  repo.js · db/            data access (portable SQL) · SQLite adapter and migrations
+  storage.js · workspaces.js   fs/db template storage · one project + editor handler per org
+  sender.js · netguard.js  send queue and SMTP delivery · SSRF-safe fetch for remote attachments
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
   src/stores/editor.svelte.js   state: the source texts are the single source of truth
   src/lib/bridge.js             iframe script (selection, inline editing, serialization)

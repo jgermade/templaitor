@@ -3,6 +3,9 @@
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { flagOf } from '../lib/flags.js'
+  import { session } from '../lib/service.svelte.js'
+  import ServiceSettings from './ServiceSettings.svelte'
+  let settingsOpen = $state(false)
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
   import logo from '../../../assets/brand/logo.svg'
 
@@ -69,6 +72,15 @@
     <b>templ<span class="ai">ai</span>tor</b>
   </div>
 
+  {#if session.isService}
+    <label class="org">
+      <span class="sr">Organization</span>
+      <select value={session.activeOrg?.id} onchange={(e) => session.switchOrg(e.currentTarget.value)} title="Organization">
+        {#each session.orgs as o}<option value={o.id}>{o.name}</option>{/each}
+      </select>
+    </label>
+  {/if}
+
   <div class="path">
     <button class="link" onclick={() => (picking = !picking)} title="Open a template, component or layout">
       <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}>{store.isComponent ? '◆' : store.isLayout ? '⧉' : '@'}</span>
@@ -96,10 +108,14 @@
   {/if}
   <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Undo (Ctrl+Z)">↶</button>
   <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Redo (Ctrl+Shift+Z)">↷</button>
-  <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/">⚙ Compile</button>
-  <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Save (Ctrl+S)">
-    {store.dirty ? 'Save' : 'Saved'}
-  </button>
+  {#if session.canEdit}
+    <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/">⚙ Compile</button>
+    <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Save (Ctrl+S)">
+      {store.dirty ? 'Save' : 'Saved'}
+    </button>
+  {:else}
+    <span class="readonly" title="Your role in this organization is viewer">Read-only</span>
+  {/if}
 
   <div class="flags" role="group" aria-label="Language">
     {#each store.langs as l}
@@ -110,7 +126,7 @@
     {/each}
   </div>
 
-  {#if store.project?.smtp && !store.isPdf}
+  {#if store.project?.smtp && !store.isPdf && session.canEdit}
     <button class="send" onclick={sendTest} title="Send a test email (SMTP)">{store.project.smtp.label} <span class="arrow">➤</span></button>
   {/if}
   {#if store.project?.smtp?.web}
@@ -123,6 +139,12 @@
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
     </a>
+  {/if}
+  {#if session.isService}
+    <button class="ghost account" onclick={() => (settingsOpen = true)} title="Organization and account settings" aria-label="Settings">
+      <span class="avatar" aria-hidden="true">{(session.user?.name || session.user?.email || '?').slice(0, 1).toUpperCase()}</span>
+    </button>
+    <ServiceSettings bind:open={settingsOpen} />
   {/if}
 </header>
 
@@ -145,6 +167,11 @@
   .back { font-size: 12px; color: var(--muted); }
   .dirty { color: var(--warn); font-size: 10px; }
   .spacer { flex: 1; }
+  .org select { max-width: 160px; font-size: 12px; padding: 3px 6px; }
+  .readonly { font-size: 12px; color: #52525b; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+  .account { padding: 2px 8px; }
+  .avatar { display: inline-grid; place-content: center; width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899); color: #fff; font-size: 12px; font-weight: 600; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .seg button { font-size: 12px; padding: 3px 9px; }
   .icon { padding: 2px 7px; font-size: 15px; }
   .save { min-width: 84px; }

@@ -252,7 +252,8 @@ export async function renderDraftAttachments(project, { mjml, yml = '', data = '
     err.status = 404
     throw err
   }
-  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d) }
+  // (hosted service: project.fetchImpl blocks private networks for remote attachments)
+  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d), fetchImpl: project.fetchImpl ?? fetch }
   const out = []
   for (const att of list) out.push(await renderAttachment(project, att, demo, opts))
   return out

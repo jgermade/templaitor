@@ -12,14 +12,19 @@
   import DialogHost from './components/DialogHost.svelte'
   import { store } from './stores/editor.svelte.js'
   import { api } from './lib/api.js'
+  import { session } from './lib/service.svelte.js'
+  import ServiceGate from './views/ServiceGate.svelte'
 
   let error = $state(null)
   let showNew = $state(false)
   let showIssues = $state(false)
   let showText = $state(false)
 
-  onMount(() => {
-    store.init().catch((e) => (error = e.message))
+  // hosted service: sign in and pick an organization first (local mode: straight to the editor)
+  const gated = $derived(session.isService && (!session.user || !session.activeOrg))
+  onMount(async () => {
+    await session.load()
+    if (!gated) store.init().catch((e) => (error = e.message))
   })
 
   // Preview: recomputed (debounced) on any change of the draft
@@ -78,7 +83,11 @@
 
 <svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
 
-{#if error}
+{#if session.mode === 'unknown'}
+  <div class="fatal muted" aria-busy="true">Loading…</div>
+{:else if gated}
+  <ServiceGate />
+{:else if error}
   <div class="fatal">
     <h2>Could not load the project</h2>
     <p class="mono">{error}</p>

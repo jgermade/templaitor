@@ -1,0 +1,20 @@
+# templaitor hosted service. Usage:
+#   cp deploy/.env.example deploy/.env   # then edit it (TEMPLAITOR_SECRET, base URL, system SMTP)
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Put it behind a TLS reverse proxy (Caddy, nginx, Traefik): passkeys need HTTPS on a real domain.
+services:
+  templaitor:
+    build: ..
+    image: templaitor:latest
+    restart: unless-stopped
+    ports:
+      - "${TEMPLAITOR_PORT:-3000}:3000"
+    env_file: .env
+    environment:
+      TEMPLAITOR_DATA_DIR: /data
+    volumes:
+      - templaitor-data:/data              # SQLite database + org projects (back this up)
+      # - /srv/acme/emails:/projects/acme  # optional: an org mapped to an existing folder (storage.projects)
+
+volumes:
+  templaitor-data:
