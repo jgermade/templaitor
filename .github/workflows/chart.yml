@@ -1,0 +1,44 @@
+# Publishes the Helm chart attached to a GitHub release (templaitor-chart-<version>.tgz) to
+# oci://ghcr.io/<owner>/charts/templaitor. Called by release.yml; run it by hand to (re)publish the
+# chart of an existing release.
+#
+# Helm is pinned to v3: `helm push` from Helm 4 fails against ghcr.io with
+# `failed to perform "Tag" on destination: …: not found`.
+name: chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the "v" (e.g. 0.1.3)
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Download the chart from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "v${VERSION}" -R "$GITHUB_REPOSITORY" -p "templaitor-chart-${VERSION}.tgz"
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      - name: Push the chart to ghcr.io
+        run: |
+          echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "templaitor-chart-${VERSION}.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"

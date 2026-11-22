@@ -490,6 +490,9 @@ examples/demo/             demo project
   pulled without logging in.
 - **Local builds**: `make binary` (bundle for this machine, reusing the local Node), `make docker`,
   `make helm` (lint + package, needs `helm`).
+- **`chart.yml`** (manual with a `version`, or called by `release.yml`): pushes the chart attached to that
+  GitHub release to `oci://ghcr.io/jgermade/charts`. Helm is pinned to v3 (Helm 4's `helm push` fails
+  against ghcr.io). Run it by hand to republish the chart of an existing release.
 - **`pages.yml`** (manual, or called by `release.yml`): builds `site/` and deploys it to GitHub Pages,
   with upload and deployment in separate jobs. Run it on its own to redeploy the landing page.
 

@@ -129,26 +129,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # the chart is taken from the release assets: chart.yml can also republish it by hand
   helm:
     needs: [version, release]
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/chart.yml
     permissions:
       contents: read
       packages: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: build
-          path: artifacts
-
-      - uses: azure/setup-helm@v4
-
-      - name: Push the chart to ghcr.io
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-          helm push "artifacts/templaitor-chart-${VERSION}.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+    with:
+      version: ${{ needs.version.outputs.version }}
 
   pages:
     needs: [version, release]
