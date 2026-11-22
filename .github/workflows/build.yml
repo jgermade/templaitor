@@ -93,7 +93,10 @@ jobs:
           curl -fs http://127.0.0.1:3999/healthz
           kill "$pid"
 
+      # same Helm major as chart.yml (Helm 4 cannot push to ghcr.io)
       - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
 
       - name: Helm chart (lint, render, package)
         run: |
