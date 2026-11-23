@@ -310,6 +310,37 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
     const old = (await dave.get(`/api/version?id=general/welcome&rev=${list.versions[1].rev}`)).data
     assert.match(old.mjml, /\$t\('body'\)/)
     assert.equal((await dave.post('/api/versions/init', {})).status, 409)
+
+    // send API with a pinned version: v1 renders the old text although the files hold v2 (plus an unversioned edit)
+    const { key } = (await dave.post(`/orgs/${org.id}/keys`, { name: 'backend' })).data
+    const api = (url, body) => fetch(svc.baseUrl + url, {
+      method: body ? 'POST' : 'GET', body: body && JSON.stringify(body),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    }).then(async r => ({ status: r.status, data: await r.json() }))
+    await dave.put('/api/template', { ...tpl, mjml: tpl.mjml.replace("$t('body')", 'Not versioned yet') })
+    const render = (version) => api('/v1/render', { template: 'general/welcome', lang: 'en', ...(version === undefined ? {} : { version }) })
+    assert.match((await render()).data.html, /Not versioned yet/)
+    assert.equal((await render()).data.version, null)
+    for (const spec of [1, 'v1', list.versions[1].rev, list.versions[1].short]) {
+      const r = (await render(spec)).data
+      assert.doesNotMatch(r.html, /Version two|Not versioned yet/, String(spec))
+      assert.equal(r.version.number, 1, String(spec))
+      assert.equal(r.version.rev, list.versions[1].rev)
+    }
+    const latest = (await render('latest')).data
+    assert.match(latest.html, /Version two/)
+    assert.equal(latest.version.number, 2)
+    assert.equal((await render(7)).status, 404)
+    assert.equal((await render(0)).status, 404)
+    assert.equal((await render('HEAD~1')).status, 400)
+    assert.equal((await render({ n: 1 })).status, 400)
+    const vlist = (await api('/v1/versions?template=general/welcome')).data
+    assert.deepEqual(vlist.versions.map(v => [v.number, v.message]), [[2, 'Second'], [1, 'Initial version']])
+    await dave.put(`/orgs/${org.id}/smtp`, { host: 'smtp.versioned.test', from: 'V <no-reply@versioned.test>' })
+    const sent = await api('/v1/send', { template: 'general/welcome', lang: 'en', version: 'v1', to: 'x@example.com' })
+    assert.equal(sent.status, 202, JSON.stringify(sent.data))
+    assert.equal(sent.data.version.number, 1)
+    assert.equal((await api(`/v1/messages/${sent.data.id}`)).data.version.rev, list.versions[1].rev)
     // viewers list and read versions but cannot save them
     await dave.post(`/orgs/${org.id}/invitations`, { email: 'erin@example.com', role: 'viewer' })
     const erin = client(svc)
@@ -344,6 +375,13 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
       assert.equal(r1.number, 1)
       assert.equal((await c.get('/api/version?id=general/welcome&rev=nope')).status, 400)
       assert.equal((await c.post('/api/versions/init', {})).status, 400)
+      // pinned version with db storage
+      const org2 = (await c.get('/orgs')).data[0]
+      const { key: k2 } = (await c.post(`/orgs/${org2.id}/keys`, { name: 'b' })).data
+      const r2 = (v) => fetch(`${s.baseUrl}/v1/render`, { method: 'POST', headers: { Authorization: `Bearer ${k2}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ template: 'general/welcome', version: v }) }).then(r => r.json())
+      assert.doesNotMatch((await r2('v1')).html, /Edited/)
+      assert.match((await r2(2)).html, /Edited/)
+      assert.deepEqual((await r2(v1.id)).version, { number: 1, rev: v1.id, short: 'v1' })
     } finally {
       await s.close()
     }

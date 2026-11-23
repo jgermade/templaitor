@@ -3,7 +3,7 @@
 //   git (default) — local editor and hosted `fs` storage: a version is a commit of the document's files
 //   db            — hosted `db` storage (src/service/versions.js): versions kept in the database
 //
-// A store implements: info() · list(doc, { limit }) · read(doc, rev) · save(doc, { message, author }) · init?()
+// A store implements: info() · list(doc, { limit }) · read(doc, rev) · revOf(doc, number) · save(doc, { message, author }) · init?()
 import fs from 'node:fs'
 import { documentFiles, gitVersionStore } from './history.js'
 import { httpError } from './project.js'
@@ -64,4 +64,27 @@ export async function initVersions(project, { author } = {}) {
   const store = versionStore(project)
   if (!store.init) throw httpError(400, 'Versions are always on with this storage')
   return store.init({ author })
+}
+
+/**
+ * A version picked by the API (`/v1/send { version }`): `3` / `"v3"` (number), `"latest"` (newest version,
+ * ignoring files saved after it) or a revision / version id → readVersion() result
+ */
+export async function resolveVersion(project, id, kind = 'template', spec) {
+  const store = versionStore(project)
+  const info = await store.info()
+  if (!info.available) throw httpError(409, `Versions are not available for this project: ${info.reason || 'no version store'}`)
+  const doc = docOf(project, id, kind)
+  const s = String(spec ?? '').trim()
+  if (!s || s.length > 64) throw httpError(400, `Invalid version: ${s.slice(0, 64)}`)
+  let rev = s
+  if (/^latest$/i.test(s)) {
+    rev = (await store.list(doc, { limit: 1 })).versions[0]?.rev
+    if (!rev) throw httpError(404, `${id} has no versions yet`)
+  } else if (/^v?\d{1,9}$/i.test(s)) {
+    const n = Number(s.replace(/^v/i, ''))
+    rev = n > 0 ? await store.revOf(doc, n) : null
+    if (!rev) throw httpError(404, `${id} has no version v${n}`)
+  }
+  return readVersion(project, id, kind, rev)
 }

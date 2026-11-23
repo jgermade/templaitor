@@ -114,8 +114,21 @@ export function gitVersionStore(project, { rootMustBe = null, committer = null }
         out[key] = r.ok ? r.stdout : null
       }
       if (out.mjml == null) throw httpError(404, `${doc.id} did not exist at ${String(rev).slice(0, 7)}`)
-      const meta = await git(cwd(), ['log', '-n1', FORMAT, rev])
-      return { ...(meta.ok && meta.stdout.trim() ? parse(meta.stdout.trim()) : { id: rev, rev, short: rev.slice(0, 7) }), files: out }
+      const files = Object.values(doc.files).map(rel)
+      const [meta, count] = await Promise.all([
+        git(cwd(), ['log', '-n1', FORMAT, rev]),
+        // number of the version in effect at that commit (commits that touched the document up to it)
+        git(cwd(), ['rev-list', '--count', rev, '--', ...files]),
+      ])
+      const number = count.ok ? Number(count.stdout.trim()) || null : null
+      return { ...(meta.ok && meta.stdout.trim() ? parse(meta.stdout.trim()) : { id: rev, rev, short: rev.slice(0, 7) }), number, files: out }
+    },
+
+    /** Revision of version number `n` (1 = oldest) or null */
+    async revOf(doc, n) {
+      await requireRoot()
+      const r = await git(cwd(), ['rev-list', '--reverse', 'HEAD', '--', ...Object.values(doc.files).map(rel)])
+      return r.ok ? r.stdout.split('\n').filter(Boolean)[n - 1] ?? null : null
     },
 
     async save(doc, { message, author } = {}) {

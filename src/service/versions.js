@@ -28,6 +28,10 @@ export function dbVersionStore({ repo, orgId }) {
       return { ...view(v), files: v.files }
     },
 
+    async revOf(doc, n) {
+      return (await repo.versionByNumber(orgId, doc.kind, doc.id, n))?.id ?? null
+    },
+
     async save(doc, { message, author } = {}) {
       const files = doc.current()
       const hash = hashOf(files)

@@ -12,6 +12,7 @@ import { createSender, messageView } from './sender.js'
 import { encrypt, hashToken, randomToken } from './crypto.js'
 import { httpError, readJson, sendJson } from './http.js'
 import { listTemplates } from '../engine/project.js'
+import { listVersions } from '../engine/versions.js'
 import { setPdfSandbox } from '../engine/pdf.js'
 
 const EDITOR_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/editor')
@@ -238,13 +239,20 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     ['POST', '/v1/render', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
       const b = await sender.build(org, { to: 'render@example.com', ...ctx.body })
-      return { subject: b.subject, html: b.html, text: b.text, locale: b.locale, attachments: b.attachments?.names ?? b.attachments?.list?.map(a => a.filename) ?? [], warnings: b.warnings }
+      return { subject: b.subject, html: b.html, text: b.text, locale: b.locale, version: b.version, attachments: b.attachments?.names ?? b.attachments?.list?.map(a => a.filename) ?? [], warnings: b.warnings }
     }],
     ['GET', '/v1/messages/:mid', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
       const m = await repo.message(org.id, ctx.params.mid)
       if (!m) throw httpError(404, 'Message not found')
       return messageView(m)
+    }],
+    // versions of a hosted template (to pick one for /v1/send { version })
+    ['GET', '/v1/versions', async (ctx) => {
+      const { org } = await apiKeyOrg(ctx.req)
+      const ws = await workspaces.get(org.id)
+      const r = await listVersions(ws.project, ctx.query.get('template'), 'template', { limit: ctx.query.get('limit') })
+      return { available: r.available, versions: r.versions.map(v => ({ number: v.number, rev: v.rev, short: v.short, message: v.message, author: v.author, date: v.date })) }
     }],
     ['GET', '/v1/templates', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)

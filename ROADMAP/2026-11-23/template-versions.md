@@ -47,6 +47,6 @@ gantt
     Compare view lists versions of every storage                        :e2, after e1, 1d
 
     section Later
-    Send/render a pinned version from the API (/v1/send version)        :l1, after e2, 2d
+    Send/render a pinned version from the API (/v1/send version)        :done, l1, after e2, 1d
     Compiled output per version / release tags                          :l2, after l1, 2d
 ```

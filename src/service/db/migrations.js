@@ -142,6 +142,8 @@ export const MIGRATIONS = [
     UNIQUE (org_id, kind, doc_id, number)
   );
   `,
+  // version of the template a message was sent with (`/v1/send { version }`), JSON { number, rev, short }
+  () => 'ALTER TABLE messages ADD COLUMN template_version TEXT',
 ]
 
 /** Applies the pending migrations (each one in a transaction) */

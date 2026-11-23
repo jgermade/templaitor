@@ -142,9 +142,10 @@ export function createRepo(db) {
     async enqueue(m) {
       const id = randomId()
       const t = now()
-      await db.run(`INSERT INTO messages (id, org_id, api_key_id, user_id, kind, template, locale, recipients, subject, payload, status,
-        attempts, next_attempt_at, idempotency_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
-      id, m.orgId, m.apiKeyId ?? null, m.userId ?? null, m.kind, m.template ?? null, m.locale ?? null, JSON.stringify(m.recipients),
+      await db.run(`INSERT INTO messages (id, org_id, api_key_id, user_id, kind, template, template_version, locale, recipients, subject, payload, status,
+        attempts, next_attempt_at, idempotency_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
+      id, m.orgId, m.apiKeyId ?? null, m.userId ?? null, m.kind, m.template ?? null, m.templateVersion ? JSON.stringify(m.templateVersion) : null,
+      m.locale ?? null, JSON.stringify(m.recipients),
       m.subject || '', JSON.stringify(m.payload), t, m.idempotencyKey ?? null, t, t)
       return repo.message(m.orgId, id)
     },
@@ -197,6 +198,7 @@ export function createRepo(db) {
     // ── Template versions (db storage) ──
     versions: async (orgId, kind, docId, limit = 50) => (await db.all(`SELECT id, number, message, author_name, author_email, hash, created_at
       FROM versions WHERE org_id = ? AND kind = ? AND doc_id = ? ORDER BY number DESC LIMIT ?`, orgId, kind, docId, Math.min(Number(limit) || 50, 200))).map(numbers),
+    versionByNumber: (orgId, kind, docId, number) => db.get('SELECT id FROM versions WHERE org_id = ? AND kind = ? AND doc_id = ? AND number = ?', orgId, kind, docId, number),
     version: async (orgId, kind, docId, id) => parseVersion(await db.get('SELECT * FROM versions WHERE org_id = ? AND kind = ? AND doc_id = ? AND id = ?', orgId, kind, docId, id)),
     /** Next number of the document, assigned inside the transaction (UNIQUE guards concurrent saves) */
     async createVersion({ orgId, kind, docId, message, authorName, authorEmail, files, hash }) {
@@ -233,5 +235,5 @@ function parseVersion(v) {
   return v ? { ...numbers(v), number: Number(v.number), files: json(v.files, {}) } : null
 }
 function parseMessage(m) {
-  return m ? { ...numbers(m), recipients: json(m.recipients, {}), payload: json(m.payload, {}) } : null
+  return m ? { ...numbers(m), recipients: json(m.recipients, {}), payload: json(m.payload, {}), template_version: json(m.template_version, null) } : null
 }

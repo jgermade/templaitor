@@ -404,6 +404,9 @@ tools do not change: `templaitor editor`, `make up` and `compile` keep working a
 curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
   -H "Idempotency-Key: order-A-1042" \
   -d '{"template": "orders/order-confirmation", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
+# the same template pinned to a version (v3 of orders/order-confirmation; "latest" = newest version)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -d '{"template": "orders/order-confirmation", "version": "v3", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
 # raw HTML (your own rendering)
 curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
   -d '{"to": ["ada@example.com"], "subject": "Hi", "html": "<p>Hello</p>",
@@ -412,9 +415,10 @@ curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -
 
 | Endpoint | |
 |---|---|
-| `POST /v1/send` | `template` + `lang` + `data` (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
-| `POST /v1/render` | same body, returns `{ subject, html, text, attachments }` without sending |
-| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error |
+| `POST /v1/send` | `template` + `lang` + `data` (+ `version`: `3` · `"v3"` · `"latest"` · a revision / version id — sends the template **as it was at that version**; without it, the current files) (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
+| `POST /v1/render` | same body, returns `{ subject, html, text, attachments, version }` without sending |
+| `GET /v1/versions?template=` | versions of a hosted template: `{ number, rev, short, message, author, date }`, newest first |
+| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error, `version` used (`{ number, rev, short }` or `null`) |
 | `GET /v1/templates` | the organization's templates and languages |
 
 - **Security**: PDFs are rendered in a **sandbox** (only `data:` URLs and the project's static files load:

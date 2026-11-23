@@ -6,6 +6,7 @@ import { convert as htmlToText } from 'html-to-text'
 import { compileSource, langsOf, renderDraftAttachments } from '../engine/pipeline.js'
 import { readTemplate, readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
+import { resolveVersion } from '../engine/versions.js'
 import { httpError } from './http.js'
 import { safeFetch } from './netguard.js'
 
@@ -45,6 +46,15 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
       const ws = await workspaces.get(org.id)
       let tpl
       try { tpl = readTemplate(ws.project, body.template) } catch (e) { throw httpError(e.status === 404 ? 404 : 400, e.message) }
+      // pinned version (`version: 3 | "v3" | "latest" | <rev>`): the template's own files at that version;
+      // layouts, components and attached documents are used as they are now
+      let version = null
+      if (body.version != null && body.version !== '') {
+        if (!['string', 'number'].includes(typeof body.version)) throw httpError(400, '`version` must be a number, "v<n>", "latest" or a revision')
+        const v = await resolveVersion(ws.project, tpl.id, 'template', body.version)
+        tpl = { ...tpl, mjml: v.mjml, yml: v.yml ?? '' }
+        version = { number: v.number ?? null, rev: v.rev, short: v.short }
+      }
       const i18n = YAML.parse(tpl.yml || '') || {}
       const langs = langsOf(ws.project, i18n)
       const langKey = resolveLang(ws.project, langs, body.lang)
@@ -60,7 +70,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
         throw httpError(422, `Jinja2: ${String(e.message).split('\n').pop().trim()}`)
       }
       return {
-        kind: 'hosted', template: tpl.id, locale: r.locale, recipients, from, headers, subject, html, text,
+        kind: 'hosted', template: tpl.id, version, locale: r.locale, recipients, from, headers, subject, html, text,
         // attachments are rendered by the worker from this snapshot (PDF rendering is slow)
         attachments: r.attachments.length ? { snapshot: { mjml: tpl.mjml, yml: tpl.yml, langKey }, data, names: r.attachments.map(a => renderJinja(a.filename, data)) } : null,
         warnings: r.warnings,
@@ -79,7 +89,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
       return { filename: String(a.filename), content: a.content, contentType: a.contentType }
     })
     return {
-      kind: 'raw', template: null, locale: body.lang || null, recipients, from, headers,
+      kind: 'raw', template: null, version: null, locale: body.lang || null, recipients, from, headers,
       subject: body.subject.trim(), html: body.html, text: typeof body.text === 'string' ? body.text : htmlToText(body.html, { wordwrap: 80 }),
       attachments: attachments.length ? { list: attachments } : null,
       warnings: [],
@@ -179,7 +189,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
       }
       const b = await build(org, body)
       const message = await repo.enqueue({
-        orgId: org.id, apiKeyId, userId, kind: b.kind, template: b.template, locale: b.locale, recipients: b.recipients,
+        orgId: org.id, apiKeyId, userId, kind: b.kind, template: b.template, templateVersion: b.version, locale: b.locale, recipients: b.recipients,
         subject: b.subject, idempotencyKey: idempotencyKey ? String(idempotencyKey).slice(0, 200) : null,
         payload: { from: b.from, headers: b.headers, html: b.html, text: b.text, attachments: b.attachments },
       })
@@ -207,7 +217,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
 /** Public view of a message (no payload) */
 export function messageView(m) {
   return {
-    id: m.id, status: m.status, kind: m.kind, template: m.template, locale: m.locale, subject: m.subject,
+    id: m.id, status: m.status, kind: m.kind, template: m.template, version: m.template_version ?? null, locale: m.locale, subject: m.subject,
     to: m.recipients.to, cc: m.recipients.cc, bcc: m.recipients.bcc, attempts: m.attempts,
     attachments: m.payload?.attachments?.names ?? m.payload?.attachments?.list?.map(a => a.filename) ?? [],
     lastError: m.last_error, smtpMessageId: m.smtp_message_id, purged: !!m.payload?.purged,
