@@ -15,7 +15,7 @@ import { annotateBody } from './design.js'
 import { tryRenderJinja, renderJinja } from './render.js'
 import { normalizeContract, usedVariables, validateData, formatErrors, toJsonSchema } from '../shared/contract.js'
 import { normalizeAttachments } from '../shared/attachments.js'
-import { resolveAttachments, renderAttachment } from './attachments.js'
+import { resolveAttachments, renderAttachment, attachmentData } from './attachments.js'
 import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
 const CONTENT_SLOT = `<mj-section css-class="tpl-slot" padding="16px 24px">
@@ -213,6 +213,14 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
 export async function compileProject(project, { target, log = console.log, samplePdf = false, validate = false } = {}) {
   const ids = target ? [target] : listTemplates(project).map(t => t.id)
   const all = { files: [], issues: [] }
+  if (!target) {
+    // TypeScript types of every data contract, for a backend in TypeScript
+    const { projectTypes } = await import('./types.js')
+    fs.mkdirSync(project.outDir, { recursive: true })
+    const file = path.join(project.outDir, 'templates.d.ts')
+    fs.writeFileSync(file, projectTypes(project))
+    all.files.push(file)
+  }
   for (const id of ids) {
     log?.(`\n→ ${id}`)
     const r = await compileTemplate(project, id, { log, samplePdf, validate })
@@ -241,6 +249,17 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
   if (mode === 'raw') return { ...r, warnings }
   // the demo data is an example of the contract: it has to fulfil it
   if (r.hasContract) for (const e of formatErrors(validateData(r.contract, demo))) warnings.push(`Demo data: ${e}`)
+  // …and so does what an attached document would get from it in a real send (its contract)
+  for (const att of r.attachments || []) {
+    if (att.type !== 'template') continue
+    let doc = null
+    try { doc = readTemplate(project, att.template) } catch { continue }
+    const { meta: dm } = parseFrontmatter(doc.mjml)
+    if (dm.data == null) continue
+    for (const e of formatErrors(validateData(normalizeContract(dm.data), attachmentData(att, demo)))) {
+      warnings.push(`Demo data → attachment ${att.template}${att.context ? ` (context: ${att.context})` : ''}: ${e}`)
+    }
+  }
 
   return {
     ...r,

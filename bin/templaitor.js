@@ -19,6 +19,7 @@ Usage:
   templaitor engines                          Available PDF engines and validator
   templaitor editor [--port 3333] [--open]    Open the visual editor
   templaitor new <group/name> [--layout x]    Create a new template
+  templaitor types [--out templates.d.ts]     TypeScript types of the templates' data contracts
   templaitor versions <template> [--kind component|layout]
                                               List the versions of a document (git)
   templaitor versions export [--out file]     Export every version from git to .templaitor/versions.json
@@ -59,6 +60,15 @@ async function main() {
   }
 
   const project = loadProject(cwd)
+
+  if (cmd === 'types') {
+    // TypeScript declarations of the data contracts → stdout or --out file
+    const { projectTypes } = await import('../src/engine/types.js')
+    const ts = projectTypes(project)
+    const out = flag('out')
+    if (typeof out === 'string') { fs.writeFileSync(path.resolve(out), ts); console.log(`✓ ${path.relative(process.cwd(), path.resolve(out))}`) } else process.stdout.write(ts)
+    return
+  }
 
   if (cmd === 'versions') {
     // templaitor versions export [--out file]  ·  templaitor versions <template> [--kind component|layout]

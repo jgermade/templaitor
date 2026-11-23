@@ -16,7 +16,7 @@ import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
 import { normalizeAttachments } from '@shared/attachments.js'
 import { COMPONENTS, canContain, describe } from '@shared/components.js'
 import { logicMap, unitBounds, unitsOf, moveUnit, removeUnit, duplicateUnit, setLogic } from '@shared/logic.js'
-import { normalizeContract, contractToYaml, inferContract } from '@shared/contract.js'
+import { normalizeContract, contractToYaml, inferContract, normalizeRules } from '@shared/contract.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
 
@@ -487,6 +487,12 @@ class EditorStore {
     const fields = this.#fieldsAt(c, path.slice(0, -1))
     const name = path.at(-1)
     const f = { ...fields[name], ...patch }
+    for (const k of Object.keys(patch)) if (patch[k] === undefined) delete f[k] // a cleared rule
+    // rules that do not fit the new type are dropped
+    if (patch.type) {
+      const keep = normalizeRules(f.type, f)
+      for (const k of ['enum', 'min', 'max', 'pattern']) { if (keep[k] === undefined) delete f[k]; else f[k] = keep[k] }
+    }
     if (f.type === 'object') f.fields ??= {}
     if (f.type === 'list') f.of ??= { type: 'string' }
     if (f.type !== 'object') delete f.fields

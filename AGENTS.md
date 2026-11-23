@@ -40,6 +40,9 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 
 - `src/index.js` is the public API of the npm package (`createEngine`): keep it stable; the hosted service and the
   library share `src/engine/message.js` for rendering a template for one recipient.
+- Templates declare a data contract (`data:` in the frontmatter). After changing one in the repository's
+  `templates/`, regenerate `templates.d.ts` (`node bin/templaitor.js types --out templates.d.ts`): the npm
+  package ships it and a test checks it is up to date.
 - `src/shared/` must stay browser-safe (no Node imports): it is bundled into the editor.
 - Compiled output must keep Jinja2 tokens intact (`{{ }}`, `{% %}`, `{# #}`).
 - Editor state: the template source texts (`mjml`, `yml`, `data`) are the single source of truth; visual

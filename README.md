@@ -333,6 +333,10 @@ data:
 Types: `string` · `number` · `boolean` · `date` · `url` · `email` · `list` (`of`: a type or fields) · `object`.
 (In `{ … }` quote values that contain commas.)
 
+Rules (optional, per field): `enum: [free, pro]` (allowed values) · `min` / `max` — the value of a number, the
+length of a string / url / email, the number of items of a list, the earliest / latest date — · `pattern` (a
+regular expression for strings), e.g. `order_id: { type: string, required: true, pattern: "^A-\\d+$" }`.
+
 - **Editor** (Design view, *Data*): the fields with their type, *required* and description, nested fields for
   lists and objects, "not used" marks, the variables used but not declared (one click declares them), and
   *Generate from demo data* for templates without a contract. The demo data (Preview / PDF) is an example
@@ -343,6 +347,13 @@ Types: `string` · `number` · `boolean` · `date` · `url` · `email` · `list`
   an email attaches (their `context` object plus the email's top-level plain values). Nothing is queued.
 - **Export**: compiling writes `<name>.schema.json` (JSON Schema 2020-12) next to the output; also
   `engine.schema(id)` and `GET /v1/schema?template=` — for validating or generating types in the backend.
+- **TypeScript**: `templaitor types [--out templates.d.ts]` (also written by a full `compile`, and
+  `engine.types()`) declares `export interface <Name>Data` per template (enums as unions, optional fields with
+  `?`, descriptions and rules as comments) and `TemplateData` (id → data). The npm package ships the types of
+  its own templates, so `engine.render('orders/order-confirmation', { data })` is type-checked; for your own
+  project: `createEngine<TemplateData>({ cwd })` with the types you generated.
+- **Attached documents**: the editor also checks what each attached PDF would receive from the demo data in a
+  real send (its `context` object + the email's plain values) against the document's contract.
 
 ## Email attachments
 

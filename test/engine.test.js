@@ -95,7 +95,9 @@ test('demo project compilation: Jinja2 intact in HTML/TXT/subject', async () => 
   // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (per language)
   // (+ .attachments.json per language for emails with attachments, + one .schema.json per template with a
   // data contract)
-  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3) + 1, 0) + 2
+  // (+ templates.d.ts: the TypeScript types of the data contracts)
+  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3) + 1, 0) + 2 + 1
+  assert.match(fs.readFileSync(path.join(project.outDir, 'templates.d.ts'), 'utf8'), /export interface TemplateData/)
   assert.equal(files.length, expected)
   const schema = JSON.parse(fs.readFileSync(path.join(project.outDir, 'orders/order-confirmation/order-confirmation.schema.json'), 'utf8'))
   assert.equal(schema.type, 'object')
@@ -685,4 +687,59 @@ test('data contract: compile warnings, demo data checked, 422 on render (also fo
   assert.deepEqual(d, { assets_url: '/s', number: '1' })
   assert.equal(attachmentData(att, { invoice: { number: '1' } }, { number: 'demo', customer: { name: 'Demo' } }).customer.name, 'Demo')
   assert.equal(attachmentData(att, { invoice: { number: '1' } }).customer, undefined)
+})
+
+test('data contract rules: enum, min/max (value, length, items, dates), pattern — validation, JSON Schema, TypeScript', async () => {
+  const { normalizeContract, validateData, toJsonSchema, contractToYaml, rulesSummary, toTypeScript, typeNameOf } = await import('../src/shared/contract.js')
+  const c = normalizeContract({
+    code: { type: 'string', required: true, pattern: '^[A-Z]{2}\\d+$', min: 3, max: 8 },
+    plan: { type: 'string', enum: ['free', 'pro'] },
+    qty: { type: 'number', min: 1, max: 10 },
+    tags: { type: 'list', min: 1, max: 3, of: 'string' },
+    due: { type: 'date', min: '2026-01-01' },
+    flag: { type: 'boolean', min: 3, pattern: 'x' }, // rules that make no sense for the type are dropped
+    level: { type: 'number', enum: [1, 2, 3] },
+  })
+  assert.deepEqual(c.flag, { type: 'boolean', required: false, description: '' })
+  assert.deepEqual(validateData(c, { code: 'AB12', plan: 'pro', qty: 3, tags: ['a'], due: '2026-05-01', level: 2 }), [])
+  const errs = validateData(c, { code: 'x1', plan: 'gold', qty: 0, tags: [], due: '2025-05-01', level: 7 })
+  assert.deepEqual(errs.map(e => `${e.path}: ${e.message}`), [
+    'code: must have at least 3 character(s)', 'code: must match ^[A-Z]{2}\\d+$', 'plan: must be one of: free, pro',
+    'qty: must be at least 1', 'tags: must have at least 1 item(s)', 'due: must be on or after 2026-01-01', 'level: must be one of: 1, 2, 3',
+  ])
+  // a value of the wrong type gets the type error only
+  assert.deepEqual(validateData(c, { code: 5 }).map(e => e.message), ['must have at least 3 character(s)', 'must match ^[A-Z]{2}\\d+$'])
+  assert.deepEqual(validateData(c, { code: 'AB1', qty: 'x' }).map(e => e.message), ['must be a number'])
+  assert.deepEqual(normalizeContract(contractToYaml(c)), c)
+  const s = toJsonSchema(c).properties
+  assert.deepEqual([s.code.minLength, s.code.maxLength, s.code.pattern, s.plan.enum, s.qty.minimum, s.tags.minItems, s.due.formatMinimum], [3, 8, '^[A-Z]{2}\\d+$', ['free', 'pro'], 1, 1, '2026-01-01'])
+  assert.equal(rulesSummary(c.qty), '1–10')
+  assert.equal(rulesSummary(c.code), '3–8 chars · pattern')
+  // TypeScript: enums become unions, optional fields get "?", rules go in the doc comment
+  assert.equal(typeNameOf('orders/order-confirmation'), 'OrdersOrderConfirmationData')
+  const ts = toTypeScript([{ id: 'a/b', contract: c }, { id: 'c', contract: null }])
+  assert.match(ts, /export interface ABData \{/)
+  assert.match(ts, /  code: string/)
+  assert.match(ts, /  plan\?: "free" \| "pro"/)
+  assert.match(ts, /  level\?: 1 \| 2 \| 3/)
+  assert.match(ts, /  tags\?: Array<string>/)
+  assert.match(ts, /Rules: 1–10\./)
+  assert.match(ts, /export type CData = Record<string, unknown>/)
+  assert.match(ts, /"a\/b": ABData/)
+})
+
+test('templates.d.ts (shipped in the npm package) is up to date with the data contracts', async () => {
+  const { projectTypes } = await import('../src/engine/types.js')
+  const root = path.resolve(import.meta.dirname, '..')
+  assert.equal(fs.readFileSync(path.join(root, 'templates.d.ts'), 'utf8'), projectTypes(loadProject(root)),
+    'run `node bin/templaitor.js types --out templates.d.ts` after changing a data contract')
+})
+
+test('data contract: the demo data is also checked for what attached documents would receive', async () => {
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  assert.deepEqual((await previewDraft(project, { ...t, langKey: 'en' })).warnings, [])
+  const data = t.data.replace(/customer: \{[^}]*\},\n/, '')
+  const r = await previewDraft(project, { ...t, data, langKey: 'en' })
+  assert.deepEqual(r.warnings, ['Demo data → attachment documents/invoice (context: invoice): customer: is required'])
 })

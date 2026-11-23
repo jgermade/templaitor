@@ -18,6 +18,7 @@ import { compileProject, compileSource, previewDraft, langsOf } from './engine/p
 import { renderMessage, renderAttachments, renderPdfDocument, resolveLang, templateSchema } from './engine/message.js'
 import { listVersions, readVersion, resolveVersion } from './engine/versions.js'
 import { renderJinja } from './engine/render.js'
+import { projectTypes } from './engine/types.js'
 
 /** Folder of the templaitor project shipped with this package (the repository's own templates) */
 export const BUNDLED_PROJECT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -58,6 +59,9 @@ export function createEngine({ cwd = BUNDLED_PROJECT, overrides = {}, fetch: fet
 
     /** A PDF template rendered with data → { pdf: Buffer, engine, locale, title, version } */
     pdf: (id, { lang, data = {}, version, engine, validate = true } = {}) => renderPdfDocument(project, id, { lang, data, version, engine, validate }),
+
+    /** TypeScript declarations of every template's data (`TemplateData`: id → data) */
+    types: () => projectTypes(project),
 
     /** JSON Schema of the template's data contract (`data:` in its frontmatter), or null */
     schema: (id, { version } = {}) => templateSchema(project, id, { version }),

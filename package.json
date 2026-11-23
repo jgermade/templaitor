@@ -4,8 +4,12 @@
   "description": "Generic MJML template editor with Jinja2 output, WYSIWYG editing, reusable components and accessible PDFs",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
     "./engine/*": "./src/engine/*.js",
     "./package.json": "./package.json"
   },
@@ -18,7 +22,8 @@
     "dist/editor",
     "templaitor.config.yml",
     "templates",
-    ".templaitor"
+    ".templaitor",
+    "templates.d.ts"
   ],
   "engines": {
     "node": ">=20"
@@ -32,7 +37,7 @@
     "prepare": "vite build --config vite.config.js",
     "build:site": "node scripts/build-site.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "prepack": "node scripts/export-versions.mjs"
+    "prepack": "node scripts/prepack.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.1.0",

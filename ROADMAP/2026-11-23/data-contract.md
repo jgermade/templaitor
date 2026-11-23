@@ -36,3 +36,29 @@ gantt
     section Templates
     Contracts for the demo and the repository's templates                 :done, t1, after e2, 1d
 ```
+
+## Follow-up (same day): what was left pending
+
+| Topic | Decision |
+|---|---|
+| Rules | `enum`, `min` / `max` (number value · string length · list items · dates), `pattern` (strings); rules that do not fit the type are dropped |
+| TypeScript | `templaitor types`, `engine.types()`, `templates.d.ts` on a full compile; the npm package ships `src/index.d.ts` + the generated `templates.d.ts` so `render(id, { data })` is type-checked |
+| Attached documents | the demo data is checked for what each attached document would receive in a real send |
+
+```mermaid
+gantt
+    title templaitor — data contract, follow-up
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+
+    section Contract
+    Rules: enum, min/max, pattern (validation, JSON Schema, YAML)     :done, f1, 2026-11-23, 1d
+    Editor: rules per field (summary chip, inputs by type)            :done, f2, after f1, 1d
+
+    section TypeScript
+    toTypeScript, templaitor types, engine.types(), compile           :done, f3, 2026-11-23, 1d
+    Package typings (index.d.ts + templates.d.ts, prepack, test)      :done, f4, after f3, 1d
+
+    section Attachments
+    Demo data checked against attached documents' contracts           :done, f5, 2026-11-23, 1d
+```
