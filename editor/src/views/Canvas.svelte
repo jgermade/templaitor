@@ -11,6 +11,11 @@
   let ready = $state(false)
   const srcdoc = `<!doctype html><html><head><meta charset="utf-8"></head><body>${bridgeScript}</body></html>`
 
+  const logicTags = (l) => [
+    ...(l?.if ? [{ kind: 'if', text: `if ${l.if}` }] : []),
+    ...(l?.for ? [{ kind: 'for', text: `for each ${l.for.item} in ${l.for.list}` }] : []),
+  ]
+
   const post = (msg) => iframe?.contentWindow?.postMessage({ __tpl: true, ...msg }, '*')
 
   // content
@@ -26,15 +31,17 @@
     const inst = store.instanceOf(node)
     const label = inst ? `Component ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
     // display logic (show only if / repeat for each) goes in the selection badge, after the label
-    const logic = id != null ? store.logicOf(id) : null
-    const tags = [
-      ...(logic?.if ? [{ kind: 'if', text: `if ${logic.if}` }] : []),
-      ...(logic?.for ? [{ kind: 'for', text: `for each ${logic.for.item} in ${logic.for.list}` }] : []),
-    ]
+    const tags = id != null ? logicTags(store.logicOf(id)) : []
     if (ready) post({ type: 'select', id, label, tags, scroll: store.selectSource !== 'canvas' })
   })
 
   let dragged = null
+  // display logic of every block, drawn by the iframe as floating tabs (the selected one goes in the badge)
+  $effect(() => {
+    const items = Object.entries(store.logic.byId).map(([id, l]) => ({ id, tags: logicTags(l) }))
+    if (ready) post({ type: 'logic', items })
+  })
+
   // a block or component dragged from the library: the canvas gets the valid drop targets (the iframe
   // draws the line)
   $effect(() => {
@@ -59,6 +66,7 @@
       case 'ready':
         ready = true
         if (store.preview.html) post({ type: 'update', html: store.preview.html, mode })
+        post({ type: 'logic', items: Object.entries(store.logic.byId).map(([id, l]) => ({ id, tags: logicTags(l) })) })
         break
       case 'select':
         store.selectSource = 'canvas'

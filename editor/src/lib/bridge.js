@@ -34,13 +34,12 @@ export function bridgeMain() {
     .tpl-page-break { position: relative; height: 0; border-top: 2px dashed #a1a1aa; margin: 22px 0; }
     .tpl-page-break::after { content: 'Page break'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
       background: #fff; color: #71717a; font: 600 10px/16px system-ui, sans-serif; padding: 0 8px; border-radius: 8px; border: 1px solid #d4d4d8; }
-    .tpl-logic-cell { padding: 0 25px; font-size: 0; }
-    .tpl-logic { display: inline-block; margin: 6px 0 2px; padding: 0 8px; border-radius: 999px; font: 600 11px/18px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .tpl-logic--if { background: #fef3c7; color: #92400e; }
-    .tpl-logic--for { background: #e0f2fe; color: #075985; }
-    .tpl-logic-hidden { display: none !important; }
     .tpl-badge-main, .tpl-badge-logic { padding: 0 6px; border-radius: 3px 3px 0 0; }
     #tpl-badge.inside > span { border-radius: 0 0 3px 3px; }
+    .tpl-logic-float { position: absolute; z-index: 99990; pointer-events: none; display: flex; transform: translateY(-100%); }
+    .tpl-logic-float.inside { transform: none; }
+    .tpl-logic-float.inside > span { border-radius: 0 0 3px 3px; }
+    .tpl-logic-float > .tpl-badge-logic:first-child { margin-left: 0; }
     .tpl-badge-logic { margin-left: 2px; font: 600 10px/16px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .tpl-badge-logic--if { background: #fef3c7; color: #92400e; }
     .tpl-badge-logic--for { background: #e0f2fe; color: #075985; }
@@ -88,8 +87,7 @@ export function bridgeMain() {
   }
 
   function applySelection(scroll) {
-    // the selected block's logic is in the badge: its labels on the canvas step aside
-    document.querySelectorAll('[data-tpl-of]').forEach(e => e.classList.toggle('tpl-logic-hidden', mode === 'design' && e.dataset.tplOf === String(selectedId)))
+    drawLogic()
     document.querySelectorAll('.tpl-selected').forEach(e => e.classList.remove('tpl-selected'))
     const badge = document.getElementById('tpl-badge')
     const els = mode === 'design' ? elsOf(selectedId) : []
@@ -126,6 +124,35 @@ export function bridgeMain() {
     badge.style.transform = inside ? 'none' : 'translateY(-100%)'
     badge.classList.toggle('inside', inside) // tabs hang down instead of up
   }
+
+  // ── Display logic: floating tabs over the blocks that have it ─────────
+  // (where the selection badge goes, without taking space in the layout; the selected block shows its
+  // logic in the badge instead)
+  let logicItems = [] // [{ id, tags: [{ kind, text }] }]
+
+  function drawLogic() {
+    document.querySelectorAll('.tpl-logic-float').forEach(e => e.remove())
+    if (mode !== 'design') return
+    for (const { id, tags } of logicItems) {
+      if (String(id) === String(selectedId) || !tags.length) continue
+      const el = elOf(id)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      const box = document.createElement('div')
+      box.className = `tpl-logic-float${r.top + scrollY < 18 ? ' inside' : ''}`
+      box.style.left = `${r.left + scrollX}px`
+      box.style.top = `${r.top + scrollY}px`
+      for (const t of tags) {
+        const span = document.createElement('span')
+        span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
+        span.textContent = t.text
+        box.appendChild(span)
+      }
+      document.body.appendChild(box)
+    }
+  }
+  // images loading or fonts changing move the blocks
+  new ResizeObserver(() => { drawLogic(); positionBadge() }).observe(document.documentElement)
 
   // ── Editable region serialization → source code ─────────
   const INLINE = /^(B|STRONG|I|EM|U|S|SMALL|SUP|SUB|CODE|SPAN|A)$/
@@ -263,6 +290,7 @@ export function bridgeMain() {
   addEventListener('message', (e) => {
     const msg = e.data
     if (!msg?.__tpl) return
+    if (msg.type === 'logic') { logicItems = msg.items || []; drawLogic() }
     if (msg.type === 'dragtargets') { dropTargets = msg.targets; dropLabel = msg.label || 'Component' }
     if (msg.type === 'dragend') { dropTargets = null; dropAt = null; showDrop(null) }
     if (msg.type === 'update') { mode = msg.mode; applyUpdate(msg) }
@@ -351,7 +379,7 @@ export function bridgeMain() {
     if (e.key === 'Escape') post({ type: 'select', id: null })
   })
 
-  addEventListener('resize', positionBadge)
+  addEventListener('resize', () => { positionBadge(); drawLogic() })
   ensureChrome()
   post({ type: 'ready' })
 }

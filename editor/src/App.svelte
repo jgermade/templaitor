@@ -224,7 +224,7 @@
   .subject :global(.text-toggle) { color: #3f3f46; }
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .issues-wrap { position: relative; }
+  .issues-wrap { position: relative; display: flex; align-items: center; }
   .issues { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 1px 6px; color: var(--ok); }
   .issues.has { color: var(--warn); }
   .issues.bad { color: var(--danger); }

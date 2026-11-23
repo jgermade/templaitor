@@ -572,13 +572,13 @@ test('logic: show only if / repeat for each as <mj-raw> markers that move with t
   assert.match(serialize(t2), /\{% if user\.vip %\}/)
 })
 
-test('logic: the design canvas shows blocks with display logic (labelled), the preview and the output apply it', async () => {
+test('logic: the design canvas always shows blocks with display logic, the preview and the output apply it', async () => {
   const project = loadProject(DEMO)
   const t = readTemplate(project, 'orders/order-confirmation')
   const mjml = t.mjml.replace("<mj-text>$t('intro')</mj-text>", "<mj-raw>{% if vip %}</mj-raw>\n<mj-text>$t('intro')</mj-text>\n<mj-raw>{% endif %}</mj-raw>")
   const design = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'design' })
   assert.match(design.html, /Hemos recibido/)
-  assert.match(design.html, /class="tpl-logic tpl-logic--if" data-tpl-of="[\d.]+">if vip</) // labelled with its block
+  assert.doesNotMatch(design.html, /\{% if vip %\}|if vip/) // not evaluated, not in the layout (floating tabs)
   const preview = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'preview' }) // demo data has no `vip`
   assert.doesNotMatch(preview.html, /Hemos recibido/)
   const raw = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'raw' })
