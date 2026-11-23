@@ -14,6 +14,7 @@
   const slot = $derived(node.type === 'text' && node.value.trim() === '$content')
   const def = $derived(isEl ? describe(node.tag) : null)
   const hasKids = $derived(isEl && node.children.length > 0)
+  const logic = $derived(store.logicOf(node.id))
 
   const summary = $derived.by(() => {
     if (instance) return instance.comp ? `${instance.comp.usedBy.length} use(s)` : instance.ref
@@ -58,7 +59,7 @@
   }
 </script>
 
-{#if !(isEl && NON_VISUAL.has(node.tag) && node.tag !== 'mjml')}
+{#if !(isEl && NON_VISUAL.has(node.tag) && node.tag !== 'mjml') && !store.logic.markers.has(node.id)}
   <div
     class="row drop-{dropWhere}"
     class:selected={store.selectedId === node.id}
@@ -82,6 +83,8 @@
     </button>
     <span class="icon" class:comp={instance} class:slot><Icon name={isEl ? def.icon : instance ? 'component' : slot ? 'layout' : node.type === 'comment' ? 'hash' : 'variable'} size={instance ? 10 : 13} /></span>
     <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
+    {#if logic.if}<span class="logic if" title={`Shown only if ${logic.if}`}><Icon name="branch" size={11} /> {logic.if}</span>{/if}
+    {#if logic.for}<span class="logic for" title={`Repeated for each ${logic.for.item} in ${logic.for.list}`}><Icon name="repeat" size={11} /> {logic.for.item} in {logic.for.list}</span>{/if}
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
@@ -112,6 +115,9 @@
   .twisty { display: inline-grid; place-content: center; width: 18px; height: 18px; padding: 0; color: #3f3f46; border-radius: 4px; }
   .twisty:hover { background: #e4e4e7; }
   .twisty.hidden { visibility: hidden; }
+  .logic { flex: none; display: inline-flex; align-items: center; gap: 3px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 10.5px/16px var(--mono); padding: 0 6px; border-radius: 999px; }
+  .logic.if { background: #fef3c7; color: #92400e; }
+  .logic.for { background: #e0f2fe; color: #075985; }
   .icon { width: 18px; text-align: center; font-size: 12px; color: var(--muted); flex: none; }
   .label { font-weight: 500; flex: none; }
   .muted .label { color: var(--muted); font-weight: 400; }

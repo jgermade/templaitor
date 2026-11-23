@@ -38,6 +38,20 @@
   })
   const links = $derived(Object.keys(store.project?.links || {}))
 
+  // Display: Jinja2 logic around the block ({% if %} / {% for %} markers, see @shared/logic.js)
+  const logic = $derived(store.logicOf(node?.id))
+  const canLogic = $derived(node != null && node.id !== '' && !['mjml', 'mj-body', 'mj-head'].includes(node.tag)
+    && store.accepts(String(node.id).split('.').slice(0, -1).join('.'), 'mj-raw'))
+  // lists of the demo data (up to 2 levels): candidates for "repeat for each"
+  const lists = $derived.by(() => {
+    const out = []
+    for (const [k, v] of Object.entries(store.demoData || {})) {
+      if (Array.isArray(v)) out.push(k)
+      else if (v && typeof v === 'object') for (const [k2, v2] of Object.entries(v)) if (Array.isArray(v2)) out.push(`${k}.${k2}`)
+    }
+    return out
+  })
+
   let newAttr = $state('')
   let renaming = $state(null)
 </script>
@@ -172,6 +186,31 @@
         </section>
       {/if}
 
+      {#if canLogic}
+        <section class="logic">
+          <div class="panel-title">Display</div>
+          <label class="field">
+            <span><Icon name="branch" size={12} /> Show only if</span>
+            <input class="mono" list="tpl-logic-vars" value={logic.if ?? ''} placeholder="always (e.g. tracking_url)"
+              onchange={(e) => store.setLogic(node.id, { ...logic, if: e.currentTarget.value })} />
+          </label>
+          <div class="field">
+            <span id="logic-for"><Icon name="repeat" size={12} /> Repeat for each</span>
+            <div class="for" role="group" aria-labelledby="logic-for">
+              <input class="mono item" aria-label="Loop variable" value={logic.for?.item ?? ''} placeholder="item"
+                onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: e.currentTarget.value, list: logic.for?.list ?? '' } })} />
+              <span class="in">in</span>
+              <input class="mono" list="tpl-logic-lists" aria-label="List" value={logic.for?.list ?? ''} placeholder="no repetition (e.g. items)"
+                onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: logic.for?.item || 'item', list: e.currentTarget.value } })} />
+            </div>
+          </div>
+          <datalist id="tpl-logic-vars">{#each variables as v}<option value={v}></option>{/each}</datalist>
+          <datalist id="tpl-logic-lists">{#each lists as l}<option value={l}></option>{/each}</datalist>
+          <p class="hint muted">Jinja2, evaluated with each recipient's data (the preview uses the demo data). Empty = always shown, once.
+            {#if logic.for}Inside the block, use <code>{`{{ ${logic.for.item.split(',')[0]}.… }}`}</code>.{/if}</p>
+        </section>
+      {/if}
+
       {#if node.type === 'element'}
         <section>
           <div class="panel-title">Attributes</div>
@@ -215,6 +254,11 @@
   .body { padding: 0 12px 24px; }
   section { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 4px; }
   section .panel-title { padding-left: 0; }
+  .logic .field > span { display: inline-flex; align-items: center; gap: 5px; }
+  .for { display: flex; align-items: center; gap: 6px; }
+  .for input { flex: 1; min-width: 0; }
+  .for .item { flex: 0 0 72px; }
+  .in { font: 600 12px var(--mono); color: #52525b; }
   .keyrow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .missing { color: var(--danger); }
   .small { font-size: 12px; padding: 2px 6px; }

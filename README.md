@@ -390,6 +390,13 @@ of its own, so the preview uses those of the first template using it (not saved 
   every language from the start.
 - **Inspector**: component attributes, translations in every language, key renaming, insertion of variables
   (from the demo data) and links.
+- **Display** (in the inspector of any block): **Show only if** (a Jinja2 condition, e.g. `tracking_url`) and
+  **Repeat for each** (`item` in `items`, suggested from the demo data's lists). They are stored as
+  `<mj-raw>{% if … %}</mj-raw>` / `{% for … %}` markers right around the block, so the output is plain Jinja2;
+  the editor treats the block and its markers as one unit (moving, duplicating or deleting it keeps them
+  together, and they are hidden from the Structure tree, which shows them as badges). On the design canvas
+  the logic is not evaluated — the block is always there, with an "if …" / "for each …" label above it —; the
+  Preview applies it with the demo data.
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
   The preview also opens in a new tab at a real URL, `/preview/<template>?lang=es` (`&version=v3` for a

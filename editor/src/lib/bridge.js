@@ -34,6 +34,10 @@ export function bridgeMain() {
     .tpl-page-break { position: relative; height: 0; border-top: 2px dashed #a1a1aa; margin: 22px 0; }
     .tpl-page-break::after { content: 'Page break'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
       background: #fff; color: #71717a; font: 600 10px/16px system-ui, sans-serif; padding: 0 8px; border-radius: 8px; border: 1px solid #d4d4d8; }
+    .tpl-logic-cell { padding: 0 25px; font-size: 0; }
+    .tpl-logic { display: inline-block; margin: 6px 0 2px; padding: 0 8px; border-radius: 999px; font: 600 11px/18px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tpl-logic--if { background: #fef3c7; color: #92400e; }
+    .tpl-logic--for { background: #e0f2fe; color: #075985; }
     #tpl-drop { position: absolute; z-index: 99998; pointer-events: none; display: none; border-radius: 3px; }
     #tpl-drop.line { height: 0; border-top: 3px solid #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, .18); }
     #tpl-drop.inside { border: 2px dashed #7c3aed; background: rgba(124, 58, 237, .06); }

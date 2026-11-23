@@ -15,6 +15,7 @@ import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js
 import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
 import { normalizeAttachments } from '@shared/attachments.js'
 import { COMPONENTS, canContain, describe } from '@shared/components.js'
+import { logicMap, unitBounds, unitsOf, moveUnit, removeUnit, duplicateUnit, setLogic } from '@shared/logic.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
 
@@ -84,6 +85,8 @@ class EditorStore {
     this.doc.mjml !== this.saved.mjml || (!this.isLayout && (this.doc.yml !== this.saved.yml || this.doc.data !== this.saved.data))
   ))
   selected = $derived(this.selectedId != null ? findNode(this.tree, this.selectedId) : null)
+  /** Jinja2 logic of the blocks (show only if / repeat for each) and the markers that hold it */
+  logic = $derived(logicMap(this.tree))
 
   /** Keys used in the template that are missing in some language */
   missing = $derived.by(() => {
@@ -294,27 +297,23 @@ class EditorStore {
     const id = this.selectedId
     if (id == null || id === '') return
     this.mutate(tree => {
-      removeNode(tree, id)
+      removeUnit(tree, id) // with its {% if %} / {% for %} markers
       return null
     })
   }
 
   duplicate(id) {
-    this.mutate(tree => {
-      const node = findNode(tree, id)
-      const pid = parentId(id)
-      const idx = Number(id.split('.').pop())
-      return insertNode(tree, pid, idx + 1, clone(node))
-    })
+    this.mutate(tree => duplicateUnit(tree, id))
   }
 
+  /** Moves a block (with its logic markers) past the previous / next unit */
   move(id, delta) {
-    const pid = parentId(id)
-    const idx = Number(id.split('.').pop())
-    const parent = findNode(this.tree, pid)
-    const target = idx + delta
-    if (target < 0 || target >= parent.children.length) return
-    this.mutate(tree => moveNode(tree, id, pid, delta > 0 ? target + 1 : target))
+    const { pid, parent, idx } = unitBounds(this.tree, id)
+    const units = unitsOf(parent.children)
+    const k = units.findIndex(u => idx >= u.start && idx <= u.end)
+    const other = units[k + delta]
+    if (!other) return
+    this.mutate(tree => moveUnit(tree, id, pid, delta > 0 ? other.end + 1 : other.start))
   }
 
   /** Drag and drop: places `id` before/after/inside `targetId` when valid */
@@ -327,11 +326,13 @@ class EditorStore {
       pid = targetId
       index = target.children.length
     } else {
-      pid = parentId(targetId)
-      index = Number(targetId.split('.').pop()) + (where === 'after' ? 1 : 0)
+      // before / after the target's unit (its logic markers stay around it)
+      const u = unitBounds(this.tree, targetId)
+      pid = u.pid
+      index = where === 'after' ? u.end + 1 : u.start
     }
     if (!this.accepts(pid, node.tag ?? this.instanceOf(node)?.comp?.rootTag)) return false
-    this.mutate(tree => moveNode(tree, id, pid, index))
+    this.mutate(tree => moveUnit(tree, id, pid, index))
     return true
   }
 
@@ -396,7 +397,8 @@ class EditorStore {
       const node = findNode(this.tree, cur)
       if (node?.type === 'element' && this.accepts(cur, tag)) return { pid: cur, index: node.children.length }
       const pid = parentId(cur)
-      if (cur !== '' && this.accepts(pid, tag)) return { pid, index: Number(cur.split('.').pop()) + 1 }
+      // after the selection's unit: never between a block and its {% endif %} / {% endfor %}
+      if (cur !== '' && this.accepts(pid, tag)) return { pid, index: unitBounds(this.tree, cur).end + 1 }
       if (cur === '' || cur === bodyId) break
       cur = pid
     }
@@ -582,8 +584,9 @@ class EditorStore {
   dropItem(item, targetId, where) {
     const target = findNode(this.tree, targetId)
     if (!target) return false
-    const pid = where === 'inside' ? targetId : parentId(targetId)
-    const index = where === 'inside' ? target.children.length : Number(targetId.split('.').pop()) + (where === 'after' ? 1 : 0)
+    const u = where === 'inside' ? null : unitBounds(this.tree, targetId)
+    const pid = where === 'inside' ? targetId : u.pid
+    const index = where === 'inside' ? target.children.length : where === 'after' ? u.end + 1 : u.start
     const as = this.fitIn(item, pid)
     if (!as) return false
     if (item.kind === 'component') {
@@ -602,6 +605,20 @@ class EditorStore {
     }
     this.notify(`${item.label} added`)
     return true
+  }
+
+  /** Show only if / repeat for each of a block → { if, for } */
+  logicOf(id) {
+    return this.logic.byId[id] ?? { if: null, for: null }
+  }
+
+  /** Sets the Jinja2 logic of a block (rewrites its {% if %} / {% for %} markers); the selection follows it */
+  setLogic(id, logic) {
+    try {
+      this.mutate(tree => setLogic(tree, id, logic), null)
+    } catch (e) {
+      this.notify(e.message, 'error')
+    }
   }
 
   /** Keyboard alternative to dragging: inserts the component next to the selection */

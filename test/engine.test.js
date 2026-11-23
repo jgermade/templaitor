@@ -528,3 +528,59 @@ test('versions (snapshot): exported from git, they keep working without .git (re
   fs.appendFileSync(yml, '\n')
   assert.equal((await listVersions(project, 'orders/order-confirmation')).dirty, true)
 })
+
+test('logic: show only if / repeat for each as <mj-raw> markers that move with their block', async () => {
+  const { markerOf, logicMap, setLogic, moveUnit, removeUnit, duplicateUnit, unitsOf } = await import('../src/shared/logic.js')
+  const src = [
+    '<mj-raw>{% if tracking_url %}</mj-raw>',
+    '<mj-section><mj-column><mj-text>A</mj-text></mj-column></mj-section>',
+    '<mj-raw>{% endif %}</mj-raw>',
+    '<mj-section><mj-column><mj-text>B</mj-text></mj-column></mj-section>',
+    '<mj-raw>{% endif %}</mj-raw>',
+  ].join('\n')
+  const tree = parse(src)
+  assert.deepEqual(markerOf(tree.children[0]), { kind: 'if', expr: 'tracking_url' })
+  let map = logicMap(tree)
+  assert.deepEqual(map.byId['1'], { if: 'tracking_url', for: null })
+  assert.deepEqual([...map.markers].sort(), ['0', '2']) // the lone {% endif %} (4) is not hidden
+  assert.deepEqual(unitsOf(tree.children).map(u => [u.start, u.end]), [[0, 2], [3, 3], [4, 4]])
+
+  // add a loop to A: if outside, for inside
+  const id = setLogic(tree, '1', { if: 'tracking_url', for: { item: 'item', list: 'items' } })
+  assert.equal(id, '2')
+  const out = serialize(tree)
+  assert.match(out, /\{% if tracking_url %\}[\s\S]*\{% for item in items %\}[\s\S]*>A<[\s\S]*\{% endfor %\}[\s\S]*\{% endif %\}/)
+  map = logicMap(parse(out))
+  assert.deepEqual(map.byId['2'], { if: 'tracking_url', for: { item: 'item', list: 'items' } })
+
+  // move A's unit after B: the markers go with it
+  const moved = moveUnit(tree, '2', '', 6)
+  assert.match(serialize(tree), />B<[\s\S]*\{% if tracking_url %\}[\s\S]*>A<[\s\S]*\{% endif %\}/)
+  assert.equal(tree.children[Number(moved)].children[0].children[0].content, 'A')
+  // duplicate and remove the whole unit
+  const copy = duplicateUnit(tree, moved)
+  assert.equal(serialize(tree).match(/\{% if tracking_url %\}/g).length, 2)
+  removeUnit(tree, copy)
+  removeUnit(tree, moved)
+  assert.doesNotMatch(serialize(tree), /tracking_url|>A</)
+  // clearing the logic removes the markers; invalid input is refused; Jinja2 delimiters are stripped
+  const t2 = parse('<mj-raw>{% if x %}</mj-raw>\n<mj-section></mj-section>\n<mj-raw>{% endif %}</mj-raw>')
+  assert.equal(setLogic(t2, '1', { if: '', for: null }), '0')
+  assert.equal(t2.children.length, 1)
+  assert.throws(() => setLogic(t2, '0', { for: { item: 'a b', list: 'x' } }), /not a valid loop variable/)
+  setLogic(t2, '0', { if: '{{ user.vip }}' })
+  assert.match(serialize(t2), /\{% if user\.vip %\}/)
+})
+
+test('logic: the design canvas shows blocks with display logic (labelled), the preview and the output apply it', async () => {
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  const mjml = t.mjml.replace("<mj-text>$t('intro')</mj-text>", "<mj-raw>{% if vip %}</mj-raw>\n<mj-text>$t('intro')</mj-text>\n<mj-raw>{% endif %}</mj-raw>")
+  const design = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'design' })
+  assert.match(design.html, /Hemos recibido/)
+  assert.match(design.html, /class="tpl-logic tpl-logic--if">if vip</)
+  const preview = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'preview' }) // demo data has no `vip`
+  assert.doesNotMatch(preview.html, /Hemos recibido/)
+  const raw = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'raw' })
+  assert.match(raw.html, /\{% if vip %\}[\s\S]*Hemos recibido[\s\S]*\{% endif %\}/)
+})
