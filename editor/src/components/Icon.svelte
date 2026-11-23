@@ -63,8 +63,8 @@
     pdf: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
     portrait: '<rect x="6" y="3" width="12" height="18" rx="1.5"/>',
     landscape: '<rect x="3" y="6" width="18" height="12" rx="1.5"/>',
-    // condition (Jinja2 {% if %}): one path that splits in two
-    condition: '<path d="M16 3h5v5M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.2-2.9L3 3M21 3l-7 7"/>',
+    // condition (Jinja2 {% if %}): the letters "if", drawn
+    condition: '<circle cx="7" cy="5.2" r="1.4" fill="currentColor" stroke="none"/><path d="M7 9.5V19M18.5 5.3a2.7 2.7 0 0 0-4.6 1.9V19M10.8 11h6.4"/>',
     repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     'page-break': '<path d="M4 4v5h16V4M4 20v-5h16v5"/><path d="M2 12h3M9 12h2M13 12h2M19 12h3"/>',
