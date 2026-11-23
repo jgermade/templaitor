@@ -1,6 +1,6 @@
 <script>
   import Icon from '../components/Icon.svelte'
-  import A11yIcon from '../components/A11yIcon.svelte'
+  import StatusIcon from '../components/StatusIcon.svelte'
   // Accessibility report (WCAG 2.1 AA · EN 301 549 · PDF/UA) of the current draft
   import { store } from '../stores/editor.svelte.js'
 
@@ -36,7 +36,7 @@
 
 <aside class="report" aria-label="Accessibility report">
   <header>
-    <h2><A11yIcon status={counts.fail ? 'fail' : counts.warn ? 'warn' : 'pass'} size={22} /> Accessibility</h2>
+    <h2><StatusIcon mark="a11y" status={counts.fail ? 'fail' : counts.warn ? 'warn' : 'pass'} size={22} /> Accessibility</h2>
     {#if report}
       <p class="std">{report.standard}</p>
       <div class="score" class:ok={!counts.fail && !counts.warn} class:bad={counts.fail}>

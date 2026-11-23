@@ -1,6 +1,6 @@
 <script>
   import Icon from './components/Icon.svelte'
-  import A11yIcon from './components/A11yIcon.svelte'
+  import StatusIcon from './components/StatusIcon.svelte'
   import Checkbox from './components/Checkbox.svelte'
   import { onMount } from 'svelte'
   import Topbar from './views/Topbar.svelte'
@@ -65,6 +65,7 @@
     ...(store.preview.warnings || []).map(m => ({ level: 'warn', m })),
     ...store.missing.map(x => ({ level: 'warn', m: `Missing $t('${x.key}') in ${x.lang}` })),
   ])
+  const issueErrors = $derived(issues.filter(i => i.level === 'error').length)
 
   function isTyping(e) {
     const t = e.target
@@ -131,13 +132,16 @@
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
           <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Accessibility report (WCAG 2.1 AA)">
-            <A11yIcon status={fails ? 'fail' : warns ? 'warn' : 'pass'} size={22} label={fails ? `Accessibility: ${fails} failing` : warns ? `Accessibility: ${warns} warnings` : 'Accessibility: passes'} />
+            <StatusIcon mark="a11y" status={fails ? 'fail' : warns ? 'warn' : 'pass'} size={22} label={fails ? `Accessibility: ${fails} failing` : warns ? `Accessibility: ${warns} warnings` : 'Accessibility: passes'} />
             {#if fails}{fails}{:else if warns}{warns}{/if}
           </button>
         {/if}
         <div class="issues-wrap">
-          <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
-            {#if issues.length}<Icon name="alert" size={14} /> {issues.length}<span class="sr"> issues</span>{:else}<Icon name="check" size={14} label="No issues" />{/if}
+          <button class="ghost issues" class:has={issues.length} class:bad={issueErrors} aria-expanded={showIssues && !!issues.length}
+            onclick={() => (showIssues = !showIssues)} title="MJML compilation: errors, warnings and missing translations">
+            <StatusIcon mark="mjml" size={22} status={issueErrors ? 'fail' : issues.length ? 'warn' : 'pass'}
+              label={issues.length ? `MJML: ${issues.length} issue(s)` : 'MJML: compiles without issues'} />
+            {#if issues.length}{issues.length}{/if}
           </button>
           {#if showIssues && issues.length}
             <ul class="issue-list">
@@ -221,8 +225,9 @@
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .issues-wrap { position: relative; }
-  .issues { font-size: 12px; padding: 2px 8px; color: var(--ok); }
+  .issues { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 1px 6px; color: var(--ok); }
   .issues.has { color: var(--warn); }
+  .issues.bad { color: var(--danger); }
   .issue-list {
     position: absolute; right: 0; top: 30px; margin: 0; padding: 8px 12px; list-style: none; z-index: 20;
     background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
