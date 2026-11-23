@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -40,7 +41,7 @@
     {:else if comp}
       <p class="muted">Inserted with <code>$import({comp.importPath})</code>. Its texts live in <code>{comp.name}.yml</code>; a template can override any key in its own <code>.yml</code>.</p>
       <div class="field"><span>Used by</span>
-        {#each comp.usedBy as u}<div class="mono">{u.kind === 'layout' ? '⧉' : '@'} {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
+        {#each comp.usedBy as u}<div class="mono"><Icon name={u.kind === 'layout' ? 'layout' : 'template'} size={12} /> {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
       </div>
     {:else}
       <label class="field">
@@ -83,7 +84,7 @@
             {#each store.layouts as l}<option value={l.id}>{l.id}</option>{/each}
           </select>
           {#if store.frontmatter.layout}
-            <button title="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}>✎</button>
+            <button title="Edit layout" aria-label="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}><Icon name="pencil" size={13} /></button>
           {/if}
         </div>
       </label>
@@ -92,8 +93,8 @@
           {#each store.attachments as a, i (i)}
             <div class="att">
               <div class="atthead">
-                <span>📎 {a.type === 'url' ? 'Remote file' : a.type === 'template' ? 'Local PDF' : 'Invalid entry'}</span>
-                <button class="ghost" aria-label={`Remove attachment ${i + 1}`} title="Remove" onclick={() => store.removeAttachment(i)}>✕</button>
+                <span><Icon name="paperclip" size={13} /> {a.type === 'url' ? 'Remote file' : a.type === 'template' ? 'Local PDF' : 'Invalid entry'}</span>
+                <button class="ghost" aria-label={`Remove attachment ${i + 1}`} title="Remove" onclick={() => store.removeAttachment(i)}><Icon name="x" size={13} /></button>
               </div>
               {#if a.type === 'url'}
                 <label class="field"><span>URL</span>
@@ -120,8 +121,8 @@
             </div>
           {:else}<div class="muted">No attachments</div>{/each}
           <div class="attadd">
-            <button onclick={() => store.addAttachment({ template: pdfTemplates[0].id })} disabled={!pdfTemplates.length} title={pdfTemplates.length ? 'Attach a PDF template of this project' : 'There are no PDF templates'}>+ Local PDF</button>
-            <button onclick={() => store.addAttachment({ url: 'https://' })}>+ Remote file</button>
+            <button onclick={() => store.addAttachment({ template: pdfTemplates[0].id })} disabled={!pdfTemplates.length} title={pdfTemplates.length ? 'Attach a PDF template of this project' : 'There are no PDF templates'}><Icon name="plus" size={13} /> Local PDF</button>
+            <button onclick={() => store.addAttachment({ url: 'https://' })}><Icon name="plus" size={13} /> Remote file</button>
           </div>
           <p class="muted tip">Local PDFs are rendered in the email's language. <code>$lang</code>, <code>$t()</code> and <code>{'{{ }}'}</code> work in URLs and file names.</p>
         </div>
@@ -136,7 +137,7 @@
 
     <ul class="help muted">
       <li>Click a block to select it; type directly into texts and buttons.</li>
-      <li>Double-click a component (◆) to edit it.</li>
+      <li>Double-click a component (<Icon name="component" size={9} label="component" />) to edit it.</li>
       <li><code>{'{{ variable }}'}</code> creates a Jinja2 variable.</li>
       <li><kbd>Del</kbd> deletes · <kbd>Ctrl+Z</kbd> undoes · <kbd>Ctrl+S</kbd> saves.</li>
     </ul>

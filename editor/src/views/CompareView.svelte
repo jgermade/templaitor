@@ -7,7 +7,9 @@
   import { store } from '../stores/editor.svelte.js'
   import { compare } from '../stores/compare.svelte.js'
   import { api } from '../lib/api.js'
-  import { flagOf } from '../lib/flags.js'
+  import Flag from '../components/Flag.svelte'
+  import Icon from '../components/Icon.svelte'
+  import Checkbox from '../components/Checkbox.svelte'
   import DiffEditor from '../components/DiffEditor.svelte'
 
   let pA = $state(null) // previews (rendered with data)
@@ -115,19 +117,19 @@
     </label>
 
     <div class="langs" role="group" aria-label="Languages">
-      <label><span class="tag a">A</span>
+      <label><span class="tag a">A</span> <Flag locale={locale(compare.effectiveLangA)} size={14} />
         <select aria-label="Language of A" value={compare.effectiveLangA} onchange={(e) => (compare.langA = e.currentTarget.value)}>
-          {#each compare.langsA as l}<option value={l}>{flagOf(locale(l)) ?? ''} {locale(l)}</option>{/each}
+          {#each compare.langsA as l}<option value={l}>{locale(l)}</option>{/each}
         </select>
       </label>
-      <span aria-hidden="true">↔</span>
-      <label><span class="tag b">B</span>
+      <Icon name="arrows-lr" size={15} />
+      <label><span class="tag b">B</span> <Flag locale={locale(store.lang)} size={14} />
         <select aria-label="Language of B (current draft)" value={store.lang} onchange={(e) => (store.lang = e.currentTarget.value)}>
-          {#each store.langs as l}<option value={l}>{flagOf(locale(l)) ?? ''} {locale(l)}</option>{/each}
+          {#each store.langs as l}<option value={l}>{locale(l)}</option>{/each}
         </select>
       </label>
     </div>
-    <label class="check"><input type="checkbox" bind:checked={compare.sameData} /> Same demo data</label>
+    <Checkbox bind:checked={compare.sameData}>Same demo data</Checkbox>
 
     <span class="grow"></span>
     {#if busy || compare.loading}<span class="spinner" aria-label="Updating"></span>{/if}
@@ -146,24 +148,24 @@
     <dl class="summary" aria-label="Summary of differences">
       <div class:changed={pA.subject !== pB.subject}>
         <dt>{store.isPdf ? 'Title' : 'Subject'}</dt>
-        <dd>{#if pA.subject === pB.subject}{pB.subject || '—'}{:else}<del>{pA.subject || '—'}</del> → <ins>{pB.subject || '—'}</ins>{/if}</dd>
+        <dd>{#if pA.subject === pB.subject}{pB.subject || '—'}{:else}<del>{pA.subject || '—'}</del> <Icon name="arrow-right" size={13} label="changed to" /> <ins>{pB.subject || '—'}</ins>{/if}</dd>
       </div>
       <div class:changed={xa.fail !== xb.fail || xa.warn !== xb.warn}>
         <dt>Accessibility</dt>
-        <dd><span class:bad={xa.fail}>A {xa.fail} ✕ {xa.warn} ⚠</span> · <span class:bad={xb.fail}>B {xb.fail} ✕ {xb.warn} ⚠</span></dd>
+        <dd><span class:bad={xa.fail}>A {xa.fail} <Icon name="x" size={12} label="failing" /> {xa.warn} <Icon name="alert" size={12} label="warnings" /></span> · <span class:bad={xb.fail}>B {xb.fail} <Icon name="x" size={12} label="failing" /> {xb.warn} <Icon name="alert" size={12} label="warnings" /></span></dd>
       </div>
       <div>
         <dt>HTML size</dt>
-        <dd>{kb(rA?.html)} → {kb(rB?.html)}</dd>
+        <dd>{kb(rA?.html)} <Icon name="arrow-right" size={13} label="to" /> {kb(rB?.html)}</dd>
       </div>
       {#if (pA.attachments?.length || pB.attachments?.length)}
         <div class:changed={JSON.stringify(pA.attachments?.map(a => a.filename)) !== JSON.stringify(pB.attachments?.map(a => a.filename))}>
           <dt>Attachments</dt>
-          <dd>{pA.attachments?.map(a => a.filename).join(', ') || '—'} → {pB.attachments?.map(a => a.filename).join(', ') || '—'}</dd>
+          <dd>{pA.attachments?.map(a => a.filename).join(', ') || '—'} <Icon name="arrow-right" size={13} label="to" /> {pB.attachments?.map(a => a.filename).join(', ') || '—'}</dd>
         </div>
       {/if}
     </dl>
-    <p class="verdict" role="status">{#if identical}<span class="same">✓ No differences{sameLang ? '' : ' (other than the language)'}</span>{:else}{Object.values(counts).reduce((x, y) => x + y, 0)} changed block(s) in the sources and output{/if}</p>
+    <p class="verdict" role="status">{#if identical}<span class="same"><Icon name="check" size={14} /> No differences{sameLang ? '' : ' (other than the language)'}</span>{:else}{Object.values(counts).reduce((x, y) => x + y, 0)} changed block(s) in the sources and output{/if}</p>
   {/if}
 
   {#if compare.tab === 'visual'}
@@ -228,7 +230,7 @@
         </button>
       {/each}
       <span class="grow"></span>
-      <span class="muted legend"><span class="tag a">A</span> {compare.base?.label} · <span class="tag b">B</span> current draft{current[5] && canEdit ? ' (editable: ⇥ copies a chunk from A)' : ''}</span>
+      <span class="muted legend"><span class="tag a">A</span> {compare.base?.label} · <span class="tag b">B</span> current draft{#if current[5] && canEdit} (editable: <Icon name="to-line" size={13} label="the arrow button" /> copies a chunk from A){/if}</span>
     </div>
     <div class="code" role="tabpanel">
       {#key compare.codeTab}
@@ -254,7 +256,7 @@
   .src select { max-width: 420px; }
   .langs { display: flex; align-items: center; gap: 6px; }
   .langs label { display: flex; align-items: center; gap: 4px; }
-  .check { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .bar :global(.cb) { font-size: 12px; }
   .grow { flex: 1; }
   .tag { display: inline-grid; place-content: center; width: 18px; height: 18px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #fff; }
   .tag.a { background: #b45309; }

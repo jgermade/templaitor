@@ -61,7 +61,7 @@ class CompareStore {
         const [, kind, ...rest] = value.split(':')
         const id = rest.join(':')
         const d = await api.template(id, kind)
-        this.loaded = { label: `${kind === 'component' ? '◆' : kind === 'layout' ? '⧉' : '@'} ${id}`, short: id, kind, id, mjml: d.mjml, yml: d.yml, data: d.data }
+        this.loaded = { label: id, icon: kind, short: id, kind, id, mjml: d.mjml, yml: d.yml, data: d.data }
       }
       this.source = value
     } catch (e) {

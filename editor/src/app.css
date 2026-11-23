@@ -65,3 +65,6 @@ textarea { resize: vertical; font-family: inherit; }
   border: 1px solid #c7d2fe; background: var(--accent-soft); color: #3730a3; font: 600 11px/18px var(--mono); cursor: pointer;
 }
 .chip.link { background: #dcfce7; border-color: #86efac; color: #166534; }
+
+/* visually hidden, still read by screen readers */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

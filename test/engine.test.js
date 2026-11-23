@@ -432,3 +432,40 @@ test('versions (git): list, read, save only the document, init and identity fall
     if (prevSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM; else process.env.GIT_CONFIG_NOSYSTEM = prevSystem
   }
 })
+
+test('preview page: /preview/<id> renders the saved document (or a version) at a shareable URL', async () => {
+  const http = await import('node:http')
+  const { createHandler } = await import('../src/server/server.js')
+  const { initVersions } = await import('../src/engine/versions.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-preview-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const project = loadProject(dir)
+  const server = http.createServer(createHandler(project))
+  await new Promise(r => server.listen(0, '127.0.0.1', r))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const get = async (u) => { const r = await fetch(base + u); return { status: r.status, type: r.headers.get('content-type'), html: await r.text() } }
+  try {
+    const es = await get('/preview/orders/order-confirmation?lang=es')
+    assert.equal(es.status, 200)
+    assert.match(es.type, /text\/html/)
+    assert.match(es.html, /<base href="\/"><title>Pedido #A-1042 confirmado<\/title>/)
+    assert.doesNotMatch(es.html, /\{\{/) // rendered with the demo data
+    assert.match((await get('/preview/orders/order-confirmation?lang=en-US')).html, /<title>Order #A-1042 confirmed/)
+    assert.match((await get('/preview/orders/order-confirmation')).html, /<title>Pedido/) // first language
+    assert.equal((await get('/preview/orders/order-confirmation?lang=fr')).status, 404)
+    assert.equal((await get('/preview/orders/missing')).status, 404)
+    assert.equal((await get('/preview/..%2F..%2Fetc/passwd')).status >= 400, true)
+    assert.equal((await get('/preview/base.layout.mjml?kind=layout')).status, 200)
+    // a version: the saved files change, ?version=v1 still shows the first one
+    const prev = process.env.GIT_CONFIG_GLOBAL
+    process.env.GIT_CONFIG_GLOBAL = path.join(dir, '.no-global')
+    try { await initVersions(project) } finally { if (prev === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = prev }
+    const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+    fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Pedido #{{ order_id }} confirmado', 'Pedido nuevo'))
+    assert.match((await get('/preview/orders/order-confirmation?lang=es')).html, /<title>Pedido nuevo<\/title>/)
+    assert.match((await get('/preview/orders/order-confirmation?lang=es&version=v1')).html, /<title>Pedido #A-1042 confirmado · v1<\/title>/)
+    assert.equal((await get('/preview/orders/order-confirmation?version=v9')).status, 404)
+  } finally {
+    server.close()
+  }
+})

@@ -24,7 +24,7 @@
     const id = store.selectedId
     const node = id != null ? findNode(store.tree, id) : null
     const inst = store.instanceOf(node)
-    const label = inst ? `◆ ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
+    const label = inst ? `Component ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
     if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
   })
 

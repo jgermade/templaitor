@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   // Accessibility report (WCAG 2.1 AA · EN 301 549 · PDF/UA) of the current draft
   import { store } from '../stores/editor.svelte.js'
 
@@ -25,7 +26,7 @@
     for (const ch of report?.checks || []) c[ch.status]++
     return c
   })
-  const ICON = { pass: '✓', warn: '⚠', fail: '✕', na: '–' }
+  const ICON = { pass: 'check', warn: 'alert', fail: 'x', na: 'divider' }
   const LABEL = { pass: 'Pass', warn: 'Review', fail: 'Fail', na: 'Not applicable' }
 
   let open = $state({})
@@ -34,7 +35,7 @@
 
 <aside class="report" aria-label="Accessibility report">
   <header>
-    <h2>♿ Accessibility</h2>
+    <h2><Icon name="a11y" size={17} /> Accessibility</h2>
     {#if report}
       <p class="std">{report.standard}</p>
       <div class="score" class:ok={!counts.fail && !counts.warn} class:bad={counts.fail}>
@@ -45,7 +46,7 @@
         {:else}
           <b>Passes every checked criterion</b>
         {/if}
-        <span>{counts.pass} ✓ · {counts.warn} ⚠ · {counts.fail} ✕</span>
+        <span>{counts.pass} <Icon name="check" size={12} label="passed" /> · {counts.warn} <Icon name="alert" size={12} label="warnings" /> · {counts.fail} <Icon name="x" size={12} label="failed" /></span>
       </div>
       <p class="scope">Language: <b>{store.lang}</b>. Automated check of the compiled HTML; also review the reading order and that the texts make sense.</p>
     {:else}
@@ -58,7 +59,7 @@
       {#each report.checks as c (c.id)}
         <li class="check {c.status}">
           <button class="row" aria-expanded={isOpen(c)} onclick={() => (open[c.id] = !isOpen(c))}>
-            <span class="ic" aria-label={LABEL[c.status]}>{ICON[c.status]}</span>
+            <span class="ic"><Icon name={ICON[c.status]} size={13} strokeWidth={2.5} label={LABEL[c.status]} /></span>
             <span class="title">{c.title}</span>
             <span class="wcag">{c.wcag}</span>
           </button>
@@ -67,7 +68,7 @@
               {#each c.issues as i}
                 <div class="issue {i.level}">
                   <p>{i.message}</p>
-                  {#if i.hint}<p class="hint">→ {i.hint}</p>{/if}
+                  {#if i.hint}<p class="hint"><Icon name="arrow-right" size={12} /> {i.hint}</p>{/if}
                 </div>
               {/each}
 
@@ -89,7 +90,7 @@
                 {/each}
               {:else if c.id === 'links'}
                 {#each report.inventory.links as l}
-                  <p class="inv">«{l.text || '—'}» → <code>{l.href}</code></p>
+                  <p class="inv">«{l.text || '—'}» <Icon name="arrow-right" size={12} label="links to" /> <code>{l.href}</code></p>
                 {/each}
               {:else if c.id === 'contrast'}
                 <table>
@@ -120,13 +121,13 @@
                 {:else}
                   {@const v = validation.result}
                   <div class="vp" class:pass={v.compliant}>
-                    <b>{v.compliant ? '✓ Compliant' : '✕ Not compliant'} {v.profile.replace(' validation profile', '')}</b>
-                    <span>{v.passedRules} rules ✓ · {v.failedRules} ✕ · {v.validator}{validation.engine ? ` · ${validation.engine}` : ''}{validation.stale ? ' · outdated: validate again' : ''}</span>
+                    <b><Icon name={v.compliant ? 'check' : 'x'} size={14} /> {v.compliant ? 'Compliant' : 'Not compliant'} {v.profile.replace(' validation profile', '')}</b>
+                    <span>{v.passedRules} rules <Icon name="check" size={12} label="passed" /> · {v.failedRules} <Icon name="x" size={12} label="failed" /> · {v.validator}{validation.engine ? ` · ${validation.engine}` : ''}{validation.stale ? ' · outdated: validate again' : ''}</span>
                   </div>
                   {#each v.rules as r}
                     <div class="issue error">
                       <p><code>{r.specification?.replace('ISO ', '')} {r.id}</code> · {r.checks}×</p>
-                      <p class="hint">→ {r.hint || r.description}</p>
+                      <p class="hint"><Icon name="arrow-right" size={12} /> {r.hint || r.description}</p>
                     </div>
                   {/each}
                 {/if}

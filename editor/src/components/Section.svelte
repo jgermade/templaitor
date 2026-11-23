@@ -1,4 +1,5 @@
 <script>
+  import Icon from './Icon.svelte'
   // Collapsible sidebar section; remembers its state per browser
   let { title, id, open = false, count = null, actions, children } = $props()
 
@@ -17,7 +18,7 @@
 
 <details open={isOpen} ontoggle={toggle}>
   <summary>
-    <span class="caret">▸</span>
+    <span class="caret"><Icon name="chevron-right" size={12} /></span>
     <span class="title">{title}</span>
     {#if count !== null}<span class="count">{count}</span>{/if}
     <span class="grow"></span>

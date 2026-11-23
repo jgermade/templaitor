@@ -1,4 +1,5 @@
 <script>
+  import Icon from './Icon.svelte'
   let { toast } = $props()
   let visible = $state(false)
   $effect(() => {
@@ -12,7 +13,7 @@
 {#if toast && visible}
   <div class="toast {toast.type}" role="status">
     {toast.message}
-    {#if toast.link}<a href={toast.link.href} target="_blank" rel="noopener">{toast.link.label} ↗</a>{/if}
+    {#if toast.link}<a href={toast.link.href} target="_blank" rel="noopener">{toast.link.label} <Icon name="external" size={12} /></a>{/if}
   </div>
 {/if}
 

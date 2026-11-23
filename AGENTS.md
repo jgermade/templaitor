@@ -45,5 +45,8 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 - `editor/src/components` holds store-agnostic UI; `editor/src/views` holds store-connected panels;
   shared state lives in `editor/src/stores`.
 - No browser `alert`/`prompt`/`confirm`: use the `<dialog>` helpers in `editor/src/lib/dialogs.svelte.js`.
+- Icons are **always SVG**: `editor/src/components/Icon.svelte` (add new ones to its set). Never text characters or
+  emoji as icons (✓ ✕ ⚠ → ◆ 📎 …), never native checkboxes/radios (use `components/Checkbox.svelte`), and flags
+  through `components/Flag.svelte` (SVG files from `country-flag-icons`).
 - **Accessibility is a hard requirement**: emails and PDFs must meet WCAG 2.1 AA / EN 301 549, and PDFs
   must be PDF/UA-1 (validated with veraPDF). The demo templates must pass the checker (there is a test).

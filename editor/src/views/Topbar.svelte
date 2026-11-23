@@ -2,7 +2,8 @@
   import TemplatePicker from './TemplatePicker.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
-  import { flagOf } from '../lib/flags.js'
+  import Flag from '../components/Flag.svelte'
+  import Icon from '../components/Icon.svelte'
   import { session } from '../lib/service.svelte.js'
   import ServiceSettings from './ServiceSettings.svelte'
   import VersionsPanel from './VersionsPanel.svelte'
@@ -52,7 +53,7 @@
     const to = await promptDialog({
       title: `Send a test to ${store.project.smtp.label}`,
       message: `${store.doc.id} · ${store.lang} · with the demo data`,
-      label: 'Recipient', value: last, inputType: 'email', okLabel: 'Send ➤',
+      label: 'Recipient', value: last, inputType: 'email', okLabel: 'Send',
     })
     if (!to) return
     try { localStorage.setItem('tpl:send-to', to) } catch {}
@@ -61,7 +62,7 @@
       const web = store.project.smtp.web
       const href = web ? (await mailpitMessageUrl(web, messageId)) ?? web : null
       if (href) store.lastSentUrl = href
-      store.notify(`Sent to ${to}${attachments.length ? ` · 📎 ${attachments.join(', ')}` : ''}`, 'success', href ? { href, label: `Open in ${store.project.smtp.label}` } : null)
+      store.notify(`Sent to ${to}${attachments.length ? ` · attachments: ${attachments.join(', ')}` : ''}`, 'success', href ? { href, label: `Open in ${store.project.smtp.label}` } : null)
     } catch (e) {
       store.notify(e.message, 'error')
     }
@@ -86,15 +87,15 @@
 
   <div class="path">
     <button class="link" onclick={() => (picking = !picking)} title="Open a template, component or layout">
-      <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}>{store.isComponent ? '◆' : store.isLayout ? '⧉' : '@'}</span>
+      <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}><Icon name={store.isComponent ? 'component' : store.isLayout ? 'layout' : 'template'} size={12} /></span>
       <span class="id">{store.isComponent ? `${store.project?.componentsDir}/` : ''}{store.isLayout ? '_layouts/' : ''}{store.doc?.id ?? '…'}{store.isLayout ? '' : '/'}</span>
     </button>
     <TemplatePicker bind:open={picking} {onnew} />
   </div>
   {#if !store.isTemplate && store.returnTo}
-    <button class="ghost back" onclick={() => store.back()} title="Back to the template">← {store.returnTo}</button>
+    <button class="ghost back" onclick={() => store.back()} title="Back to the template"><Icon name="arrow-left" size={13} /> {store.returnTo}</button>
   {/if}
-  {#if store.dirty}<span class="dirty" title="Unsaved changes">●</span>{/if}
+  {#if store.dirty}<span class="dirty" title="Unsaved changes"><Icon name="dot" size={10} label="Unsaved changes" /></span>{/if}
 
   <div class="spacer"></div>
 
@@ -105,19 +106,19 @@
   </div>
   {#if !store.isPdf}
   <div class="seg" role="group" aria-label="Device">
-    <button class:active={store.device === 'desktop'} onclick={() => (store.device = 'desktop')} title="Desktop">🖥</button>
-    <button class:active={store.device === 'mobile'} onclick={() => (store.device = 'mobile')} title="Mobile">📱</button>
+    <button class:active={store.device === 'desktop'} onclick={() => (store.device = 'desktop')} title="Desktop" aria-label="Desktop"><Icon name="desktop" size={15} /></button>
+    <button class:active={store.device === 'mobile'} onclick={() => (store.device = 'mobile')} title="Mobile" aria-label="Mobile"><Icon name="phone" size={15} /></button>
   </div>
   {/if}
-  <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Undo (Ctrl+Z)">↶</button>
-  <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Redo (Ctrl+Shift+Z)">↷</button>
+  <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={16} /></button>
+  <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={16} /></button>
   <button class="ghost" onclick={() => (versionsOpen = true)} disabled={!store.doc} title="Versions of this document: save, compare, restore">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ico"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+    <Icon name="history" size={15} />
     Versions
   </button>
   <VersionsPanel bind:open={versionsOpen} />
   {#if session.canEdit}
-    <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/">⚙ Compile</button>
+    <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/"><Icon name="settings" size={15} /> Compile</button>
     <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Save (Ctrl+S)">
       {store.dirty ? 'Save' : 'Saved'}
     </button>
@@ -129,13 +130,13 @@
     {#each store.langs as l}
       {@const locale = store.project?.locales?.[l] || l}
       <button class="flag" class:active={store.lang === l} onclick={() => (store.lang = l)} title={locale}>
-        {flagOf(locale) ?? l.toUpperCase()}
+        <Flag {locale} size={16} /><span class="sr">{locale}</span>
       </button>
     {/each}
   </div>
 
   {#if store.project?.smtp && !store.isPdf && session.canEdit}
-    <button class="send" onclick={sendTest} title="Send a test email (SMTP)">{store.project.smtp.label} <span class="arrow">➤</span></button>
+    <button class="send" onclick={sendTest} title="Send a test email (SMTP)">{store.project.smtp.label} <Icon name="send" size={17} /></button>
   {/if}
   {#if store.project?.smtp?.web}
     <a
@@ -145,7 +146,7 @@
       rel="noopener"
       title={store.lastSentUrl ? `Open the last sent email in ${store.project.smtp.label}` : `Open ${store.project.smtp.label}`}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+      <Icon name="external" size={18} />
     </a>
   {/if}
   {#if session.isService}
@@ -183,9 +184,8 @@
   .seg button { font-size: 12px; padding: 3px 9px; }
   .icon { padding: 2px 7px; font-size: 15px; }
   .save { min-width: 84px; }
-  .ico { vertical-align: -3px; }
   .flags { display: flex; gap: 2px; margin-left: 6px; }
-  .flag { border: 2px solid transparent; background: none; padding: 0 3px; font-size: 18px; line-height: 24px; border-radius: 4px; opacity: .55; }
+  .flag { display: inline-grid; place-content: center; border: 2px solid transparent; background: none; padding: 3px 4px; border-radius: 4px; opacity: .55; }
   .flag.active { opacity: 1; border-color: #d4d4d8; }
   .flag:hover { opacity: 1; }
   .send {
@@ -193,7 +193,6 @@
     font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px;
   }
   .send:hover:not(:disabled) { background: #2f5be0; }
-  .arrow { font-size: 16px; }
   .ext { display: grid; place-content: center; width: 40px; height: 100%; color: #3f3f46; border-radius: 6px; }
   .ext:hover { background: #f4f4f5; }
 </style>

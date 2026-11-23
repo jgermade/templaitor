@@ -348,6 +348,11 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
     await erin.post(`/orgs/${org.id}/activate`)
     assert.equal((await erin.get('/api/versions?id=general/welcome')).data.versions.length, 2)
     assert.equal((await erin.post('/api/versions', { id: 'general/welcome' })).status, 403)
+    // shareable preview URL of the org's template (members only)
+    const pv = await erin.get('/preview/general/welcome?lang=en&version=v1')
+    assert.equal(pv.status, 200)
+    assert.match(String(pv.data), /<base href="\/">/)
+    assert.equal((await client(svc).get('/preview/general/welcome')).status, 401)
 
     // db storage: versions are rows, numbered per document
     const s = await startService({ storage: { driver: 'db' } }, pgUrl)

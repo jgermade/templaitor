@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import Self from './OutlineNode.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { describe, NON_VISUAL } from '@shared/components.js'
@@ -20,7 +21,7 @@
     if (node.type === 'comment') return `<!-- ${node.value} -->`
     if (node.content != null) {
       const key = store.keyOf(node)
-      const text = key ? store.messages[key] ?? `⚠ ${key}` : node.content
+      const text = key ? store.messages[key] ?? `(missing) ${key}` : node.content
       return String(text).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
     }
     if (node.tag === 'mj-image') return node.attrs.find(([k]) => k === 'src')?.[1]?.split('/').pop() || ''
@@ -71,17 +72,17 @@
     onkeydown={() => {}}
   >
     <button class="twisty ghost" class:hidden={!hasKids} onclick={(e) => { e.stopPropagation(); collapsed = !collapsed }} tabindex="-1">
-      {collapsed ? '▸' : '▾'}
+      <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={12} />
     </button>
-    <span class="icon" class:comp={instance} class:slot>{isEl ? def.icon : instance ? '◆' : slot ? '⧉' : node.type === 'comment' ? '#' : '$'}</span>
+    <span class="icon" class:comp={instance} class:slot><Icon name={isEl ? def.icon : instance ? 'component' : slot ? 'layout' : node.type === 'comment' ? 'hash' : 'variable'} size={instance ? 10 : 13} /></span>
     <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
-        <button class="ghost" title="Move up" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}>↑</button>
-        <button class="ghost" title="Move down" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}>↓</button>
-        <button class="ghost" title="Duplicate" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}>⧉</button>
-        <button class="ghost danger" title="Delete" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}>✕</button>
+        <button class="ghost" title="Move up" aria-label="Move up" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}><Icon name="arrow-up" size={13} /></button>
+        <button class="ghost" title="Move down" aria-label="Move down" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}><Icon name="arrow-down" size={13} /></button>
+        <button class="ghost" title="Duplicate" aria-label="Duplicate" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}><Icon name="copy" size={13} /></button>
+        <button class="ghost danger" title="Delete" aria-label="Delete" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}><Icon name="trash" size={13} /></button>
       </span>
     {/if}
   </div>

@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -30,11 +31,11 @@
   {#each store.components.filter(c => !(store.isComponent && c.id === store.doc.id)) as c (c.id)}
     <li>
       <button class="ins" onclick={() => store.insertComponent(c)} title="Insert {c.name} ($import({c.importPath}))">
-        <span class="diamond">◆</span>
+        <span class="diamond"><Icon name="component" size={10} /></span>
         <span class="name">{c.name}</span>
         <span class="uses" title={c.usedBy.map(u => u.id).join('\n')}>{c.usedBy.length} use(s)</span>
       </button>
-      <button class="ghost edit" title="Edit component" onclick={() => store.openComponent(c.id)}>✎</button>
+      <button class="ghost edit" title="Edit component" aria-label="Edit component {c.name}" onclick={() => store.openComponent(c.id)}><Icon name="pencil" size={13} /></button>
     </li>
   {:else}
     <li class="empty">No components yet.</li>
@@ -42,9 +43,9 @@
 </ul>
 <div class="actions">
   {#if canExtract}
-    <button onclick={extract} title="Moves the selected block (and its texts) to a reusable component">◆ Turn selection into a component</button>
+    <button onclick={extract} title="Moves the selected block (and its texts) to a reusable component"><Icon name="component" size={10} /> Turn selection into a component</button>
   {/if}
-  <button class="ghost" onclick={create}>＋ New component</button>
+  <button class="ghost" onclick={create}><Icon name="plus" size={13} /> New component</button>
 </div>
 
 <style>

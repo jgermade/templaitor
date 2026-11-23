@@ -1,4 +1,6 @@
 <script>
+  import Icon from './components/Icon.svelte'
+  import Checkbox from './components/Checkbox.svelte'
   import { onMount } from 'svelte'
   import Topbar from './views/Topbar.svelte'
   import Sidebar from './views/Sidebar.svelte'
@@ -101,9 +103,9 @@
       <div class="subject">
         <span class="label">{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : store.isPdf ? 'Title' : 'Subject'}</span>
         {#if store.isComponent}
-          <span class="rendered muted">◆ {store.doc.name} — preview with the layout &lt;mj-head&gt;</span>
+          <span class="rendered muted"><Icon name="component" size={12} /> {store.doc.name} — preview with the layout &lt;mj-head&gt;</span>
         {:else if store.isLayout}
-          <span class="rendered muted">⧉ {store.doc.id} — the dashed slot is <code>$content</code>, where each template goes</span>
+          <span class="rendered muted"><Icon name="layout" size={13} /> {store.doc.id} — the dashed slot is <code>$content</code>, where each template goes</span>
         {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}
@@ -118,7 +120,7 @@
         {#if store.attachments.length && store.preview.attachments?.length}
           <ul class="attachments" aria-label="Attachments">
             {#each store.preview.attachments as a (a.index)}
-              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}>📎 {a.filename}</button></li>
+              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}><Icon name="paperclip" size={14} /> {a.filename}</button></li>
             {/each}
           </ul>
         {/if}
@@ -127,12 +129,13 @@
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
           <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Accessibility report (WCAG 2.1 AA)">
-            ♿ {fails ? `${fails} ✕` : warns ? `${warns} ⚠` : '✓'}
+            <Icon name="a11y" size={16} label="Accessibility" />
+            {#if fails}{fails} <Icon name="x" size={13} label="failing" />{:else if warns}{warns} <Icon name="alert" size={13} label="warnings" />{:else}<Icon name="check" size={14} label="passes" />{/if}
           </button>
         {/if}
         <div class="issues-wrap">
           <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
-            {issues.length ? `⚠ ${issues.length}` : '✓'}
+            {#if issues.length}<Icon name="alert" size={14} /> {issues.length}<span class="sr"> issues</span>{:else}<Icon name="check" size={14} label="No issues" />{/if}
           </button>
           {#if showIssues && issues.length}
             <ul class="issue-list">
@@ -140,10 +143,10 @@
             </ul>
           {/if}
         </div>
-        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab (a URL you can reload and share)" aria-label="Open the preview in a new tab">
+          <Icon name="tab" size={15} />
         </button>
-        {#if !store.isPdf}<label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>{/if}
+        {#if !store.isPdf}<Checkbox class="text-toggle" bind:checked={showText}>text</Checkbox>{/if}
       </div>
     {/if}
 
@@ -210,8 +213,7 @@
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
   .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }
-  .text-toggle { display: flex; align-items: center; gap: 6px; color: #3f3f46; cursor: pointer; }
-  .text-toggle input { width: 15px; height: 15px; margin: 0; }
+  .subject :global(.text-toggle) { color: #3f3f46; }
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .issues-wrap { position: relative; }

@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import AttrField from '../components/AttrField.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { describe } from '@shared/components.js'
@@ -47,20 +48,20 @@
       <nav class="crumbs">
         <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : 'Template'}</button>
         {#each crumbs as c}
-          <span class="muted">›</span>
+          <Icon name="chevron-right" size={11} class="sep" />
           <button class="ghost" class:cur={c.id === store.selectedId} onclick={() => (store.selectedId = c.id)}>{c.label}</button>
         {/each}
       </nav>
       <div class="title">
-        <span class="ic" class:comp={instance}>{def?.icon ?? (instance ? '◆' : '$')}</span>
+        <span class="ic" class:comp={instance}><Icon name={def?.icon ?? (instance ? 'component' : 'variable')} size={14} /></span>
         <b>{def?.label ?? (instance ? instance.name : 'Code')}</b>
         {#if node.tag}<code class="muted">&lt;{node.tag}&gt;</code>{/if}
         <span class="grow"></span>
         {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
-          <button class="ghost" title="Duplicate" onclick={() => store.duplicate(node.id)}>⧉</button>
-          <button class="ghost danger" title="Delete (Del)" onclick={() => store.removeSelected()}>🗑</button>
+          <button class="ghost" title="Duplicate" aria-label="Duplicate" onclick={() => store.duplicate(node.id)}><Icon name="copy" size={15} /></button>
+          <button class="ghost danger" title="Delete (Del)" aria-label="Delete" onclick={() => store.removeSelected()}><Icon name="trash" size={15} /></button>
         {/if}
-        <button class="ghost" title="Close (Esc)" onclick={() => (store.selectedId = null)}>✕</button>
+        <button class="ghost" title="Close (Esc)" aria-label="Close" onclick={() => (store.selectedId = null)}><Icon name="x" size={15} /></button>
       </div>
     </div>
 
@@ -69,7 +70,7 @@
         <section class="comp">
           <div class="panel-title">Reusable component</div>
           {#if instance.comp}
-            <p>This block is an instance of <b>◆ {instance.comp.name}</b>, used in {instance.comp.usedBy.length} place(s). Changes to the component apply everywhere.</p>
+            <p>This block is an instance of <b><Icon name="component" size={10} /> {instance.comp.name}</b>, used in {instance.comp.usedBy.length} place(s). Changes to the component apply everywhere.</p>
             {@const decl = instance.comp.params}
             {@const given = Object.fromEntries(instance.params)}
             {#if Object.keys(decl).length || instance.params.length}
@@ -87,13 +88,13 @@
                 <div class="extra">
                   <input class="mono" value={k} disabled title="Parameter not declared by the component" />
                   <input class="mono" value={v} oninput={(e) => store.setParam(node.id, k, e.currentTarget.value)} />
-                  <button class="ghost" title="Remove" onclick={() => store.setParam(node.id, k, '')}>✕</button>
+                  <button class="ghost" title="Remove" aria-label="Remove {k}" onclick={() => store.setParam(node.id, k, '')}><Icon name="x" size={13} /></button>
                 </div>
               {/each}
               <p class="hint muted">Empty = the component default. Values accept <code>{'{{ variables }}'}</code> and <code>$t('key')</code>.</p>
             {/if}
             <div class="btns">
-              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Edit component</button>
+              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}><Icon name="pencil" size={14} /> Edit component</button>
               <button onclick={() => store.detach(node.id)} title="Replaces the instance with a copy editable only in this template">Detach (copy here)</button>
             </div>
           {:else}
@@ -148,7 +149,7 @@
               <textarea class="mono" rows={def?.editable ? 4 : 10} value={node.content} oninput={(e) => store.setContent(node.id, e.currentTarget.value)}></textarea>
             </label>
             {#if def?.editable}
-              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}>🌐 Make translatable ($t)</button>
+              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}><Icon name="globe" size={13} /> Make translatable ($t)</button>
             {/if}
           {/if}
 
@@ -160,11 +161,11 @@
               {/each}
               {#if store.isComponent}
                 {#each Object.keys(store.componentParams) as pname}
-                  <button class="chip param" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$param.${pname}`)}>⚙ {pname}</button>
+                  <button class="chip param" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$param.${pname}`)}><Icon name="settings" size={12} /> {pname}</button>
                 {/each}
               {/if}
               {#each links as l}
-                <button class="chip link" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$link{ ${l}, label: ${l} }`)}>🔗 {l}</button>
+                <button class="chip link" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$link{ ${l}, label: ${l} }`)}><Icon name="link" size={12} /> {l}</button>
               {/each}
             </div>
           {/if}
@@ -181,7 +182,7 @@
             <div class="extra">
               <input class="mono" value={k} onchange={(e) => store.renameAttr(node.id, k, e.currentTarget.value.trim())} />
               <input class="mono" value={v} oninput={(e) => store.setAttr(node.id, k, e.currentTarget.value)} />
-              <button class="ghost" title="Remove" onclick={() => store.setAttr(node.id, k, null)}>✕</button>
+              <button class="ghost" title="Remove" aria-label="Remove {k}" onclick={() => store.setAttr(node.id, k, null)}><Icon name="x" size={13} /></button>
             </div>
           {/each}
           <form class="extra" onsubmit={(e) => { e.preventDefault(); if (newAttr.trim()) { store.setAttr(node.id, newAttr.trim(), ' '); newAttr = '' } }}>

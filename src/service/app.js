@@ -277,8 +277,8 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       }
       const ctx = { req, res, query: url.searchParams, auth: isApiV1 ? null : await auth.sessionOf(req), status: 200 }
 
-      // org-scoped editor API and static files of the active org
-      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/')) return await editorRequest(ctx, url)
+      // org-scoped editor API, static files and shareable previews of the active org
+      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/') || url.pathname.startsWith('/preview/')) return await editorRequest(ctx, url)
 
       for (const r of routes) {
         if (r.method !== req.method) continue

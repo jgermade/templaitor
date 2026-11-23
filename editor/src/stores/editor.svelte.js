@@ -197,18 +197,27 @@ class EditorStore {
     else this.setContent(this.selectedId, `${node.content.trim()} ${src}`.trim())
   }
 
-  /** Opens the rendered preview (with demo data) in a new tab */
+  /** Shareable URL of the saved document's preview in the current language (`/preview/<id>?lang=…`) */
+  previewUrl({ version } = {}) {
+    if (!this.doc) return null
+    const params = new URLSearchParams({ lang: this.lang })
+    if (this.kind !== 'template') params.set('kind', this.kind)
+    if (version) params.set('version', version)
+    return `${location.origin}/preview/${this.doc.id.split('/').map(encodeURIComponent).join('/')}?${params}`
+  }
+
+  /** Opens the preview (with demo data) in a new tab, at a URL that can be reloaded and shared */
   async openPreviewTab() {
-    const win = window.open('', '_blank')
-    try {
-      const r = await api.preview({ kind: this.kind, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data, lang: this.lang, mode: 'preview' })
-      win.document.open()
-      win.document.write(r.html.replace('<head>', `<head><base href="${location.origin}/"><title>${r.subject || this.doc.name}</title>`))
-      win.document.close()
-    } catch (e) {
-      win?.close()
-      this.notify(e.message, 'error')
+    if (!this.doc) return
+    if (this.dirty) {
+      const ok = await confirmDialog({
+        title: 'Save before opening the preview?',
+        message: 'The preview URL shows the saved files, so it can be reloaded and shared. Your unsaved changes are saved first.',
+        okLabel: 'Save and open',
+      })
+      if (!ok || !(await this.save({ quiet: true }))) return
     }
+    window.open(this.previewUrl(), '_blank', 'noopener')
   }
 
   notify(message, type = 'success', link = null) {

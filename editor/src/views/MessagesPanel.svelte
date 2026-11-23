@@ -1,6 +1,7 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import { store } from '../stores/editor.svelte.js'
-  import { flagOf } from '../lib/flags.js'
+  import Flag from '../components/Flag.svelte'
 
   let newKey = $state('')
   let newLang = $state('')
@@ -28,12 +29,12 @@
   {#each store.langs as l}
     {@const locale = store.project?.locales?.[l] || l}
     <span class="lang" class:active={store.lang === l}>
-      <button class="ghost" onclick={() => (store.lang = l)} title={locale}>{flagOf(locale) ?? ''} <span class="mono">{l}</span></button>
-      {#if store.langs.length > 1}<button class="ghost x" title="Remove language {l}" onclick={() => store.removeLang(l)}>✕</button>{/if}
+      <button class="ghost" onclick={() => (store.lang = l)} title={locale}><Flag {locale} size={13} /> <span class="mono">{l}</span></button>
+      {#if store.langs.length > 1}<button class="ghost x" title="Remove language {l}" aria-label="Remove language {l}" onclick={() => store.removeLang(l)}><Icon name="x" size={12} /></button>{/if}
     </span>
   {/each}
   <form onsubmit={(e) => { e.preventDefault(); store.addLang(newLang.trim(), store.lang); newLang = '' }}>
-    <input class="mono" placeholder="+ language" bind:value={newLang} list="tpl-langs" size="6" />
+    <input class="mono" placeholder="Add language" bind:value={newLang} list="tpl-langs" size="6" />
     <datalist id="tpl-langs">
       {#each Object.keys(store.project?.locales || {}).filter(l => !store.langs.includes(l)) as l}<option value={l}></option>{/each}
     </datalist>
@@ -47,7 +48,7 @@
       <div class="k">
         <code title={used.has(key) ? 'Used by the template' : 'Not used by the template'} class:unused={!used.has(key)}>{key}</code>
         {#if msg == null}<span class="warn">missing translation</span>{/if}
-        <button class="ghost x" title="Remove the key in every language" onclick={() => store.removeKey(key)}>✕</button>
+        <button class="ghost x" title="Remove the key in every language" aria-label="Remove the key {key}" onclick={() => store.removeKey(key)}><Icon name="x" size={12} /></button>
       </div>
       <textarea rows="1" use:autosize={msg} value={msg == null ? '' : String(msg).trim()} oninput={(e) => store.setMessage(store.lang, key, e.currentTarget.value)}></textarea>
     </li>

@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   // Real PDF of the draft with the demo data (re-rendered on edit) + engine and veraPDF validation
   import { untrack, onDestroy } from 'svelte'
   import { store } from '../stores/editor.svelte.js'
@@ -82,10 +83,10 @@
     <span class="grow"></span>
     <button onclick={validate} disabled={store.pdfValidation?.status === 'running' || !store.project?.pdf?.verapdf}
       title={store.project?.pdf?.verapdf ? `Validate with ${store.project.pdf.verapdf}` : 'veraPDF not available (make verapdf)'}>
-      {store.pdfValidation?.status === 'running' ? 'Validating…' : '✓ Validate PDF/UA (veraPDF)'}
+      {#if store.pdfValidation?.status === 'running'}Validating…{:else}<Icon name="check" size={14} /> Validate PDF/UA (veraPDF){/if}
     </button>
     {#if url}
-      <a class="download" href={url} download={`${store.doc.name}.${store.project?.locales?.[store.lang] || store.lang}.pdf`}>⤓ Download</a>
+      <a class="download" href={url} download={`${store.doc.name}.${store.project?.locales?.[store.lang] || store.lang}.pdf`}><Icon name="download" size={14} /> Download</a>
     {/if}
   </div>
   <div class="frame">

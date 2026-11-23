@@ -22,7 +22,7 @@ function templaitorApi() {
       server.config.logger.info(`  ✎ templaitor · ${project.name} (${path.relative(process.cwd(), project.cwd) || '.'})`)
       server.middlewares.use((req, res, next) => {
         const url = req.url || ''
-        if (url.startsWith('/api/') || url.startsWith('/static/')) return handle(req, res)
+        if (url.startsWith('/api/') || url.startsWith('/static/') || url.startsWith('/preview/')) return handle(req, res)
         next()
       })
     },
@@ -37,6 +37,7 @@ export default defineConfig({
     alias: {
       '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
+      '@flags': fileURLToPath(new URL('./node_modules/country-flag-icons/3x2', import.meta.url)),
     },
   },
   server: {

@@ -348,6 +348,9 @@ of its own, so the preview uses those of the first template using it (not saved 
   (from the demo data) and links.
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
+  The preview also opens in a new tab at a real URL, `/preview/<template>?lang=es` (`&version=v3` for a
+  version, `&kind=component|layout`), which can be reloaded, bookmarked and shared (in the hosted service,
+  with members of the organization). It shows the saved files, so unsaved changes are saved first.
 - **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
 - **Versions** (top bar): save the current state of a template, component or layout as a **version** with a
   description, browse its versions (number, description, author, date), **compare** one with the draft or

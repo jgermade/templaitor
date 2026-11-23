@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   // Versions of the open document: save the current state as a version, browse them, compare or restore one.
   import { store } from '../stores/editor.svelte.js'
   import { versions } from '../stores/versions.svelte.js'
@@ -51,7 +52,7 @@
 <dialog bind:this={dialog} class="versions" aria-labelledby="versions-title" oncancel={(e) => { e.preventDefault(); open = false }}>
   <div class="dhead">
     <h2 id="versions-title">Versions <span class="muted doc">· {store.doc?.id}</span></h2>
-    <button class="ghost" aria-label="Close versions" onclick={() => (open = false)}>✕</button>
+    <button class="ghost" aria-label="Close versions" onclick={() => (open = false)}><Icon name="x" size={16} /></button>
   </div>
 
   <div class="body" aria-busy={versions.loading}>
@@ -103,6 +104,7 @@
                 </span>
               </div>
               <div class="actions">
+                <a class="btn" href={store.previewUrl({ version: v.rev })} target="_blank" rel="noopener" aria-label={`Preview ${versions.label(v)} in a new tab`} title="Preview in a new tab (shareable URL)"><Icon name="external" size={13} /></a>
                 <button onclick={() => compareWith(v)} aria-label={`Compare ${versions.label(v)} with the draft`}>Compare</button>
                 {#if session.canEdit}
                   <button onclick={() => restore(v)} disabled={versions.busy} aria-label={`Restore ${versions.label(v)} into the draft`}>Restore</button>
@@ -140,6 +142,8 @@
   .current { color: #166534; font-weight: 600; }
   .actions { display: flex; gap: 4px; flex: none; }
   .actions button { font-size: 12px; padding: 3px 8px; }
+  .actions .btn { display: inline-grid; place-content: center; padding: 3px 7px; border: 1px solid var(--border); border-radius: var(--radius); color: inherit; }
+  .actions .btn:hover { border-color: #a1a1aa; }
   .off { padding: 8px 0; }
   .small { font-size: 12px; }
   .error { color: #b91c1c; }

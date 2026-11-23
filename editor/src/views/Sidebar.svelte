@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import Section from '../components/Section.svelte'
   import CodeEditor from '../components/CodeEditor.svelte'
   import MessagesPanel from './MessagesPanel.svelte'
@@ -61,10 +62,10 @@
         <div class="palette">
           {#each PALETTE as tag}
             {@const d = describe(tag)}
-            <button onclick={() => store.add(tag)} title="Add {d.label} ({tag})"><span class="ic">{d.icon}</span>{d.label}</button>
+            <button onclick={() => store.add(tag)} title="Add {d.label} ({tag})"><span class="ic"><Icon name={d.icon} size={15} /></span>{d.label}</button>
           {/each}
           {#if store.isPdf}
-            <button onclick={() => store.addPageBreak()} title="Forces a new page in the PDF"><span class="ic">⤓</span>Page break</button>
+            <button onclick={() => store.addPageBreak()} title="Forces a new page in the PDF"><span class="ic"><Icon name="page-break" size={15} /></span>Page break</button>
           {/if}
         </div>
       </Section>

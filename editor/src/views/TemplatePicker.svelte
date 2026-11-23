@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -71,25 +72,25 @@
           </button>
         {/each}
       {/each}
-      <button class="item add" onclick={() => { open = false; onnew?.() }}>＋ New template</button>
+      <button class="item add" onclick={() => { open = false; onnew?.() }}><Icon name="plus" size={13} /> New template</button>
 
       <div class="head">Components</div>
       {#each comps as c}
         <button class="item" class:cur={store.kind === 'component' && store.doc?.id === c.id} onclick={() => pick(c.id, 'component')}>
-          <span class="diamond">◆</span>{c.name}
+          <span class="diamond"><Icon name="component" size={10} /></span>{c.name}
           <span class="langs">{c.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newComponent}>＋ New component</button>
+      <button class="item add" onclick={newComponent}><Icon name="plus" size={13} /> New component</button>
 
       <div class="head">Layouts</div>
       {#each lays as l}
         <button class="item" class:cur={store.kind === 'layout' && store.doc?.id === l.id} onclick={() => pick(l.id, 'layout')}>
-          <span class="lay">⧉</span>{l.name}
+          <span class="lay"><Icon name="layout" size={13} /></span>{l.name}
           <span class="langs">{l.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newLayout}>＋ New layout</button>
+      <button class="item add" onclick={newLayout}><Icon name="plus" size={13} /> New layout</button>
     </div>
   </div>
 {/if}
