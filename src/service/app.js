@@ -13,6 +13,7 @@ import { encrypt, hashToken, randomToken, safeEqual } from './crypto.js'
 import { httpError, readJson, sendJson } from './http.js'
 import { listTemplates } from '../engine/project.js'
 import { listVersions } from '../engine/versions.js'
+import { templateSchema } from '../engine/message.js'
 import { setPdfSandbox } from '../engine/pdf.js'
 
 const EDITOR_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/editor')
@@ -278,6 +279,14 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       const r = await listVersions(ws.project, ctx.query.get('template'), 'template', { limit: ctx.query.get('limit') })
       return { available: r.available, versions: r.versions.map(v => ({ number: v.number, rev: v.rev, short: v.short, message: v.message, author: v.author, date: v.date })) }
     }],
+    // data contract of a hosted template as JSON Schema (what /v1/send expects in `data`)
+    ['GET', '/v1/schema', async (ctx) => {
+      const { org } = await apiKeyOrg(ctx.req)
+      const ws = await workspaces.get(org.id)
+      const schema = await templateSchema(ws.project, ctx.query.get('template'), { version: ctx.query.get('version') || undefined })
+      if (!schema) throw httpError(404, `${ctx.query.get('template')} declares no data contract (data: in its frontmatter)`)
+      return schema
+    }],
     ['GET', '/v1/templates', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
       const ws = await workspaces.get(org.id)
@@ -318,7 +327,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       throw httpError(404, 'Route not found')
     } catch (err) {
       if (!err.status) log?.(err)
-      if (!res.headersSent) sendJson(res, { error: err.status ? err.message : 'Internal error' }, err.status || 500)
+      if (!res.headersSent) sendJson(res, { error: err.status ? err.message : 'Internal error', ...(err.status && err.details ? { details: err.details } : {}) }, err.status || 500)
       else res.end()
     }
   }

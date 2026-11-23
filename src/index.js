@@ -15,7 +15,7 @@ import YAML from 'yaml'
 import { fileURLToPath } from 'node:url'
 import { loadProject, listTemplates, listComponents, listLayouts, readTemplate, readLinks } from './engine/project.js'
 import { compileProject, compileSource, previewDraft, langsOf } from './engine/pipeline.js'
-import { renderMessage, renderAttachments, renderPdfDocument, resolveLang } from './engine/message.js'
+import { renderMessage, renderAttachments, renderPdfDocument, resolveLang, templateSchema } from './engine/message.js'
 import { listVersions, readVersion, resolveVersion } from './engine/versions.js'
 import { renderJinja } from './engine/render.js'
 
@@ -44,9 +44,10 @@ export function createEngine({ cwd = BUNDLED_PROJECT, overrides = {}, fetch: fet
      * An email for one recipient → { template, subject, html, text, locale, lang, version, attachments, warnings }
      *   lang: key (`es`), locale (`es-ES`) or a locale's language; default: the template's first language
      *   version: 3 · 'v3' · 'latest' · a revision (git) — the template as it was at that version
+     *   validate: false skips the data contract check (otherwise a 422 error lists what does not match)
      */
-    async render(id, { lang, data = {}, version } = {}) {
-      const r = await renderMessage(project, id, { lang, data, version })
+    async render(id, { lang, data = {}, version, validate = true } = {}) {
+      const r = await renderMessage(project, id, { lang, data, version, validate })
       const { snapshot, ...msg } = r
       Object.defineProperty(msg, '_attachments', { value: { snapshot, data }, enumerable: false })
       return msg
@@ -56,7 +57,10 @@ export function createEngine({ cwd = BUNDLED_PROJECT, overrides = {}, fetch: fet
     attachments: (msg) => renderAttachments(project, msg?._attachments?.snapshot, msg?._attachments?.data),
 
     /** A PDF template rendered with data → { pdf: Buffer, engine, locale, title, version } */
-    pdf: (id, { lang, data = {}, version, engine } = {}) => renderPdfDocument(project, id, { lang, data, version, engine }),
+    pdf: (id, { lang, data = {}, version, engine, validate = true } = {}) => renderPdfDocument(project, id, { lang, data, version, engine, validate }),
+
+    /** JSON Schema of the template's data contract (`data:` in its frontmatter), or null */
+    schema: (id, { version } = {}) => templateSchema(project, id, { version }),
 
     /** The Jinja2 output of a template in one language, without data (for a Jinja2 backend) */
     async compile(id, { lang } = {}) {

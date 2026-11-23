@@ -6,6 +6,22 @@ pdf:
   orientation: portrait
   margin: 15mm
   footer: "{page} / {pages}"
+# data the backend sends (checked by /v1/send and engine.pdf(); schema.json when compiling)
+data:
+  number: { type: string, required: true, description: Invoice number }
+  date: { type: string, required: true, description: Issue date, formatted }
+  due_date: { type: string, required: true }
+  payment_method: { type: string, required: true }
+  customer:
+    type: object
+    required: true
+    fields: { name: string, address: string }
+  lines:
+    type: list
+    required: true
+    of: { concept: string, qty: number, amount: string }
+  total: { type: string, required: true }
+  assets_url: { type: url, required: true }
 ---
 
 <mj-section padding="0 0 12px">

@@ -62,15 +62,20 @@ export function resolveAttachments(project, meta, ctx) {
 }
 
 /**
- * Context used to render a local attachment: the email variable named by `context`
- * (or the whole email context). In previews, the document's own demo data fills the gaps.
+ * Data used to render a local attachment: the email variable named by `context` plus the email's top-level
+ * plain values (assets_url, app_url…), or the whole email data without `context`. Only in previews
+ * (`docDemo`) the document's own demo data fills the gaps — never in a real send.
  */
-export function attachmentData(att, emailData = {}, docDemo = {}) {
+export function attachmentData(att, emailData = {}, docDemo = null) {
+  let data
   if (att.context) {
+    const globals = Object.fromEntries(Object.entries(emailData || {}).filter(([, v]) => v == null || typeof v !== 'object'))
     const value = att.context.split('.').reduce((o, k) => (o == null ? o : o[k]), emailData)
-    return value && typeof value === 'object' ? { ...docDemo, ...value } : docDemo
+    data = value && typeof value === 'object' && !Array.isArray(value) ? { ...globals, ...value } : globals
+  } else {
+    data = { ...emailData }
   }
-  return { ...docDemo, ...emailData }
+  return docDemo ? { ...docDemo, ...data } : data
 }
 
 /** Demo data of a template (its .json5) */
@@ -82,11 +87,12 @@ export function demoDataOf(project, id) {
 /**
  * Renders one resolved attachment with real data → { filename, content (Buffer), contentType }.
  * `render(template, data)` renders Jinja2; `renderDocument(id, langKey, data)` returns a PDF Buffer.
+ * `preview`: the editor's preview (the document's demo data fills what the email data lacks).
  */
-export async function renderAttachment(project, att, data, { render, renderDocument, fetchImpl = fetch }) {
+export async function renderAttachment(project, att, data, { render, renderDocument, fetchImpl = fetch, preview = false }) {
   const filename = render(att.filename, data).trim() || 'attachment'
   if (att.type === 'template') {
-    const docData = attachmentData(att, data, demoDataOf(project, att.template))
+    const docData = attachmentData(att, data, preview ? demoDataOf(project, att.template) : null)
     return { filename, content: await renderDocument(att.template, att.langKey, docData), contentType: att.contentType }
   }
   const url = render(att.url, data).trim()

@@ -93,9 +93,13 @@ test('demo project compilation: Jinja2 intact in HTML/TXT/subject', async () => 
   const { files, issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0, JSON.stringify(issues))
   // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (per language)
-  // (+ .attachments.json per language for emails with attachments)
-  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0) + 2
+  // (+ .attachments.json per language for emails with attachments, + one .schema.json per template with a
+  // data contract)
+  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3) + 1, 0) + 2
   assert.equal(files.length, expected)
+  const schema = JSON.parse(fs.readFileSync(path.join(project.outDir, 'orders/order-confirmation/order-confirmation.schema.json'), 'utf8'))
+  assert.equal(schema.type, 'object')
+  assert.ok(schema.required.includes('first_name'))
   const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
   const html = fs.readFileSync(`${base}.html`, 'utf8')
   assert.match(html, /\{% for item in items %\}/)
@@ -496,7 +500,8 @@ test('library: createEngine renders the bundled templates (email, attachments, P
   const [pdf] = await engine.attachments(es)
   assert.equal(pdf.contentType, 'application/pdf')
   assert.equal(pdf.content.subarray(0, 5).toString(), '%PDF-')
-  const doc = await engine.pdf('documents/invoice', { lang: 'en', data: data.invoice })
+  await assert.rejects(engine.pdf('documents/invoice', { lang: 'en', data: data.invoice }), (e) => e.status === 422 && /assets_url: is required/.test(e.message))
+  const doc = await engine.pdf('documents/invoice', { lang: 'en', data: { ...data.invoice, assets_url: data.assets_url } })
   assert.equal(doc.pdf.subarray(0, 5).toString(), '%PDF-')
   assert.equal(doc.locale, 'en-US')
   const raw = await engine.compile('orders/order-confirmation', { lang: 'en' })
@@ -612,4 +617,68 @@ test('layouts: `format` in their frontmatter (email / pdf), stripped when applie
   const byId = Object.fromEntries(listLayouts(project).map(l => [l.id, l.format]))
   assert.equal(byId['statement.mjml'], 'pdf')
   assert.equal(byId['legacy.mjml'], null)
+})
+
+test('data contract: normalize, validate, infer, JSON Schema and the variables a template uses', async () => {
+  const { normalizeContract, validateData, inferContract, toJsonSchema, usedVariables, contractToYaml } = await import('../src/shared/contract.js')
+  const c = normalizeContract({
+    name: { type: 'string', required: true },
+    site: 'url',
+    tags: { type: 'list', of: 'string' },
+    items: { type: 'list', required: true, of: { qty: 'number', label: 'string' } },
+    customer: { email: 'email', since: 'date' },
+    'bad name': 'string',
+  })
+  assert.deepEqual(Object.keys(c), ['name', 'site', 'tags', 'items', 'customer'])
+  assert.equal(c.customer.type, 'object')
+  assert.deepEqual(validateData(c, { name: 'Ada', items: [{ qty: 1, label: 'x' }] }), [])
+  const errs = validateData(c, { site: 'ftp://x', items: [{ qty: 'two' }, 3], tags: 'a', customer: { email: 'nope', since: 'never' } })
+  assert.deepEqual(errs.map(e => e.path), ['name', 'site', 'tags', 'items[0].qty', 'items[1]', 'customer.email', 'customer.since'])
+  assert.equal(errs[0].message, 'is required')
+  // relative URLs and extra fields are fine
+  assert.deepEqual(validateData(c, { name: 'A', items: [], site: '/static', extra: 1 }), [])
+  // inference: types from values, used names required
+  const inf = inferContract({ a: 'x', n: 2, u: 'https://x.test', e: 'a@b.co', d: '2026-11-23', l: [{ k: 1 }], o: { p: true } }, ['a', 'missing'])
+  assert.deepEqual(Object.fromEntries(Object.entries(inf).map(([k, f]) => [k, f.type])), { a: 'string', n: 'number', u: 'url', e: 'email', d: 'date', l: 'list', o: 'object', missing: 'string' })
+  assert.equal(inf.a.required, true)
+  assert.equal(inf.n.required, false)
+  // round trip through the short YAML form
+  assert.deepEqual(normalizeContract(contractToYaml(c)), c)
+  const schema = toJsonSchema(c, { title: 't' })
+  assert.deepEqual(schema.required, ['name', 'items'])
+  assert.equal(schema.properties.items.items.properties.qty.type, 'number')
+  assert.equal(schema.properties.customer.properties.email.format, 'email')
+  // used variables: loop/set variables, filters, attributes, keyword args and strings are not data
+  assert.deepEqual(usedVariables("{{ user.name | default('x') }} {% for it in items %}{{ it.qty }}{% endfor %} {% set t = total %}{{ t }} {% if vip and not banned %}{% endif %} {{ fmt(price, digits=2) }} {{ 'lit' }}").sort(),
+    ['banned', 'fmt', 'items', 'price', 'total', 'user', 'vip'])
+})
+
+test('data contract: compile warnings, demo data checked, 422 on render (also for attached documents)', async () => {
+  const { renderMessage } = await import('../src/engine/message.js')
+  const { attachmentData } = await import('../src/engine/attachments.js')
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  // undeclared and unused fields
+  const mjml = t.mjml.replace('  order_id: { type: string, required: true }\n', '  coupon: string\n')
+  const r = await previewDraft(project, { ...t, mjml, langKey: 'en' })
+  assert.ok(r.warnings.some(w => /\{\{ order_id \}\} is used but not declared/.test(w)))
+  assert.ok(r.warnings.some(w => /coupon is declared in the data contract but not used/.test(w)))
+  // demo data that does not match
+  const bad = await previewDraft(project, { ...t, data: '{ first_name: true }', langKey: 'en' }) // (numbers are accepted as text)
+  assert.ok(bad.warnings.some(w => w === 'Demo data: first_name: must be a text'))
+  assert.ok(bad.warnings.some(w => w === 'Demo data: items: is required'))
+  // render (send API / library): 422 with the list of errors
+  const data = JSON5.parse(t.data)
+  await assert.rejects(renderMessage(project, 'orders/order-confirmation', { data: { ...data, first_name: '' } }),
+    (e) => e.status === 422 && /first_name: is required/.test(e.message) && e.details[0].path === 'first_name')
+  // the attached invoice is checked with its own contract (context: invoice + the email's plain values)
+  await assert.rejects(renderMessage(project, 'orders/order-confirmation', { data: { ...data, invoice: { ...data.invoice, customer: undefined } } }),
+    (e) => e.status === 422 && /contract of the attachment documents\/invoice \(context: invoice\): customer: is required/.test(e.message))
+  assert.ok((await renderMessage(project, 'orders/order-confirmation', { data })).html.includes(data.first_name))
+  // attachment data: the context object + top-level plain values; demo data only fills gaps in previews
+  const att = { type: 'template', template: 'documents/invoice', context: 'invoice' }
+  const d = attachmentData(att, { assets_url: '/s', invoice: { number: '1' }, items: [1] })
+  assert.deepEqual(d, { assets_url: '/s', number: '1' })
+  assert.equal(attachmentData(att, { invoice: { number: '1' } }, { number: 'demo', customer: { name: 'Demo' } }).customer.name, 'Demo')
+  assert.equal(attachmentData(att, { invoice: { number: '1' } }).customer, undefined)
 })

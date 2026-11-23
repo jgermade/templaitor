@@ -441,8 +441,9 @@ function sanitizeId(id) {
   return clean
 }
 
-export function httpError(status, message) {
+export function httpError(status, message, extra = {}) {
   const err = new Error(message)
   err.status = status
+  Object.assign(err, extra)
   return err
 }

@@ -5,6 +5,32 @@ attachments:
   - template: documents/invoice
     filename: "$t('invoice_file')"
     context: invoice            # the invoice is rendered with the email's `invoice` variable
+# data the backend sends (checked by /v1/send; schema.json when compiling)
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  order_id: { type: string, required: true }
+  items:
+    type: list
+    required: true
+    description: Ordered products
+    of: { qty: number, name: string, price: string }
+  total: { type: string, required: true, description: Formatted total, without currency }
+  tracking_url: { type: url, description: Shipment tracking page; without it the tracking button is hidden }
+  app_url: { type: url, required: true }
+  assets_url: { type: url, required: true }
+  year: number
+  invoice:
+    type: object
+    required: true
+    description: The attached invoice (documents/invoice)
+    fields:
+      number: string
+      date: string
+      due_date: string
+      payment_method: string
+      customer: { name: string, address: string }
+      lines: { type: list, of: { concept: string, qty: number, amount: string } }
+      total: string
 ---
 
 $import(_components/banner, show_caption="true", caption="$t('banner_caption')")

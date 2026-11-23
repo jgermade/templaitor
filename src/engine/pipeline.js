@@ -13,6 +13,8 @@ import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
 import { tryRenderJinja, renderJinja } from './render.js'
+import { normalizeContract, usedVariables, validateData, formatErrors, toJsonSchema } from '../shared/contract.js'
+import { normalizeAttachments } from '../shared/attachments.js'
 import { resolveAttachments, renderAttachment } from './attachments.js'
 import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
@@ -124,7 +126,17 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 9. Attachments (emails): local PDF templates in this language and remote files
   const attachments = format === 'email' && kind === 'template' ? resolveAttachments(project, meta, ctx) : []
 
-  return { locale, langKey, html, text, subject, meta, format, pdf, attachments, warnings, errors, a11y: a11yReport.issues, a11yReport }
+  // 10. Data contract (`data:` in the frontmatter): what the template uses vs what it declares
+  const hasContract = kind === 'template' && meta.data != null
+  const contract = hasContract ? normalizeContract(meta.data) : {}
+  const usedVars = usedVariables([html, text, subject, ...attachments.flatMap(a => [a.filename, a.url ?? ''])].join('\n'))
+  for (const a of normalizeAttachments(meta.attachments)) if (a.context && !usedVars.includes(String(a.context).split('.')[0])) usedVars.push(String(a.context).split('.')[0])
+  if (hasContract) {
+    for (const v of usedVars) if (!contract[v]) warn(`{{ ${v} }} is used but not declared in the data contract (data: in the frontmatter)`)
+    for (const k of Object.keys(contract)) if (!usedVars.includes(k)) warn(`${k} is declared in the data contract but not used`)
+  }
+
+  return { locale, langKey, html, text, subject, meta, format, pdf, attachments, warnings, errors, a11y: a11yReport.issues, a11yReport, hasContract, contract, usedVars }
 }
 
 /** Compiles a project template and writes the files to outDir */
@@ -138,6 +150,13 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
 
   const files = []
   const issues = []
+  // data contract → JSON Schema for the backend (one per template)
+  const { meta: fm } = parseFrontmatter(tpl.mjml)
+  if (fm.data != null) {
+    const file = path.join(outDir, `${p.name}.schema.json`)
+    fs.writeFileSync(file, `${JSON.stringify(toJsonSchema(normalizeContract(fm.data), { id: `${p.id}.schema.json`, title: p.id }), null, 2)}\n`)
+    files.push(file)
+  }
   for (const langKey of langsOf(project, i18n)) {
     const r = await compileSource(project, { mjml: tpl.mjml, i18n, links, langKey })
     const base = path.join(outDir, `${p.name}.${r.locale}`)
@@ -211,6 +230,8 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
   warnings.push(...r.warnings)
 
   if (mode === 'raw') return { ...r, warnings }
+  // the demo data is an example of the contract: it has to fulfil it
+  if (r.hasContract) for (const e of formatErrors(validateData(r.contract, demo))) warnings.push(`Demo data: ${e}`)
 
   return {
     ...r,
@@ -256,7 +277,8 @@ export async function renderDraftAttachments(project, { mjml, yml = '', data = '
     throw err
   }
   // (hosted service: project.fetchImpl blocks private networks for remote attachments)
-  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d), fetchImpl: project.fetchImpl ?? fetch }
+  // `values` = real data (a send): no demo data; otherwise an editor preview with the draft's demo data
+  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d), fetchImpl: project.fetchImpl ?? fetch, preview: values == null }
   const out = []
   for (const att of list) out.push(await renderAttachment(project, att, demo, opts))
   return out

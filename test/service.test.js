@@ -217,6 +217,19 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
     assert.equal(rendered.subject, 'Pedido #A-1042 confirmado')
     assert.match((await api('/v1/render', { template: 'orders/order-confirmation', lang: 'fr', data })).data.error, /Language not available/)
 
+    // data contract: data that does not match is refused (422 with the errors), nothing is queued
+    const before = (await svc.app.repo.messages(org.id)).length
+    const refused = await api('/v1/send', { template: 'orders/order-confirmation', lang: 'en', data: { ...data, items: 'none', first_name: undefined }, to: 'ada@example.com' })
+    assert.equal(refused.status, 422)
+    assert.match(refused.data.error, /does not match the contract of orders\/order-confirmation/)
+    assert.deepEqual(refused.data.details.map(d => [d.path, d.message]), [['first_name', 'is required'], ['items', 'must be a list']])
+    assert.equal((await svc.app.repo.messages(org.id)).length, before)
+    // the contract as JSON Schema
+    const schema = (await api('/v1/schema?template=orders/order-confirmation')).data
+    assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema')
+    assert.ok(schema.required.includes('items'))
+    assert.equal(schema.properties.items.type, 'array')
+
     // raw HTML with a base64 attachment + idempotency
     const raw = { to: 'bob@example.com', subject: 'Hi', html: '<p>Hello <b>Bob</b></p>', attachments: [{ filename: 'a.txt', content: Buffer.from('hello').toString('base64') }] }
     // the first delivery attempt hits a temporary SMTP error → retried later
@@ -465,7 +478,7 @@ test('service: project mode serves one deployed project (read-only, env API keys
     }).then(async r => ({ status: r.status, data: await r.json() }))
     assert.deepEqual((await api('/v1/templates')).data.map(t => t.id), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
     assert.equal((await api('/v1/templates', undefined, 'wrong-key-0123456789abcdef')).status, 401)
-    const data = { first_name: 'Ada', verification_url: 'https://x.test/v', code: '123456', app_url: 'https://x.test' }
+    const data = { first_name: 'Ada', verification_token: 'tok-123', app_url: 'https://x.test', assets_url: 'https://x.test/static', year: 2026 }
     assert.equal((await api('/v1/render', { template: 'customers/email-verification', lang: 'en', data })).data.subject, 'Deployed subject')
     const v1 = (await api('/v1/render', { template: 'customers/email-verification', lang: 'en', data, version: 'v1' })).data
     assert.notEqual(v1.subject, 'Deployed subject')
