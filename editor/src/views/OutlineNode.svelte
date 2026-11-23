@@ -29,7 +29,7 @@
   })
 
   function onDragOver(e) {
-    if (!drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`)) return
+    if (drag.comp ? false : !drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`)) return
     const r = e.currentTarget.getBoundingClientRect()
     const y = (e.clientY - r.top) / r.height
     const canInside = isEl && node.content == null && store.accepts(node.id, drag.tag)
@@ -39,7 +39,7 @@
     }
     if (!where) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = drag.comp ? 'copy' : 'move'
     dropWhere = where
   }
 
@@ -47,7 +47,8 @@
     e.preventDefault()
     const where = dropWhere
     dropWhere = null
-    if (where && drag.id) store.drop(drag.id, node.id, where)
+    if (where && drag.comp) store.dropComponent(drag.comp, node.id, where)
+    else if (where && drag.id) store.drop(drag.id, node.id, where)
     drag.id = null
   }
 </script>
@@ -63,7 +64,7 @@
     tabindex="-1"
     draggable={node.tag !== 'mjml' && node.tag !== 'mj-body'}
     ondblclick={() => instance?.comp && store.openComponent(instance.comp.id)}
-    ondragstart={(e) => { drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
+    ondragstart={(e) => { drag.comp = null; drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
     ondragend={() => { drag.id = null; dropWhere = null }}
     ondragover={onDragOver}
     ondragleave={() => (dropWhere = null)}

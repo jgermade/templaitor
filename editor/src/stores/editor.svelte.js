@@ -47,6 +47,8 @@ class EditorStore {
   pdfValidation = $state(null) // { status: 'running' | 'done' | 'error', result, error, stale }
   history = $state([])
   future = $state([])
+  /** Drag and drop in progress: a node of the tree (`id`) or a component from the panel (`comp`) */
+  drag = $state({ id: null, tag: null, comp: null })
 
   // ── Derived ───────────────────────────────────────────────
   split = $derived(splitFrontmatter(this.doc?.mjml ?? ''))
@@ -533,6 +535,36 @@ class EditorStore {
     })
   }
 
+  /** Where a node with root `tag` may be dropped → { [nodeId]: { before, after, inside } } (canvas drag and drop) */
+  dropTargets(tag) {
+    const out = {}
+    const visit = (node) => {
+      // elements, and component instances ($import text nodes, drawn as one block on the canvas)
+      if (node.id != null && (node.type === 'element' || this.instanceOf(node))) {
+        const pid = parentId(node.id)
+        const sibling = this.accepts(pid, tag)
+        const inside = node.type === 'element' && node.content == null && this.accepts(node.id, tag)
+        if (sibling || inside) out[node.id] = { before: sibling, after: sibling, inside }
+      }
+      if (node.type === 'element' && node.content == null) node.children?.forEach(visit)
+    }
+    this.tree.children.forEach(visit)
+    return out
+  }
+
+  /** Drops a component (an $import) before/after/inside `targetId` → true when it fits there */
+  dropComponent(comp, targetId, where) {
+    const target = findNode(this.tree, targetId)
+    if (!target) return false
+    const pid = where === 'inside' ? targetId : parentId(targetId)
+    const index = where === 'inside' ? target.children.length : Number(targetId.split('.').pop()) + (where === 'after' ? 1 : 0)
+    if (!this.accepts(pid, comp.rootTag)) return false
+    this.mutate(tree => insertNode(tree, pid, index, { type: 'text', value: `$import(${comp.importPath})` }))
+    this.notify(`${comp.name} added`)
+    return true
+  }
+
+  /** Keyboard alternative to dragging: inserts the component next to the selection */
   insertComponent(comp) {
     const node = { type: 'text', value: `$import(${comp.importPath})` }
     const p = this.findPlacement(comp.rootTag)

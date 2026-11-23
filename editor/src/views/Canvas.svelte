@@ -28,6 +28,17 @@
     if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
   })
 
+  let dragged = null
+  // a component dragged from the panel: the canvas gets the valid drop targets (the iframe draws the line)
+  $effect(() => {
+    const comp = store.drag.comp
+    if (!ready) return
+    if (comp && mode === 'design') {
+      dragged = comp // dragend (in the panel) may arrive before the iframe's drop message
+      post({ type: 'dragtargets', targets: store.dropTargets(comp.rootTag), label: comp.name })
+    } else post({ type: 'dragend' })
+  })
+
   // variable insertion from the inspector
   $effect(() => {
     const req = store.insertRequest
@@ -60,6 +71,15 @@
         else if (kind === 'c') store.setInner(ref, msg.value)
         break
       }
+      case 'drop':
+        if (dragged && store.dropComponent(dragged, msg.id, msg.where)) {
+          store.selectSource = 'canvas'
+          queueMicrotask(() => (store.selectSource = null))
+        }
+        dragged = null
+        store.drag.comp = null
+        store.drag.tag = null
+        break
       case 'opencomp': {
         const info = store.instanceOf(findNode(store.tree, msg.id))
         if (info?.comp) store.openComponent(info.comp.id)

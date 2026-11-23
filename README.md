@@ -380,6 +380,9 @@ of its own, so the preview uses those of the first template using it (not saved 
   bar, open the preview in a new tab and the `text` toggle. On the left, demo data (JSON5) and collapsible
   sections: Messages, Components, Blocks, Structure and Template. The inspector appears when a block is
   selected.
+- **Components** panel: a component is added **only by dragging it** to the canvas (a line shows where it
+  lands: before, after or inside a block) or to the Structure tree; a click does not insert it. Keyboard
+  alternative: focus the component and press Enter to add it after the selection.
 - **Structure**: block tree with drag and drop (validates where each component may go), move up/down,
   duplicate and delete. **Blocks**: palette of MJML components; new texts and buttons are translatable in
   every language from the start.

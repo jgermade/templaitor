@@ -2,7 +2,7 @@
   import OutlineNode from './OutlineNode.svelte'
   import { store } from '../stores/editor.svelte.js'
 
-  const drag = $state({ id: null, tag: null })
+  const drag = store.drag
 </script>
 
 <div class="tree" role="tree">

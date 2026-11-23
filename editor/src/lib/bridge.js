@@ -34,6 +34,11 @@ export function bridgeMain() {
     .tpl-page-break { position: relative; height: 0; border-top: 2px dashed #a1a1aa; margin: 22px 0; }
     .tpl-page-break::after { content: 'Page break'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
       background: #fff; color: #71717a; font: 600 10px/16px system-ui, sans-serif; padding: 0 8px; border-radius: 8px; border: 1px solid #d4d4d8; }
+    #tpl-drop { position: absolute; z-index: 99998; pointer-events: none; display: none; border-radius: 3px; }
+    #tpl-drop.line { height: 0; border-top: 3px solid #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, .18); }
+    #tpl-drop.inside { border: 2px dashed #7c3aed; background: rgba(124, 58, 237, .06); }
+    #tpl-drop span { position: absolute; left: 0; top: -20px; background: #7c3aed; color: #fff; font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
+    #tpl-drop.inside span { top: 2px; left: 2px; }
     #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
       font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; }
   `
@@ -170,9 +175,72 @@ export function bridgeMain() {
     scrollTo(0, y)
   }
 
+  // ── Dropping a component dragged from the editor panel ────────
+  let dropTargets = null // { [nodeId]: { before, after, inside } } while a component is dragged
+  let dropLabel = ''
+  let dropAt = null
+
+  function dropIndicator() {
+    let d = document.getElementById('tpl-drop')
+    if (!d) {
+      d = document.createElement('div')
+      d.id = 'tpl-drop'
+      d.appendChild(document.createElement('span'))
+      document.body.appendChild(d)
+    }
+    return d
+  }
+
+  /** Closest node under the pointer that accepts the component, and where (before · after · inside) */
+  function dropTargetAt(target, y) {
+    for (let el = nodeEl(target); el; el = nodeEl(el.parentElement)) {
+      const id = idOf(el)
+      const t = dropTargets?.[id]
+      if (!t) continue
+      const r = el.getBoundingClientRect()
+      const f = (y - r.top) / Math.max(r.height, 1)
+      const where = t.inside && (f > 0.25 && f < 0.75 || (!t.before && !t.after)) ? 'inside'
+        : f < 0.5 ? (t.before ? 'before' : t.after ? 'after' : null) : (t.after ? 'after' : t.before ? 'before' : null)
+      if (where) return { id, where, el }
+    }
+    return null
+  }
+
+  function showDrop(at) {
+    const d = dropIndicator()
+    if (!at) { d.style.display = 'none'; return }
+    const r = at.el.getBoundingClientRect()
+    d.className = at.where === 'inside' ? 'inside' : 'line'
+    d.style.display = 'block'
+    d.style.left = `${r.left + scrollX}px`
+    d.style.width = `${r.width}px`
+    d.style.top = `${(at.where === 'after' ? r.bottom : r.top) + scrollY - (at.where === 'inside' ? 0 : 1)}px`
+    d.style.height = at.where === 'inside' ? `${r.height}px` : '0'
+    d.firstChild.textContent = `${dropLabel} · ${at.where === 'inside' ? 'inside' : at.where}`
+  }
+
+  document.addEventListener('dragover', (e) => {
+    if (!dropTargets || mode !== 'design') return
+    dropAt = dropTargetAt(e.target, e.clientY)
+    showDrop(dropAt)
+    if (!dropAt) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  })
+  document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) showDrop(null) })
+  document.addEventListener('drop', (e) => {
+    if (!dropTargets) return
+    e.preventDefault()
+    const at = dropAt ?? dropTargetAt(e.target, e.clientY)
+    showDrop(null)
+    if (at) post({ type: 'drop', id: at.id, where: at.where })
+  })
+
   addEventListener('message', (e) => {
     const msg = e.data
     if (!msg?.__tpl) return
+    if (msg.type === 'dragtargets') { dropTargets = msg.targets; dropLabel = msg.label || 'Component' }
+    if (msg.type === 'dragend') { dropTargets = null; dropAt = null; showDrop(null) }
     if (msg.type === 'update') { mode = msg.mode; applyUpdate(msg) }
     if (msg.type === 'select') {
       selectedId = msg.id
