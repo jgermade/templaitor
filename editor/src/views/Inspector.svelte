@@ -190,7 +190,7 @@
         <section class="logic">
           <div class="panel-title">Display</div>
           <label class="field">
-            <span><Icon name="branch" size={12} /> Show only if</span>
+            <span><Icon name="condition" size={12} /> Show only if</span>
             <input class="mono" class:on-if={!!logic.if} list="tpl-logic-vars" value={logic.if ?? ''} placeholder="always (e.g. tracking_url)"
               onchange={(e) => store.setLogic(node.id, { ...logic, if: e.currentTarget.value })} />
           </label>
