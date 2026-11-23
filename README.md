@@ -136,6 +136,7 @@ await mailer.sendMail({ to, subject: msg.subject, html: msg.html, text: msg.text
 
 const { pdf } = await engine.pdf('documents/invoice', { lang: 'en', data })   // Buffer (PDF/UA-1 with WeasyPrint)
 const jinja = await engine.compile('orders/order-confirmation', { lang: 'en' }) // Jinja2 output, no data
+await engine.schema('orders/order-confirmation')      // its data contract as JSON Schema (render() checks it: 422)
 await engine.versions('orders/order-confirmation')    // [{ number, rev, message, author, date }]
 ```
 
@@ -311,6 +312,38 @@ does not reach PDF/UA-1: use it only for quick previews or when no other engine 
 `make verapdf` pulls it and `make pdf-tools` checks engines and validator. Failing rules are shown with
 their ISO 14289-1 clause and an explanation.
 
+## Data contract
+
+A template declares the data it expects in its frontmatter, `data:` (the `.yml` keeps only translations):
+
+```yaml
+---
+layout: base.layout.mjml
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  items:
+    type: list
+    required: true
+    of: { qty: number, name: string, price: string }
+  tracking_url: { type: url, description: "Tracking page; without it, no tracking button" }
+  invoice: { number: string, date: string }      # an object: its fields
+---
+```
+
+Types: `string` · `number` · `boolean` · `date` · `url` · `email` · `list` (`of`: a type or fields) · `object`.
+(In `{ … }` quote values that contain commas.)
+
+- **Editor** (Design view, *Data*): the fields with their type, *required* and description, nested fields for
+  lists and objects, "not used" marks, the variables used but not declared (one click declares them), and
+  *Generate from demo data* for templates without a contract. The demo data (Preview / PDF) is an example
+  that must fulfil it. Variable suggestions in the inspector come from the contract.
+- **Warnings**: a variable used but not declared, a field declared but not used, demo data that does not match.
+- **Send API and library**: `/v1/send`, `/v1/render`, `engine.render()` and `engine.pdf()` reject data that
+  does not match with **422** and the list of errors (`details: [{ path, message }]`) — also for the documents
+  an email attaches (their `context` object plus the email's top-level plain values). Nothing is queued.
+- **Export**: compiling writes `<name>.schema.json` (JSON Schema 2020-12) next to the output; also
+  `engine.schema(id)` and `GET /v1/schema?template=` — for validating or generating types in the backend.
+
 ## Email attachments
 
 An email lists its attachments in the frontmatter. They can be **local** (a PDF template of the project,
@@ -476,6 +509,7 @@ curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -
 |---|---|
 | `POST /v1/send` | `template` + `lang` + `data` (+ `version`: `3` · `"v3"` · `"latest"` · a revision / version id — sends the template **as it was at that version**; without it, the current files) (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
 | `POST /v1/render` | same body, returns `{ subject, html, text, attachments, version }` without sending |
+| `GET /v1/schema?template=` | the template's data contract as JSON Schema (what `data` must fulfil; otherwise `/v1/send` answers 422) |
 | `GET /v1/versions?template=` | versions of a hosted template: `{ number, rev, short, message, author, date }`, newest first |
 | `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error, `version` used (`{ number, rev, short }` or `null`) |
 | `GET /v1/templates` | the organization's templates and languages |

@@ -34,5 +34,5 @@ gantt
     Generate from demo data; suggestions from the contract               :d2, after d1, 1d
 
     section Templates
-    Contracts for the demo and the repository's templates                 :t1, after e2, 1d
+    Contracts for the demo and the repository's templates                 :done, t1, after e2, 1d
 ```

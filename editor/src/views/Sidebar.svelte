@@ -2,6 +2,7 @@
   import Section from '../components/Section.svelte'
   import CodeEditor from '../components/CodeEditor.svelte'
   import MessagesPanel from './MessagesPanel.svelte'
+  import DataPanel from './DataPanel.svelte'
   import Outline from './Outline.svelte'
   import TemplateSettings from './TemplateSettings.svelte'
   import ParamsPanel from './ParamsPanel.svelte'
@@ -47,6 +48,13 @@
     {#if store.isComponent}
       <Section id="params" title="Parameters" count={Object.keys(store.componentParams).length} open>
         <ParamsPanel />
+      </Section>
+    {/if}
+
+    {#if design && store.isTemplate}
+      <!-- the data contract (types) in Design; the demo data (values) in Preview / PDF -->
+      <Section id="data" title="Data" count={Object.keys(store.contract).length || null}>
+        <DataPanel />
       </Section>
     {/if}
 

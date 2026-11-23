@@ -14,7 +14,7 @@ data:
     required: true
     description: Ordered products
     of: { qty: number, name: string, price: string }
-  total: { type: string, required: true, description: Formatted total, without currency }
+  total: { type: string, required: true, description: "Formatted total, without currency" }
   tracking_url: { type: url, description: Shipment tracking page; without it the tracking button is hidden }
   app_url: { type: url, required: true }
   assets_url: { type: url, required: true }

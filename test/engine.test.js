@@ -663,6 +663,10 @@ test('data contract: compile warnings, demo data checked, 422 on render (also fo
   const r = await previewDraft(project, { ...t, mjml, langKey: 'en' })
   assert.ok(r.warnings.some(w => /\{\{ order_id \}\} is used but not declared/.test(w)))
   assert.ok(r.warnings.some(w => /coupon is declared in the data contract but not used/.test(w)))
+  // the design canvas (variables drawn as chips) sees the same data as the preview: no false "not used"
+  const design = await previewDraft(project, { ...t, langKey: 'en', mode: 'design' })
+  assert.deepEqual(design.usedVars.sort(), (await previewDraft(project, { ...t, langKey: 'en' })).usedVars.sort())
+  assert.deepEqual(design.warnings, [])
   // demo data that does not match
   const bad = await previewDraft(project, { ...t, data: '{ first_name: true }', langKey: 'en' }) // (numbers are accepted as text)
   assert.ok(bad.warnings.some(w => w === 'Demo data: first_name: must be a text'))

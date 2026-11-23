@@ -33,6 +33,14 @@
         else if (!Array.isArray(v)) out.push(name)
       }
     }
+    // the data contract defines the variables; without one, the demo data suggests them
+    if (store.hasContract) {
+      for (const [k, f] of Object.entries(store.contract)) {
+        if (f.type === 'object') for (const [k2, f2] of Object.entries(f.fields || {})) { if (f2.type !== 'list') out.push(`${k}.${k2}`) }
+        else if (f.type !== 'list') out.push(k)
+      }
+      return out
+    }
     walk(store.demoData, '', 0)
     return out
   })
@@ -45,6 +53,13 @@
   // lists of the demo data (up to 2 levels): candidates for "repeat for each"
   const lists = $derived.by(() => {
     const out = []
+    if (store.hasContract) {
+      for (const [k, f] of Object.entries(store.contract)) {
+        if (f.type === 'list') out.push(k)
+        if (f.type === 'object') for (const [k2, f2] of Object.entries(f.fields || {})) if (f2.type === 'list') out.push(`${k}.${k2}`)
+      }
+      return out
+    }
     for (const [k, v] of Object.entries(store.demoData || {})) {
       if (Array.isArray(v)) out.push(k)
       else if (v && typeof v === 'object') for (const [k2, v2] of Object.entries(v)) if (Array.isArray(v2)) out.push(`${k}.${k2}`)

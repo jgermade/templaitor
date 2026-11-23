@@ -95,6 +95,15 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
 
   // 4. $ commands (compile time)
   const resolved = resolveCommands(unified, ctx)
+  // (design mode: the body is annotated — variables are chips — so the data the template uses is read from
+  // the plain source, resolved the same way)
+  let plainSource = null
+  if (design && kind === 'template') {
+    const quiet = { onImport: () => {}, warn: () => {} }
+    const imp = resolveImports(rawBody, project.templatesDir, quiet)
+    const uni = meta.layout ? applyLayout(imp, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, ...quiet }) : imp
+    plainSource = resolveCommands(uni, { ...ctx, warnings: [] })
+  }
 
   // 5. Protect Jinja2 from the MJML compiler
   const { content: guarded, map } = obfuscate(resolved)
@@ -129,7 +138,7 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 10. Data contract (`data:` in the frontmatter): what the template uses vs what it declares
   const hasContract = kind === 'template' && meta.data != null
   const contract = hasContract ? normalizeContract(meta.data) : {}
-  const usedVars = usedVariables([html, text, subject, ...attachments.flatMap(a => [a.filename, a.url ?? ''])].join('\n'))
+  const usedVars = usedVariables([...(plainSource != null ? [plainSource] : [html, text]), subject, ...attachments.flatMap(a => [a.filename, a.url ?? ''])].join('\n'))
   for (const a of normalizeAttachments(meta.attachments)) if (a.context && !usedVars.includes(String(a.context).split('.')[0])) usedVars.push(String(a.context).split('.')[0])
   if (hasContract) {
     for (const v of usedVars) if (!contract[v]) warn(`{{ ${v} }} is used but not declared in the data contract (data: in the frontmatter)`)

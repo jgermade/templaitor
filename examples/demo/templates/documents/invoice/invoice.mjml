@@ -9,7 +9,7 @@ pdf:
 # data the backend sends (checked by /v1/send and engine.pdf(); schema.json when compiling)
 data:
   number: { type: string, required: true, description: Invoice number }
-  date: { type: string, required: true, description: Issue date, formatted }
+  date: { type: string, required: true, description: "Issue date, formatted" }
   due_date: { type: string, required: true }
   payment_method: { type: string, required: true }
   customer:

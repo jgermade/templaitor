@@ -16,6 +16,7 @@ import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
 import { normalizeAttachments } from '@shared/attachments.js'
 import { COMPONENTS, canContain, describe } from '@shared/components.js'
 import { logicMap, unitBounds, unitsOf, moveUnit, removeUnit, duplicateUnit, setLogic } from '@shared/logic.js'
+import { normalizeContract, contractToYaml, inferContract } from '@shared/contract.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
 
@@ -85,6 +86,9 @@ class EditorStore {
     this.doc.mjml !== this.saved.mjml || (!this.isLayout && (this.doc.yml !== this.saved.yml || this.doc.data !== this.saved.data))
   ))
   selected = $derived(this.selectedId != null ? findNode(this.tree, this.selectedId) : null)
+  /** Data contract (`data:` in the frontmatter): the data the template expects */
+  hasContract = $derived(this.isTemplate && this.frontmatter.data != null)
+  contract = $derived(normalizeContract(this.frontmatter.data))
   /** Jinja2 logic of the blocks (show only if / repeat for each) and the markers that hold it */
   logic = $derived(logicMap(this.tree))
 
@@ -441,7 +445,7 @@ class EditorStore {
     if (fm.errors.length) return this.notify('The frontmatter has errors; fix it in the Code view', 'error')
     if (!fm.contents) fm.contents = fm.createNode({})
     fn(fm)
-    const text = fm.toString().trim()
+    const text = fm.toString({ lineWidth: 0 }).trim() // long values stay on one line
     this.update({ mjml: joinFrontmatter(text === '{}' ? '' : text, this.split.body) }, tag)
   }
 
@@ -450,6 +454,81 @@ class EditorStore {
     this.#editFrontmatter(fm => {
       if (value === '' || value == null) { if (fm.hasIn(path)) fm.deleteIn(path) } else fm.setIn(path, value)
     }, `fm:${path.join('.')}`)
+  }
+
+  // ── Data contract ─────────────────────────────────────────
+  /** Writes the whole contract back into the frontmatter (short form; leaf mappings in flow style) */
+  setContract(contract, tag = 'contract') {
+    this.#editFrontmatter((fm) => {
+      const node = fm.createNode(contractToYaml(contract))
+      const flow = (n) => {
+        if (!n?.items) return
+        n.items.forEach(p => flow(p.value))
+        if (n.items.every(p => !p.value?.items)) n.flow = n.items.length > 0
+      }
+      node.items?.forEach(p => flow(p.value))
+      fm.set('data', node)
+    }, tag)
+  }
+
+  /** Fields map at `path` (names; inside a list of objects, its item fields) */
+  #fieldsAt(contract, path) {
+    let fields = contract
+    for (const name of path) {
+      const f = fields?.[name]
+      fields = f?.type === 'object' ? (f.fields ??= {}) : f?.type === 'list' && f.of?.type === 'object' ? (f.of.fields ??= {}) : null
+    }
+    return fields
+  }
+
+  /** Changes a field: patch of { type, required, description, of } */
+  updateField(path, patch) {
+    const c = clone(this.contract)
+    const fields = this.#fieldsAt(c, path.slice(0, -1))
+    const name = path.at(-1)
+    const f = { ...fields[name], ...patch }
+    if (f.type === 'object') f.fields ??= {}
+    if (f.type === 'list') f.of ??= { type: 'string' }
+    if (f.type !== 'object') delete f.fields
+    if (f.type !== 'list') delete f.of
+    if (f.type === 'list' && f.of.type === 'object') f.of.fields ??= {}
+    fields[name] = f
+    this.setContract(c, `contract:${path.join('.')}`)
+  }
+
+  renameField(path, newName) {
+    newName = String(newName || '').trim()
+    if (!/^[A-Za-z_]\w*$/.test(newName)) return this.notify(`"${newName}" is not a valid name (letters, digits and _)`, 'error')
+    const c = clone(this.contract)
+    const fields = this.#fieldsAt(c, path.slice(0, -1))
+    if (fields[newName]) return this.notify(`${newName} already exists`, 'error')
+    // keeps the order of the fields
+    const entries = Object.entries(fields).map(([k, v]) => [k === path.at(-1) ? newName : k, v])
+    for (const k of Object.keys(fields)) delete fields[k]
+    Object.assign(fields, Object.fromEntries(entries))
+    this.setContract(c)
+  }
+
+  addField(parentPath, name = null, field = { type: 'string', required: false, description: '' }) {
+    const c = clone(this.contract)
+    const fields = this.#fieldsAt(c, parentPath)
+    let n = name || 'field'
+    for (let i = 2; fields[n]; i++) n = `${name || 'field'}${i}`
+    fields[n] = field
+    this.setContract(c)
+  }
+
+  removeField(path) {
+    const c = clone(this.contract)
+    delete this.#fieldsAt(c, path.slice(0, -1))[path.at(-1)]
+    this.setContract(c)
+  }
+
+  /** Contract from the demo data and the variables the template uses (keeps the fields already declared) */
+  generateContract() {
+    const inferred = inferContract(this.demoData || {}, this.preview.usedVars || [])
+    this.setContract({ ...inferred, ...this.contract })
+    this.notify(`Data contract: ${Object.keys({ ...inferred, ...this.contract }).length} field(s) — review the types`)
   }
 
   /** Layouts offered to templates of `format` (a layout without `format:` is offered to both) */
