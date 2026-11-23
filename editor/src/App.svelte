@@ -146,7 +146,7 @@
           {/if}
         </div>
         <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab (a URL you can reload and share)" aria-label="Open the preview in a new tab">
-          <Icon name="tab" size={15} />
+          <Icon name="eye" size={15} /><span>Preview</span><Icon name="external" size={11} />
         </button>
         {#if !store.isPdf}<Checkbox class="text-toggle" bind:checked={showText}>text</Checkbox>{/if}
       </div>
@@ -215,7 +215,8 @@
   .attachments .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
-  .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }
+  .tab-btn { padding: 3px 8px; color: #3f3f46; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+  .tab-btn :global(.icon:last-child) { color: #71717a; }
   .subject :global(.text-toggle) { color: #3f3f46; }
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
