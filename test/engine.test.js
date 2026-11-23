@@ -360,34 +360,75 @@ test('attachments: the local invoice is rendered as a PDF in the email language'
   assert.equal(att.content.subarray(0, 5).toString(), '%PDF-')
 })
 
-test('history: git commits of a template and the template at a commit (compare mode)', async () => {
-  const { documentHistory, documentAt } = await import('../src/engine/history.js')
+test('versions (git): list, read, save only the document, init and identity fallback', async () => {
+  const { listVersions, readVersion, saveVersion, initVersions } = await import('../src/engine/versions.js')
   const { execFileSync } = await import('node:child_process')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-git-'))
   fs.cpSync(DEMO, dir, { recursive: true })
-  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe' }).toString()
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, '.no-global'), GIT_CONFIG_NOSYSTEM: '1' }
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe', env }).toString()
   const project = loadProject(dir)
-  // not a repository yet
-  assert.deepEqual(await documentHistory(project, 'orders/order-confirmation'), { git: false, commits: [] })
-  git('init', '-q')
-  git('add', '.')
-  git('commit', '-q', '-m', 'first version')
-  const file = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Seguir envío', 'Ver envío'))
-  git('commit', '-q', '-am', 'rename the button')
-  fs.appendFileSync(file, '\n')
-  const h = await documentHistory(project, 'orders/order-confirmation')
-  assert.equal(h.git, true)
-  assert.deepEqual(h.commits.map(c => c.subject), ['rename the button', 'first version'])
-  assert.equal(h.dirty, true)
-  assert.equal(h.commits[0].author, 'Ada')
-  const first = await documentAt(project, 'orders/order-confirmation', 'template', h.commits[1].rev)
-  assert.match(first.yml, /Seguir envío/)
-  assert.match(first.mjml, /layout: base\.layout\.mjml/)
-  assert.match((await documentAt(project, 'orders/order-confirmation', 'template', h.commits[0].short)).yml, /Ver envío/)
-  // other documents only list their own commits
-  assert.equal((await documentHistory(project, 'customers/email-verification')).commits.length, 1)
-  assert.equal((await documentHistory(project, 'base.layout.mjml', 'layout')).commits.length, 1)
-  await assert.rejects(documentAt(project, 'orders/order-confirmation', 'template', 'HEAD; rm -rf /'), /Invalid revision/)
-  await assert.rejects(documentAt(project, 'orders/missing', 'template', h.commits[0].rev), /did not exist/)
+  const ID = 'orders/order-confirmation'
+  // not a repository yet: versions can be turned on
+  const none = await listVersions(project, ID)
+  assert.equal(none.available, false)
+  assert.equal(none.canInit, true)
+  await assert.rejects(saveVersion(project, ID, 'template', { message: 'x' }), /not in a git repository/)
+
+  // init: repository + .gitignore of the compiled output + a first commit with the whole project
+  // (no identity configured anywhere → "templaitor" is the committer)
+  const prevGlobal = process.env.GIT_CONFIG_GLOBAL
+  const prevSystem = process.env.GIT_CONFIG_NOSYSTEM
+  process.env.GIT_CONFIG_GLOBAL = env.GIT_CONFIG_GLOBAL
+  process.env.GIT_CONFIG_NOSYSTEM = '1'
+  try {
+    const info = await initVersions(project)
+    assert.equal(info.backend, 'git')
+    assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /^\/dist\/$/m)
+    let h = await listVersions(project, ID)
+    assert.deepEqual(h.versions.map(v => [v.number, v.message, v.author]), [[1, 'Initial version', 'templaitor']])
+    assert.equal(h.dirty, false)
+    await assert.rejects(initVersions(project), /already in a git repository/)
+    await assert.rejects(saveVersion(project, ID), /No changes since the last version/)
+
+    // edit two documents, stage something else: saving a version commits only this document
+    const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+    fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Seguir envío', 'Ver envío'))
+    const other = path.join(dir, 'templates/customers/email-verification/email-verification.mjml')
+    fs.appendFileSync(other, '\n')
+    git('add', other)
+    assert.equal((await listVersions(project, ID)).dirty, true)
+    const v2 = await saveVersion(project, ID, 'template', { message: 'Rename the tracking button', author: { name: 'Grace <x>', email: 'grace@example.com' } })
+    assert.equal(v2.number, 2)
+    assert.equal(v2.author, 'Grace  x')
+    assert.equal(v2.email, 'grace@example.com')
+    assert.match(git('status', '--porcelain'), /^M  templates\/customers\/email-verification/m) // still staged, not committed
+    h = await listVersions(project, ID)
+    assert.deepEqual(h.versions.map(v => v.message), ['Rename the tracking button', 'Initial version'])
+    assert.equal(h.dirty, false)
+    assert.equal((await listVersions(project, 'customers/email-verification')).versions.length, 1)
+
+    // read: the document at a version (full or short revision), metadata included
+    const first = await readVersion(project, ID, 'template', h.versions[1].rev)
+    assert.match(first.yml, /Seguir envío/)
+    assert.match(first.mjml, /layout: base\.layout\.mjml/)
+    assert.equal(first.message, 'Initial version')
+    assert.match((await readVersion(project, ID, 'template', h.versions[0].short)).yml, /Ver envío/)
+    // layouts: only the MJML
+    const lay = await listVersions(project, 'base.layout.mjml', 'layout')
+    assert.equal(lay.versions.length, 1)
+    assert.equal((await readVersion(project, 'base.layout.mjml', 'layout', lay.versions[0].rev)).yml, undefined)
+    // a commit made outside the editor is a version too
+    fs.appendFileSync(yml, '\n')
+    git('commit', '-q', '-am', 'from the terminal')
+    assert.equal((await listVersions(project, ID)).versions[0].message, 'from the terminal')
+    assert.equal((await listVersions(project, ID)).versions[0].number, 3)
+
+    await assert.rejects(readVersion(project, ID, 'template', 'HEAD; rm -rf /'), /Invalid revision/)
+    await assert.rejects(readVersion(project, 'orders/missing', 'template', h.versions[0].rev), /did not exist/)
+    await assert.rejects(listVersions(project, 'orders/missing'), /Not found/)
+  } finally {
+    if (prevGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = prevGlobal
+    if (prevSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM; else process.env.GIT_CONFIG_NOSYSTEM = prevSystem
+  }
 })

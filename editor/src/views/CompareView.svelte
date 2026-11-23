@@ -97,11 +97,11 @@
     <label class="src">
       <span>Compare</span>
       <select value={compare.source} onchange={(e) => compare.setSource(e.currentTarget.value)} disabled={compare.loading}>
-        <option value="saved">Saved version{store.dirty ? ' (unsaved changes)' : ''}</option>
-        {#if compare.history.commits.length}
-          <optgroup label="Git history">
-            {#each compare.history.commits as c}
-              <option value={`git:${c.rev}`}>{c.short} · {c.subject.slice(0, 60)} · {date(c.date)}</option>
+        <option value="saved">Saved files{store.dirty ? ' (unsaved changes)' : ''}</option>
+        {#if compare.history.versions.length}
+          <optgroup label={compare.history.backend === 'git' ? 'Versions (git)' : 'Versions'}>
+            {#each compare.history.versions as v}
+              <option value={`ver:${v.rev}`}>v{v.number} · {v.message.slice(0, 60)} · {date(v.date)}{compare.history.backend === 'git' ? ` · ${v.short}` : ''}</option>
             {/each}
           </optgroup>
         {/if}

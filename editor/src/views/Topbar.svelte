@@ -5,7 +5,9 @@
   import { flagOf } from '../lib/flags.js'
   import { session } from '../lib/service.svelte.js'
   import ServiceSettings from './ServiceSettings.svelte'
+  import VersionsPanel from './VersionsPanel.svelte'
   let settingsOpen = $state(false)
+  let versionsOpen = $state(false)
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
   import logo from '../../../assets/brand/logo.svg'
 
@@ -109,6 +111,11 @@
   {/if}
   <button class="ghost icon" disabled={!store.history.length} onclick={() => store.undo()} title="Undo (Ctrl+Z)">↶</button>
   <button class="ghost icon" disabled={!store.future.length} onclick={() => store.redo()} title="Redo (Ctrl+Shift+Z)">↷</button>
+  <button class="ghost" onclick={() => (versionsOpen = true)} disabled={!store.doc} title="Versions of this document: save, compare, restore">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ico"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+    Versions
+  </button>
+  <VersionsPanel bind:open={versionsOpen} />
   {#if session.canEdit}
     <button class="ghost" onclick={() => store.compile()} title="Compile to {store.project?.outDir}/">⚙ Compile</button>
     <button class="save" class:primary={store.dirty} disabled={!store.dirty} onclick={() => store.save()} title="Save (Ctrl+S)">
@@ -176,6 +183,7 @@
   .seg button { font-size: 12px; padding: 3px 9px; }
   .icon { padding: 2px 7px; font-size: 15px; }
   .save { min-width: 84px; }
+  .ico { vertical-align: -3px; }
   .flags { display: flex; gap: 2px; margin-left: 6px; }
   .flag { border: 2px solid transparent; background: none; padding: 0 3px; font-size: 18px; line-height: 24px; border-radius: 4px; opacity: .55; }
   .flag.active { opacity: 1; border-color: #d4d4d8; }

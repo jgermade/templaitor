@@ -28,7 +28,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   const repo = createRepo(db)
   const mailer = createMailer(config, { transportFactory: mailTransportFactory, log })
   const auth = createAuth({ config, repo, mailer })
-  const storage = createStorage({ config, repo })
+  const storage = createStorage({ config, repo, log })
   const workspaces = createWorkspaces({ config, repo, storage })
   const sender = createSender({ config, repo, workspaces, transportFactory, log })
   const origin = new URL(config.baseUrl).origin
@@ -315,6 +315,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
         return res
       }
     }
+    ctx.req.templaitorActor = { name: user.name || user.email.split('@')[0], email: user.email } // author of saved versions
     await ws.handler(ctx.req, ctx.res)
   }
 

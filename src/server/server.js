@@ -15,7 +15,7 @@ import { listEngines, resolveEngine } from '../engine/pdf.js'
 import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
-import { documentHistory, documentAt } from '../engine/history.js'
+import { listVersions, readVersion, saveVersion, initVersions } from '../engine/versions.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EDITOR_DIST = path.resolve(__dirname, '../../dist/editor')
@@ -64,9 +64,12 @@ export function createHandler(project) {
 
     'POST /api/layouts': ({ body }) => createLayout(project, body.id),
 
-    // compare mode: git history of a document and the document at a commit
-    'GET /api/history': ({ query }) => documentHistory(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
-    'GET /api/version': ({ query }) => documentAt(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
+    // versions of a document (git commits, or the database in the hosted service): list, read, save, init.
+    // `req.templaitorActor` (hosted service) is the signed-in user, recorded as the author.
+    'GET /api/versions': ({ query }) => listVersions(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
+    'GET /api/version': ({ query }) => readVersion(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
+    'POST /api/versions': ({ body, req }) => saveVersion(project, body.id, docKind(body.kind), { message: body.message, author: req.templaitorActor }),
+    'POST /api/versions/init': ({ req }) => initVersions(project, { author: req.templaitorActor }),
 
     // `kind`: 'template' (default) | 'component' | 'layout'
     'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
@@ -189,7 +192,7 @@ export function createHandler(project) {
         const route = routes[`${req.method} ${url.pathname}`]
         if (!route) throw httpError(404, 'Route not found')
         const body = ['POST', 'PUT'].includes(req.method) ? await readJson(req) : null
-        return sendJson(res, await route({ query: url.searchParams, body }))
+        return sendJson(res, await route({ query: url.searchParams, body, req }))
       }
       if (url.pathname.startsWith('/static/')) {
         return serveFile(res, project.staticDir, url.pathname.slice('/static/'.length))

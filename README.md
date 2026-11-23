@@ -349,9 +349,16 @@ of its own, so the preview uses those of the first template using it (not saved 
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
 - **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
-- **Compare**: the current draft (B) against a base (A) — the **saved version**, a **git commit** of the
-  document (when the project is in a repository: the commits that touched its `.mjml`/`.yml`/`.json5`),
-  or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
+- **Versions** (top bar): save the current state of a template, component or layout as a **version** with a
+  description, browse its versions (number, description, author, date), **compare** one with the draft or
+  **restore** it into the draft (unsaved, so Undo reverts it and Save keeps it). Locally a version is a
+  **git commit** of the document's own files (`.mjml`/`.yml`/`.json5`) — other changes you have staged are
+  left alone, and commits made from the terminal show up as versions too. A project that is not in a
+  repository gets a **Create a git repository** button (`git init`, a `.gitignore` for the compiled output
+  and a first version of every document). In the hosted service: git commits in the organization's folder
+  (`fs` storage, author = the signed-in user) or rows in the database (`db` storage).
+- **Compare**: the current draft (B) against a base (A) — the **saved files**, a **version** of the
+  document, or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
   own demo data (or the same data for both).
   - *Visual*: **side by side** (one scroll), **overlay** (opacity of B), **difference** (identical pixels
     are black, changes show in color) and **swipe**; desktop or mobile width.
@@ -384,7 +391,9 @@ tools do not change: `templaitor editor`, `make up` and `compile` keep working a
   switcher and the settings (members, SMTP, API keys, send log, account and passkeys) are in the top bar.
 - **Template storage** (configurable): `fs` — a project folder per organization (`dataDir/orgs/<slug>`), or
   an existing folder such as a git checkout (`storage.projects`) — or `db` — the files live in the database
-  and are materialized into a cache for the engine.
+  and are materialized into a cache for the engine. **Template versions** follow the storage: with `fs`
+  each organization's folder is a git repository (created with the organization; the image includes git)
+  and versions are commits authored by the signed-in user; with `db` they are stored in the database.
 - **Sending service** with each organization's **SMTP** (SES, Postmark, Mailgun, Brevo, your own server…;
   the password is stored encrypted), a persistent **queue** with retries (30 s → 6 h, 6 attempts) and a
   **send log** (the HTML, text and attachments of sent messages are purged after `send.retentionDays`,
@@ -453,7 +462,7 @@ src/engine/                compilation engine (ported from doomus-rs)
   a11y.js                  accessibility checker (WCAG 2.1 AA)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
   attachments.js           email attachments (local PDF templates per language, remote files)
-  history.js               git history of a document (compare mode)
+  versions.js · history.js template versions (list, read, save, init) · git version store
   commands.js · guard.js · resolver.js · render.js · project.js
 src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
 src/service/               hosted service (templaitor serve)
@@ -462,6 +471,7 @@ src/service/               hosted service (templaitor serve)
   repo.js · db/            data access (portable SQL, async) · SQLite and Postgres adapters, migrations
   storage.js · workspaces.js   fs/db template storage · one project + editor handler per org
   sender.js · netguard.js  send queue and SMTP delivery · SSRF-safe fetch for remote attachments
+  versions.js              version store in the database (db storage)
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
   src/stores/editor.svelte.js   state: the source texts are the single source of truth
   src/lib/bridge.js             iframe script (selection, inline editing, serialization)

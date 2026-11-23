@@ -125,6 +125,23 @@ export const MIGRATIONS = [
     PRIMARY KEY (org_id, path)
   );
   `,
+  // template versions (db storage; with fs storage versions are git commits)
+  (t) => `
+  CREATE TABLE versions (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    doc_id TEXT NOT NULL,
+    number INTEGER NOT NULL,
+    message TEXT NOT NULL DEFAULT '',
+    author_name TEXT NOT NULL DEFAULT '',
+    author_email TEXT NOT NULL DEFAULT '',
+    files TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    created_at ${t.bigint} NOT NULL,
+    UNIQUE (org_id, kind, doc_id, number)
+  );
+  `,
 ]
 
 /** Applies the pending migrations (each one in a transaction) */

@@ -1,14 +1,14 @@
-// Compare mode: the current draft (B) against a base (A): the saved version, a git commit or another
+// Compare mode: the current draft (B) against a base (A): the saved files, a version (git commit or stored) or another
 // template/component. Each side has its own language; previews are rendered by the engine API.
 import YAML from 'yaml'
 import { api } from '../lib/api.js'
 import { store } from './editor.svelte.js'
 
 class CompareStore {
-  /** saved · git:<rev> · doc:<kind>:<id> */
+  /** saved · ver:<rev> · doc:<kind>:<id> */
   source = $state('saved')
-  loaded = $state(null) // base loaded from git or another document: { label, kind, id, mjml, yml, data }
-  history = $state({ git: false, commits: [], dirty: false })
+  loaded = $state(null) // base loaded from a version or another document: { label, kind, id, mjml, yml, data }
+  history = $state({ backend: null, versions: [], dirty: false })
   langA = $state(null)
   sameData = $state(false)
   tab = $state('visual') // visual · code
@@ -21,7 +21,7 @@ class CompareStore {
 
   /** Side A (base) */
   base = $derived.by(() => {
-    if (this.source === 'saved') return store.saved ? { label: 'Saved version', short: 'saved', ...store.saved } : null
+    if (this.source === 'saved') return store.saved ? { label: 'Saved files', short: 'saved', ...store.saved } : null
     return this.loaded
   })
   langsA = $derived.by(() => {
@@ -40,12 +40,12 @@ class CompareStore {
     this.langA = null
     this.source = 'saved'
     try {
-      this.history = await api.history(store.doc.id, store.kind)
+      this.history = await api.versions(store.doc.id, store.kind)
     } catch {
-      this.history = { git: false, commits: [] }
+      this.history = { backend: null, versions: [] }
     }
-    // default base: unsaved changes → the saved version; otherwise the last commit
-    if (!store.dirty && this.history.commits[0]) await this.setSource(`git:${this.history.commits[0].rev}`)
+    // default base: unsaved changes → the saved files; otherwise the latest version
+    if (!store.dirty && this.history.versions[0]) await this.setSource(`ver:${this.history.versions[0].rev}`)
   }
 
   async setSource(value) {
@@ -53,11 +53,10 @@ class CompareStore {
     if (value === 'saved') { this.source = 'saved'; this.loaded = null; return }
     this.loading = true
     try {
-      if (value.startsWith('git:')) {
-        const rev = value.slice(4)
-        const c = this.history.commits.find(x => x.rev === rev)
-        const v = await api.version(store.doc.id, store.kind, rev)
-        this.loaded = { label: c ? `${c.short} · ${c.subject}` : rev.slice(0, 7), short: c?.short ?? rev.slice(0, 7), kind: store.kind, id: store.doc.id, mjml: v.mjml, yml: v.yml, data: v.data }
+      if (value.startsWith('ver:')) {
+        const v = await api.version(store.doc.id, store.kind, value.slice(4))
+        const short = v.number ? `v${v.number}` : v.short
+        this.loaded = { label: `${short} · ${v.message ?? ''}`, short, kind: store.kind, id: store.doc.id, mjml: v.mjml, yml: v.yml ?? '', data: v.data ?? '{}\n' }
       } else {
         const [, kind, ...rest] = value.split(':')
         const id = rest.join(':')

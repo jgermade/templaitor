@@ -289,6 +289,66 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
     if (appB !== svc.app) await appB.close()
   })
 
+  test(`service (${driver}): template versions — git commits with fs storage, database rows with db storage`, async () => {
+    // fs storage: the org's folder is a git repository from the start (scaffold commits it)
+    const dave = client(svc)
+    await dave.login('dave@example.com')
+    await dave.patch('/auth/me', { name: 'Dave' })
+    const org = (await dave.post('/orgs', { name: 'Versioned' })).data
+    let list = (await dave.get('/api/versions?id=general/welcome')).data
+    assert.equal(list.backend, 'git')
+    assert.deepEqual(list.versions.map(v => v.message), ['Initial version'])
+    const tpl = (await dave.get('/api/template?id=general/welcome')).data
+    assert.equal((await dave.put('/api/template', { ...tpl, mjml: tpl.mjml.replace("$t('body')", 'Version two') })).status, 200)
+    assert.equal((await dave.get('/api/versions?id=general/welcome')).data.dirty, true)
+    const v2 = (await dave.post('/api/versions', { id: 'general/welcome', message: 'Second' })).data
+    assert.equal(v2.number, 2)
+    assert.equal(v2.author, 'Dave')
+    assert.equal(v2.email, 'dave@example.com')
+    assert.equal((await dave.post('/api/versions', { id: 'general/welcome' })).status, 409) // nothing new
+    list = (await dave.get('/api/versions?id=general/welcome')).data
+    const old = (await dave.get(`/api/version?id=general/welcome&rev=${list.versions[1].rev}`)).data
+    assert.match(old.mjml, /\$t\('body'\)/)
+    assert.equal((await dave.post('/api/versions/init', {})).status, 409)
+    // viewers list and read versions but cannot save them
+    await dave.post(`/orgs/${org.id}/invitations`, { email: 'erin@example.com', role: 'viewer' })
+    const erin = client(svc)
+    await erin.login('erin@example.com')
+    await erin.post(`/orgs/${org.id}/activate`)
+    assert.equal((await erin.get('/api/versions?id=general/welcome')).data.versions.length, 2)
+    assert.equal((await erin.post('/api/versions', { id: 'general/welcome' })).status, 403)
+
+    // db storage: versions are rows, numbered per document
+    const s = await startService({ storage: { driver: 'db' } }, pgUrl)
+    try {
+      const c = client(s)
+      await c.login('frank@example.com')
+      await c.post('/orgs', { name: 'Db Versions' })
+      list = (await c.get('/api/versions?id=general/welcome')).data
+      assert.equal(list.backend, 'db')
+      assert.deepEqual(list.versions, [])
+      assert.equal(list.dirty, true) // never versioned
+      const v1 = (await c.post('/api/versions', { id: 'general/welcome', message: 'First' })).data
+      assert.deepEqual([v1.number, v1.short, v1.message, v1.email], [1, 'v1', 'First', 'frank@example.com'])
+      assert.equal((await c.post('/api/versions', { id: 'general/welcome' })).status, 409)
+      const t = (await c.get('/api/template?id=general/welcome')).data
+      await c.put('/api/template', { ...t, mjml: t.mjml.replace("$t('body')", 'Edited') })
+      assert.equal((await c.get('/api/versions?id=general/welcome')).data.dirty, true)
+      const v2db = (await c.post('/api/versions', { id: 'general/welcome', message: '' })).data
+      assert.deepEqual([v2db.number, v2db.message], [2, 'Update general/welcome'])
+      list = (await c.get('/api/versions?id=general/welcome')).data
+      assert.deepEqual(list.versions.map(v => v.number), [2, 1])
+      assert.equal(list.dirty, false)
+      const r1 = (await c.get(`/api/version?id=general/welcome&rev=${v1.id}`)).data
+      assert.match(r1.mjml, /\$t\('body'\)/)
+      assert.equal(r1.number, 1)
+      assert.equal((await c.get('/api/version?id=general/welcome&rev=nope')).status, 400)
+      assert.equal((await c.post('/api/versions/init', {})).status, 400)
+    } finally {
+      await s.close()
+    }
+  })
+
   test(`service (${driver}): db storage driver keeps the projects in the database`, async () => {
     const s = await startService({ storage: { driver: 'db' } }, pgUrl)
     try {

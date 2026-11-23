@@ -158,15 +158,18 @@ class EditorStore {
     return true
   }
 
-  async save() {
-    if (!this.doc) return
+  /** Saves the draft → true when saved */
+  async save({ quiet = false } = {}) {
+    if (!this.doc) return false
     try {
       const doc = await api.save({ kind: this.kind, id: this.doc.id, mjml: this.doc.mjml, yml: this.doc.yml, data: this.doc.data })
       this.saved = { mjml: doc.mjml, yml: doc.yml, data: doc.data }
-      this.notify(this.isTemplate ? 'Saved' : `${this.isLayout ? 'Layout' : 'Component'} saved (applies to every template using it)`)
+      if (!quiet) this.notify(this.isTemplate ? 'Saved' : `${this.isLayout ? 'Layout' : 'Component'} saved (applies to every template using it)`)
       await this.refreshTemplates()
+      return true
     } catch (e) {
       this.notify(e.message, 'error')
+      return false
     }
   }
 
