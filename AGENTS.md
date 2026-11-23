@@ -38,6 +38,11 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 
 ## Conventions
 
+- `src/index.js` is the public API of the npm package (`createEngine`): keep it stable; the hosted service and the
+  library share `src/engine/message.js` for rendering a template for one recipient.
+- Templates declare a data contract (`data:` in the frontmatter). After changing one in the repository's
+  `templates/`, regenerate `templates.d.ts` (`node bin/templaitor.js types --out templates.d.ts`): the npm
+  package ships it and a test checks it is up to date.
 - `src/shared/` must stay browser-safe (no Node imports): it is bundled into the editor.
 - Compiled output must keep Jinja2 tokens intact (`{{ }}`, `{% %}`, `{# #}`).
 - Editor state: the template source texts (`mjml`, `yml`, `data`) are the single source of truth; visual
@@ -45,5 +50,11 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 - `editor/src/components` holds store-agnostic UI; `editor/src/views` holds store-connected panels;
   shared state lives in `editor/src/stores`.
 - No browser `alert`/`prompt`/`confirm`: use the `<dialog>` helpers in `editor/src/lib/dialogs.svelte.js`.
+- Icons are **always SVG**: `editor/src/components/Icon.svelte` (add new ones to its set). Never text characters or
+  emoji as icons (✓ ✕ ⚠ → ◆ 📎 …), never native checkboxes/radios (use `components/Checkbox.svelte`), and flags
+  through `components/Flag.svelte` (SVG files from `country-flag-icons`).
+- A choice among a few fixed options (format, orientation…) is a button choice (`components/Choice.svelte`,
+  a radio group of buttons with icons), not a `<select>`; selects stay for open or long lists (layouts, templates).
 - **Accessibility is a hard requirement**: emails and PDFs must meet WCAG 2.1 AA / EN 301 549, and PDFs
-  must be PDF/UA-1 (validated with veraPDF). The demo templates must pass the checker (there is a test).
+  must be PDF/UA-1 (validated with veraPDF). The demo templates and the repository's own templates (`templates/`,
+  the ones it deploys and ships in the npm package) must pass the checker (there is a test).

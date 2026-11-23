@@ -4,7 +4,7 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
-import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment } from './resolver.js'
+import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment, readLayoutFile, layoutFormat } from './resolver.js'
 import { applyParams } from '../shared/imports.js'
 import { isPdf, pdfOptions, injectPrintCss, engineOptions, renderPdf } from './pdf.js'
 import { validatePdf } from './verapdf.js'
@@ -13,7 +13,9 @@ import { resolveCommands } from './commands.js'
 import { obfuscate, restore } from './guard.js'
 import { annotateBody } from './design.js'
 import { tryRenderJinja, renderJinja } from './render.js'
-import { resolveAttachments, renderAttachment } from './attachments.js'
+import { normalizeContract, usedVariables, validateData, formatErrors, toJsonSchema } from '../shared/contract.js'
+import { normalizeAttachments } from '../shared/attachments.js'
+import { resolveAttachments, renderAttachment, attachmentData } from './attachments.js'
 import { listTemplates, readLinks, readTemplate, templatePaths, toLocale, importedMessages } from './project.js'
 
 const CONTENT_SLOT = `<mj-section css-class="tpl-slot" padding="16px 24px">
@@ -80,6 +82,9 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const withImports = resolveImports(body, project.templatesDir, { onImport, warn })
   let unified = withImports
   if (meta.layout) {
+    const lf = fs.existsSync(path.join(project.layoutsDir, meta.layout)) ? layoutFormat(readLayoutFile(path.join(project.layoutsDir, meta.layout)).meta) : null
+    const tf = isPdf(meta) ? 'pdf' : 'email'
+    if (lf && kind === 'template' && lf !== tf) warn(`${meta.layout} is a ${lf === 'pdf' ? 'PDF' : 'email'} layout, but this template is ${tf === 'pdf' ? 'a PDF document' : 'an email'}`)
     unified = applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, onImport, warn })
   } else if (kind === 'component' && !/<mjml[\s>]/.test(withImports)) {
     unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport, warn })
@@ -90,6 +95,15 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
 
   // 4. $ commands (compile time)
   const resolved = resolveCommands(unified, ctx)
+  // (design mode: the body is annotated — variables are chips — so the data the template uses is read from
+  // the plain source, resolved the same way)
+  let plainSource = null
+  if (design && kind === 'template') {
+    const quiet = { onImport: () => {}, warn: () => {} }
+    const imp = resolveImports(rawBody, project.templatesDir, quiet)
+    const uni = meta.layout ? applyLayout(imp, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, ...quiet }) : imp
+    plainSource = resolveCommands(uni, { ...ctx, warnings: [] })
+  }
 
   // 5. Protect Jinja2 from the MJML compiler
   const { content: guarded, map } = obfuscate(resolved)
@@ -121,7 +135,17 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   // 9. Attachments (emails): local PDF templates in this language and remote files
   const attachments = format === 'email' && kind === 'template' ? resolveAttachments(project, meta, ctx) : []
 
-  return { locale, langKey, html, text, subject, meta, format, pdf, attachments, warnings, errors, a11y: a11yReport.issues, a11yReport }
+  // 10. Data contract (`data:` in the frontmatter): what the template uses vs what it declares
+  const hasContract = kind === 'template' && meta.data != null
+  const contract = hasContract ? normalizeContract(meta.data) : {}
+  const usedVars = usedVariables([...(plainSource != null ? [plainSource] : [html, text]), subject, ...attachments.flatMap(a => [a.filename, a.url ?? ''])].join('\n'))
+  for (const a of normalizeAttachments(meta.attachments)) if (a.context && !usedVars.includes(String(a.context).split('.')[0])) usedVars.push(String(a.context).split('.')[0])
+  if (hasContract) {
+    for (const v of usedVars) if (!contract[v]) warn(`{{ ${v} }} is used but not declared in the data contract (data: in the frontmatter)`)
+    for (const k of Object.keys(contract)) if (!usedVars.includes(k)) warn(`${k} is declared in the data contract but not used`)
+  }
+
+  return { locale, langKey, html, text, subject, meta, format, pdf, attachments, warnings, errors, a11y: a11yReport.issues, a11yReport, hasContract, contract, usedVars }
 }
 
 /** Compiles a project template and writes the files to outDir */
@@ -135,6 +159,13 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
 
   const files = []
   const issues = []
+  // data contract → JSON Schema for the backend (one per template)
+  const { meta: fm } = parseFrontmatter(tpl.mjml)
+  if (fm.data != null) {
+    const file = path.join(outDir, `${p.name}.schema.json`)
+    fs.writeFileSync(file, `${JSON.stringify(toJsonSchema(normalizeContract(fm.data), { id: `${p.id}.schema.json`, title: p.id }), null, 2)}\n`)
+    files.push(file)
+  }
   for (const langKey of langsOf(project, i18n)) {
     const r = await compileSource(project, { mjml: tpl.mjml, i18n, links, langKey })
     const base = path.join(outDir, `${p.name}.${r.locale}`)
@@ -182,6 +213,14 @@ export async function compileTemplate(project, id, { log = console.log, samplePd
 export async function compileProject(project, { target, log = console.log, samplePdf = false, validate = false } = {}) {
   const ids = target ? [target] : listTemplates(project).map(t => t.id)
   const all = { files: [], issues: [] }
+  if (!target) {
+    // TypeScript types of every data contract, for a backend in TypeScript
+    const { projectTypes } = await import('./types.js')
+    fs.mkdirSync(project.outDir, { recursive: true })
+    const file = path.join(project.outDir, 'templates.d.ts')
+    fs.writeFileSync(file, projectTypes(project))
+    all.files.push(file)
+  }
   for (const id of ids) {
     log?.(`\n→ ${id}`)
     const r = await compileTemplate(project, id, { log, samplePdf, validate })
@@ -208,6 +247,19 @@ export async function previewDraft(project, { mjml, yml = '', data = '{}', langK
   warnings.push(...r.warnings)
 
   if (mode === 'raw') return { ...r, warnings }
+  // the demo data is an example of the contract: it has to fulfil it
+  if (r.hasContract) for (const e of formatErrors(validateData(r.contract, demo))) warnings.push(`Demo data: ${e}`)
+  // …and so does what an attached document would get from it in a real send (its contract)
+  for (const att of r.attachments || []) {
+    if (att.type !== 'template') continue
+    let doc = null
+    try { doc = readTemplate(project, att.template) } catch { continue }
+    const { meta: dm } = parseFrontmatter(doc.mjml)
+    if (dm.data == null) continue
+    for (const e of formatErrors(validateData(normalizeContract(dm.data), attachmentData(att, demo)))) {
+      warnings.push(`Demo data → attachment ${att.template}${att.context ? ` (context: ${att.context})` : ''}: ${e}`)
+    }
+  }
 
   return {
     ...r,
@@ -253,7 +305,8 @@ export async function renderDraftAttachments(project, { mjml, yml = '', data = '
     throw err
   }
   // (hosted service: project.fetchImpl blocks private networks for remote attachments)
-  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d), fetchImpl: project.fetchImpl ?? fetch }
+  // `values` = real data (a send): no demo data; otherwise an editor preview with the draft's demo data
+  const opts = { render: renderJinja, renderDocument: (id, l, d) => renderTemplatePdf(project, id, l, d), fetchImpl: project.fetchImpl ?? fetch, preview: values == null }
   const out = []
   for (const att of list) out.push(await renderAttachment(project, att, demo, opts))
   return out

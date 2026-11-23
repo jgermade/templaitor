@@ -1,4 +1,6 @@
 <script>
+  import Checkbox from '../components/Checkbox.svelte'
+  import Icon from '../components/Icon.svelte'
   import ImageField from '../components/ImageField.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { PARAM_TYPES, toBoolean } from '@shared/imports.js'
@@ -21,13 +23,13 @@
       <select value={d.type} onchange={(e) => store.setParamDecl(name, 'type', e.currentTarget.value)} aria-label="Type">
         {#each TYPES as t}<option value={t}>{t}</option>{/each}
       </select>
-      <button class="ghost x" title="Remove parameter" onclick={() => store.removeParamDecl(name)}>✕</button>
+      <button class="ghost x" title="Remove parameter" aria-label="Remove parameter {name}" onclick={() => store.removeParamDecl(name)}><Icon name="x" size={12} /></button>
     </div>
     <div class="grid">
       <label><span>Label</span><input value={d.label === name ? '' : d.label} placeholder={name} oninput={(e) => store.setParamDecl(name, 'label', e.currentTarget.value)} /></label>
       {#if d.type === 'boolean'}
         <label class="check"><span>Default</span>
-          <span><input type="checkbox" checked={!!toBoolean(d.default)} onchange={(e) => store.setParamDecl(name, 'default', e.currentTarget.checked)} /> {toBoolean(d.default) ? 'yes' : 'no'}</span>
+          <Checkbox checked={!!toBoolean(d.default)} onchange={(e) => store.setParamDecl(name, 'default', e.currentTarget.checked)}>{toBoolean(d.default) ? 'yes' : 'no'}</Checkbox>
         </label>
       {:else if d.type === 'image'}
         <div class="full img"><span>Default</span>

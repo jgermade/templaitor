@@ -9,9 +9,11 @@ import { createMailer } from './mailer.js'
 import { createStorage } from './storage.js'
 import { createWorkspaces } from './workspaces.js'
 import { createSender, messageView } from './sender.js'
-import { encrypt, hashToken, randomToken } from './crypto.js'
+import { encrypt, hashToken, randomToken, safeEqual } from './crypto.js'
 import { httpError, readJson, sendJson } from './http.js'
 import { listTemplates } from '../engine/project.js'
+import { listVersions } from '../engine/versions.js'
+import { templateSchema } from '../engine/message.js'
 import { setPdfSandbox } from '../engine/pdf.js'
 
 const EDITOR_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/editor')
@@ -28,10 +30,25 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   const repo = createRepo(db)
   const mailer = createMailer(config, { transportFactory: mailTransportFactory, log })
   const auth = createAuth({ config, repo, mailer })
-  const storage = createStorage({ config, repo })
+  const storage = createStorage({ config, repo, log })
   const workspaces = createWorkspaces({ config, repo, storage })
   const sender = createSender({ config, repo, workspaces, transportFactory, log })
   const origin = new URL(config.baseUrl).origin
+
+  // project mode: the organization "project" maps the deployed folder; the configured admins own it
+  if (config.project) {
+    if (!fs.existsSync(path.join(config.project.dir, 'templaitor.config.yml'))) throw new Error(`No templaitor project in ${config.project.dir} (TEMPLAITOR_PROJECT)`)
+    let org = await repo.orgBySlug(config.project.slug)
+    if (!org) {
+      const { loadProject } = await import('../engine/project.js')
+      org = await repo.createOrg({ name: loadProject(config.project.dir).name, slug: config.project.slug })
+    }
+    for (const email of config.project.admins) {
+      const user = await repo.userByEmail(email) ?? await repo.createUser(email)
+      if (!await repo.membership(org.id, user.id)) await repo.addMember(org.id, user.id, 'owner')
+      else await repo.setRole(org.id, user.id, 'owner')
+    }
+  }
 
   // ── helpers ──
   const requireUser = (ctx) => {
@@ -46,9 +63,12 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     if (!roleAtLeast(m.role, minRole)) throw httpError(403, `This action needs the ${minRole} role`)
     return { org, role: m.role, user }
   }
+  const isProjectOrg = (org) => !!config.project && org?.slug === config.project.slug
   const orgView = (org, role) => ({
     id: org.id, slug: org.slug, name: org.name, role,
     storage: storage.driver, mapped: storage.isMapped(org),
+    // project mode: the templates come from the deployed repository, so the editor is read-only
+    ...(isProjectOrg(org) ? { project: true, readOnly: true } : {}),
   })
   const smtpView = (org) => {
     const s = org.smtp || {}
@@ -56,6 +76,11 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   }
 
   async function apiKeyOrg(req) {
+    // project mode: keys from the deployment's configuration (TEMPLAITOR_API_KEYS)
+    const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(\S+)$/)?.[1]
+    if (bearer && config.project?.apiKeys.some(k => safeEqual(k, bearer))) {
+      return { org: await repo.orgBySlug(config.project.slug), key: { id: null } }
+    }
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(tpl_([A-Za-z0-9]{8})_[A-Za-z0-9_-]+)$/)
     if (!m) throw httpError(401, 'Missing API key (Authorization: Bearer tpl_…)')
     const key = await repo.apiKeyByPrefix(m[2])
@@ -98,6 +123,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     ['GET', '/orgs', async (ctx) => (await repo.orgsOfUser(requireUser(ctx).id)).map(o => orgView(o, o.role))],
     ['POST', '/orgs', async (ctx) => {
       const user = requireUser(ctx)
+      if (config.project) throw httpError(403, 'This deployment serves one project: organizations cannot be created')
       const name = String(ctx.body.name || '').trim().slice(0, 80)
       if (!name) throw httpError(400, 'The organization needs a name')
       const slug = await uniqueSlug(repo, ctx.body.slug || name)
@@ -238,13 +264,28 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     ['POST', '/v1/render', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
       const b = await sender.build(org, { to: 'render@example.com', ...ctx.body })
-      return { subject: b.subject, html: b.html, text: b.text, locale: b.locale, attachments: b.attachments?.names ?? b.attachments?.list?.map(a => a.filename) ?? [], warnings: b.warnings }
+      return { subject: b.subject, html: b.html, text: b.text, locale: b.locale, version: b.version, attachments: b.attachments?.names ?? b.attachments?.list?.map(a => a.filename) ?? [], warnings: b.warnings }
     }],
     ['GET', '/v1/messages/:mid', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
       const m = await repo.message(org.id, ctx.params.mid)
       if (!m) throw httpError(404, 'Message not found')
       return messageView(m)
+    }],
+    // versions of a hosted template (to pick one for /v1/send { version })
+    ['GET', '/v1/versions', async (ctx) => {
+      const { org } = await apiKeyOrg(ctx.req)
+      const ws = await workspaces.get(org.id)
+      const r = await listVersions(ws.project, ctx.query.get('template'), 'template', { limit: ctx.query.get('limit') })
+      return { available: r.available, versions: r.versions.map(v => ({ number: v.number, rev: v.rev, short: v.short, message: v.message, author: v.author, date: v.date })) }
+    }],
+    // data contract of a hosted template as JSON Schema (what /v1/send expects in `data`)
+    ['GET', '/v1/schema', async (ctx) => {
+      const { org } = await apiKeyOrg(ctx.req)
+      const ws = await workspaces.get(org.id)
+      const schema = await templateSchema(ws.project, ctx.query.get('template'), { version: ctx.query.get('version') || undefined })
+      if (!schema) throw httpError(404, `${ctx.query.get('template')} declares no data contract (data: in its frontmatter)`)
+      return schema
     }],
     ['GET', '/v1/templates', async (ctx) => {
       const { org } = await apiKeyOrg(ctx.req)
@@ -269,8 +310,8 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       }
       const ctx = { req, res, query: url.searchParams, auth: isApiV1 ? null : await auth.sessionOf(req), status: 200 }
 
-      // org-scoped editor API and static files of the active org
-      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/')) return await editorRequest(ctx, url)
+      // org-scoped editor API, static files and shareable previews of the active org
+      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/') || url.pathname.startsWith('/preview/')) return await editorRequest(ctx, url)
 
       for (const r of routes) {
         if (r.method !== req.method) continue
@@ -286,7 +327,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       throw httpError(404, 'Route not found')
     } catch (err) {
       if (!err.status) log?.(err)
-      if (!res.headersSent) sendJson(res, { error: err.status ? err.message : 'Internal error' }, err.status || 500)
+      if (!res.headersSent) sendJson(res, { error: err.status ? err.message : 'Internal error', ...(err.status && err.details ? { details: err.details } : {}) }, err.status || 500)
       else res.end()
     }
   }
@@ -301,6 +342,9 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       throw httpError(403, 'Your role in this organization is read-only (viewer)')
     }
     const ws = await workspaces.get(orgId)
+    if (write && isProjectOrg(ws.org) && !VIEWER_POSTS.has(url.pathname)) {
+      throw httpError(403, 'The templates of this deployment come from its repository: change them there and deploy again')
+    }
     if (write && storage.driver === 'db' && !VIEWER_POSTS.has(url.pathname)) {
       // db storage: the changes reach the database before the response is sent (read-your-writes,
       // also from other instances)
@@ -315,6 +359,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
         return res
       }
     }
+    ctx.req.templaitorActor = { name: user.name || user.email.split('@')[0], email: user.email } // author of saved versions
     await ws.handler(ctx.req, ctx.res)
   }
 

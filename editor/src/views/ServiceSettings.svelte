@@ -1,4 +1,6 @@
 <script>
+  import Checkbox from '../components/Checkbox.svelte'
+  import Icon from '../components/Icon.svelte'
   // Hosted service settings: organization, members, SMTP, API keys, send log and account (passkeys).
   import { session, svc } from '../lib/service.svelte.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -93,7 +95,7 @@
     })
   }
   const testSmtp = () => run(async () => {
-    const to = await promptDialog({ title: 'Send a test email', label: 'Recipient', value: session.user.email, inputType: 'email', okLabel: 'Send ➤' })
+    const to = await promptDialog({ title: 'Send a test email', label: 'Recipient', value: session.user.email, inputType: 'email', okLabel: 'Send' })
     if (!to) return
     const m = await svc.post(`${base}/smtp/test`, { to })
     store.notify(`Test queued (${m.id.slice(0, 8)}) — see the send log`, 'success')
@@ -152,7 +154,7 @@
 <dialog bind:this={dialog} class="settings" aria-labelledby="settings-title" oncancel={(e) => { e.preventDefault(); open = false }}>
   <div class="dhead">
     <h2 id="settings-title">{org?.name} <span class="muted role">· {org?.role}</span></h2>
-    <button class="ghost" aria-label="Close settings" onclick={() => (open = false)}>✕</button>
+    <button class="ghost" aria-label="Close settings" onclick={() => (open = false)}><Icon name="x" size={16} /></button>
   </div>
   <div class="body">
     <nav aria-label="Settings sections">
@@ -182,7 +184,7 @@
           if (!name) return
           const o = await svc.post('/orgs', { name })
           await session.switchOrg(o.id)
-        })}>+ New organization</button>
+        })}><Icon name="plus" size={13} /> New organization</button>
         {#if org.role === 'owner'}
           <h3 class="danger-zone">Danger zone</h3>
           <button class="danger" onclick={deleteOrg}>Delete organization</button>
@@ -233,7 +235,7 @@
         <form class="grid" onsubmit={saveSmtp}>
           <label class="field span2"><span>Host</span><input bind:value={smtp.host} placeholder="smtp.example.com" /></label>
           <label class="field"><span>Port</span><input type="number" min="1" max="65535" bind:value={smtp.port} /></label>
-          <label class="field check"><input type="checkbox" bind:checked={smtp.secure} /> <span>TLS from the start (port 465)</span></label>
+          <Checkbox bind:checked={smtp.secure} class="field check">TLS from the start (port 465)</Checkbox>
           <label class="field"><span>User</span><input autocomplete="off" bind:value={smtp.user} /></label>
           <label class="field"><span>Password</span><input type="password" autocomplete="new-password" placeholder={smtp.hasPassword ? '•••••• (unchanged)' : ''} bind:value={smtpPassword} /></label>
           <label class="field span2"><span>From</span><input bind:value={smtp.from} placeholder="Acme <no-reply@acme.com>" /></label>
@@ -261,13 +263,13 @@
             {:else}<tr><td colspan="4" class="muted">No API keys</td></tr>{/each}
           </tbody>
         </table>
-        <button onclick={createKey} disabled={busy}>+ New API key</button>
+        <button onclick={createKey} disabled={busy}><Icon name="plus" size={13} /> New API key</button>
         <p class="muted small"><code>POST /v1/send</code> with <code>template</code> + <code>data</code> (hosted) or <code>subject</code> + <code>html</code> (raw) · <code>POST /v1/render</code> · <code>GET /v1/messages/:id</code> · <code>GET /v1/templates</code>.</p>
 
       {:else if tab === 'log'}
-        <h3>Send log <button class="ghost small" onclick={() => load('log')}>↻</button></h3>
+        <h3>Send log <button class="ghost small" onclick={() => load('log')} aria-label="Refresh the send log" title="Refresh"><Icon name="refresh" size={13} /></button></h3>
         {#if logDetail}
-          <button class="ghost" onclick={() => (logDetail = null)}>← Back</button>
+          <button class="ghost" onclick={() => (logDetail = null)}><Icon name="arrow-left" size={14} /> Back</button>
           <dl class="detail">
             <dt>Status</dt><dd><span class="st {logDetail.status}">{logDetail.status}</span> · {logDetail.attempts} attempt(s){logDetail.lastError ? ` · ${logDetail.lastError}` : ''}</dd>
             <dt>To</dt><dd>{[...logDetail.to, ...(logDetail.cc || [])].join(', ')}</dd>
@@ -284,7 +286,7 @@
               {#each log as m}
                 <tr class="click" onclick={() => showMessage(m)}>
                   <td>{when(m.createdAt)}</td><td>{m.to.join(', ')}</td>
-                  <td><button class="link" onclick={(e) => { e.stopPropagation(); showMessage(m) }}>{m.subject}</button>{#if m.attachments.length} 📎{/if}</td>
+                  <td><button class="link" onclick={(e) => { e.stopPropagation(); showMessage(m) }}>{m.subject}</button>{#if m.attachments.length} <Icon name="paperclip" size={12} label="with attachments" />{/if}</td>
                   <td><span class="st {m.status}">{m.status}</span></td>
                 </tr>
               {:else}<tr><td colspan="4" class="muted">Nothing sent yet</td></tr>{/each}
@@ -302,12 +304,12 @@
         <p class="muted small">Sign in with your fingerprint, face or device PIN instead of an email code.</p>
         <ul class="list">
           {#each passkeys as p}
-            <li><span>🔑 {p.name} <span class="muted">· added {when(p.created_at)}{p.last_used_at ? ` · used ${when(p.last_used_at)}` : ''}</span></span>
+            <li><span><Icon name="key" size={13} /> {p.name} <span class="muted">· added {when(p.created_at)}{p.last_used_at ? ` · used ${when(p.last_used_at)}` : ''}</span></span>
               <span><button class="ghost" onclick={() => renamePasskey(p)}>Rename</button><button class="ghost danger" onclick={() => removePasskey(p)}>Remove</button></span>
             </li>
           {:else}<li class="muted">No passkeys yet</li>{/each}
         </ul>
-        <button onclick={addPasskey} disabled={busy || !window.PublicKeyCredential}>+ Add a passkey</button>
+        <button onclick={addPasskey} disabled={busy || !window.PublicKeyCredential}><Icon name="plus" size={13} /> Add a passkey</button>
         <h3>Session</h3>
         <button onclick={() => session.logout()}>Sign out</button>
       {/if}
@@ -332,7 +334,7 @@
   .row input { flex: 1; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
   .span2 { grid-column: 1 / -1; }
-  .check { display: flex; align-items: center; gap: 6px; align-self: end; }
+  :global(.cb.check) { align-self: end; height: 32px; }
   .list { list-style: none; padding: 0; margin: 0 0 10px; }
   .list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
   table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }

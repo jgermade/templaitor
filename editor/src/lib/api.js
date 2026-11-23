@@ -16,7 +16,7 @@ export const api = {
   templates: () => request('GET', '/api/templates'),
   components: () => request('GET', '/api/components'),
   layouts: () => request('GET', '/api/layouts'),
-  createLayout: (id) => request('POST', '/api/layouts', { id }),
+  createLayout: (id, format = 'email') => request('POST', '/api/layouts', { id, format }),
   template: (id, kind = 'template') => request('GET', `/api/template?${q({ id, kind })}`),
   save: (doc) => request('PUT', '/api/template', doc),
   create: (id, layout, format) => request('POST', '/api/templates', { id, layout, format }),
@@ -43,9 +43,11 @@ export const api = {
     return res.blob()
   },
   validatePdf: (draft) => request('POST', '/api/pdf/validate', draft),
-  /** Compare mode: git commits of a document and the document at a commit */
-  history: (id, kind = 'template') => request('GET', `/api/history?${q({ id, kind })}`),
+  /** Versions of a document (git commits or database rows): list, read one, save the saved files as a version */
+  versions: (id, kind = 'template') => request('GET', `/api/versions?${q({ id, kind })}`),
   version: (id, kind, rev) => request('GET', `/api/version?${q({ id, kind, rev })}`),
+  saveVersion: (id, kind, message) => request('POST', '/api/versions', { id, kind, message }),
+  initVersions: () => request('POST', '/api/versions/init', {}),
   assets: () => request('GET', '/api/assets'),
   uploadAsset: async (file) => {
     const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })

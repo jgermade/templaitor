@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import JSON5 from 'json5'
 import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/shared/mjml-tree.js'
 import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
@@ -92,9 +93,15 @@ test('demo project compilation: Jinja2 intact in HTML/TXT/subject', async () => 
   const { files, issues } = await compileProject(project, { log: null })
   assert.equal(issues.length, 0, JSON.stringify(issues))
   // emails: .html/.txt/.subject.txt · PDF: .html/.pdf.json (per language)
-  // (+ .attachments.json per language for emails with attachments)
-  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3), 0) + 2
+  // (+ .attachments.json per language for emails with attachments, + one .schema.json per template with a
+  // data contract)
+  // (+ templates.d.ts: the TypeScript types of the data contracts)
+  const expected = listTemplates(project).reduce((n, t) => n + 2 * (t.id.startsWith('documents/') ? 2 : 3) + 1, 0) + 2 + 1
+  assert.match(fs.readFileSync(path.join(project.outDir, 'templates.d.ts'), 'utf8'), /export interface TemplateData/)
   assert.equal(files.length, expected)
+  const schema = JSON.parse(fs.readFileSync(path.join(project.outDir, 'orders/order-confirmation/order-confirmation.schema.json'), 'utf8'))
+  assert.equal(schema.type, 'object')
+  assert.ok(schema.required.includes('first_name'))
   const base = path.join(project.outDir, 'orders/order-confirmation/order-confirmation.es-ES')
   const html = fs.readFileSync(`${base}.html`, 'utf8')
   assert.match(html, /\{% for item in items %\}/)
@@ -227,12 +234,15 @@ test('accessibility: detects issues and the demo meets WCAG 2.1 AA', async () =>
     assert.ok(rules.includes(r), `should detect ${r}`)
   }
   assert.equal(Math.round(contrast(parseColor('#ffffff'), parseColor('#000')) * 10) / 10, 21)
-  const project = loadProject(DEMO)
-  for (const t of listTemplates(project)) {
-    const tpl = readTemplate(project, t.id)
-    for (const lang of t.langs) {
-      const r = await previewDraft(project, { ...tpl, langKey: lang })
-      assert.deepEqual(r.a11y, [], `${t.id} (${lang}) does not comply: ${r.a11y.map(i => i.message).join('; ')}`)
+  // the demo and the templates this repository deploys (its root project)
+  for (const dir of [DEMO, path.resolve(import.meta.dirname, '..')]) {
+    const project = loadProject(dir)
+    for (const t of listTemplates(project)) {
+      const tpl = readTemplate(project, t.id)
+      for (const lang of t.langs) {
+        const r = await previewDraft(project, { ...tpl, langKey: lang })
+        assert.deepEqual(r.a11y, [], `${dir}: ${t.id} (${lang}) does not comply: ${r.a11y.map(i => i.message).join('; ')}`)
+      }
     }
   }
 })
@@ -360,34 +370,376 @@ test('attachments: the local invoice is rendered as a PDF in the email language'
   assert.equal(att.content.subarray(0, 5).toString(), '%PDF-')
 })
 
-test('history: git commits of a template and the template at a commit (compare mode)', async () => {
-  const { documentHistory, documentAt } = await import('../src/engine/history.js')
+test('versions (git): list, read, save only the document, init and identity fallback', async () => {
+  const { listVersions, readVersion, saveVersion, initVersions } = await import('../src/engine/versions.js')
   const { execFileSync } = await import('node:child_process')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-git-'))
   fs.cpSync(DEMO, dir, { recursive: true })
-  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe' }).toString()
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, '.no-global'), GIT_CONFIG_NOSYSTEM: '1' }
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe', env }).toString()
   const project = loadProject(dir)
-  // not a repository yet
-  assert.deepEqual(await documentHistory(project, 'orders/order-confirmation'), { git: false, commits: [] })
-  git('init', '-q')
-  git('add', '.')
-  git('commit', '-q', '-m', 'first version')
-  const file = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Seguir envío', 'Ver envío'))
-  git('commit', '-q', '-am', 'rename the button')
-  fs.appendFileSync(file, '\n')
-  const h = await documentHistory(project, 'orders/order-confirmation')
-  assert.equal(h.git, true)
-  assert.deepEqual(h.commits.map(c => c.subject), ['rename the button', 'first version'])
-  assert.equal(h.dirty, true)
-  assert.equal(h.commits[0].author, 'Ada')
-  const first = await documentAt(project, 'orders/order-confirmation', 'template', h.commits[1].rev)
-  assert.match(first.yml, /Seguir envío/)
-  assert.match(first.mjml, /layout: base\.layout\.mjml/)
-  assert.match((await documentAt(project, 'orders/order-confirmation', 'template', h.commits[0].short)).yml, /Ver envío/)
-  // other documents only list their own commits
-  assert.equal((await documentHistory(project, 'customers/email-verification')).commits.length, 1)
-  assert.equal((await documentHistory(project, 'base.layout.mjml', 'layout')).commits.length, 1)
-  await assert.rejects(documentAt(project, 'orders/order-confirmation', 'template', 'HEAD; rm -rf /'), /Invalid revision/)
-  await assert.rejects(documentAt(project, 'orders/missing', 'template', h.commits[0].rev), /did not exist/)
+  const ID = 'orders/order-confirmation'
+  // not a repository yet: versions can be turned on
+  const none = await listVersions(project, ID)
+  assert.equal(none.available, false)
+  assert.equal(none.canInit, true)
+  await assert.rejects(saveVersion(project, ID, 'template', { message: 'x' }), /not in a git repository/)
+
+  // init: repository + .gitignore of the compiled output + a first commit with the whole project
+  // (no identity configured anywhere → "templaitor" is the committer)
+  const prevGlobal = process.env.GIT_CONFIG_GLOBAL
+  const prevSystem = process.env.GIT_CONFIG_NOSYSTEM
+  process.env.GIT_CONFIG_GLOBAL = env.GIT_CONFIG_GLOBAL
+  process.env.GIT_CONFIG_NOSYSTEM = '1'
+  try {
+    const info = await initVersions(project)
+    assert.equal(info.backend, 'git')
+    assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /^\/dist\/$/m)
+    let h = await listVersions(project, ID)
+    assert.deepEqual(h.versions.map(v => [v.number, v.message, v.author]), [[1, 'Initial version', 'templaitor']])
+    assert.equal(h.dirty, false)
+    await assert.rejects(initVersions(project), /already in a git repository/)
+    await assert.rejects(saveVersion(project, ID), /No changes since the last version/)
+
+    // edit two documents, stage something else: saving a version commits only this document
+    const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+    fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Seguir envío', 'Ver envío'))
+    const other = path.join(dir, 'templates/customers/email-verification/email-verification.mjml')
+    fs.appendFileSync(other, '\n')
+    git('add', other)
+    assert.equal((await listVersions(project, ID)).dirty, true)
+    const v2 = await saveVersion(project, ID, 'template', { message: 'Rename the tracking button', author: { name: 'Grace <x>', email: 'grace@example.com' } })
+    assert.equal(v2.number, 2)
+    assert.equal(v2.author, 'Grace  x')
+    assert.equal(v2.email, 'grace@example.com')
+    assert.match(git('status', '--porcelain'), /^M  templates\/customers\/email-verification/m) // still staged, not committed
+    h = await listVersions(project, ID)
+    assert.deepEqual(h.versions.map(v => v.message), ['Rename the tracking button', 'Initial version'])
+    assert.equal(h.dirty, false)
+    assert.equal((await listVersions(project, 'customers/email-verification')).versions.length, 1)
+
+    // read: the document at a version (full or short revision), metadata included
+    const first = await readVersion(project, ID, 'template', h.versions[1].rev)
+    assert.match(first.yml, /Seguir envío/)
+    assert.match(first.mjml, /layout: base\.layout\.mjml/)
+    assert.equal(first.message, 'Initial version')
+    assert.match((await readVersion(project, ID, 'template', h.versions[0].short)).yml, /Ver envío/)
+    // layouts: only the MJML
+    const lay = await listVersions(project, 'base.layout.mjml', 'layout')
+    assert.equal(lay.versions.length, 1)
+    assert.equal((await readVersion(project, 'base.layout.mjml', 'layout', lay.versions[0].rev)).yml, undefined)
+    // a commit made outside the editor is a version too
+    fs.appendFileSync(yml, '\n')
+    git('commit', '-q', '-am', 'from the terminal')
+    assert.equal((await listVersions(project, ID)).versions[0].message, 'from the terminal')
+    assert.equal((await listVersions(project, ID)).versions[0].number, 3)
+
+    // a short revision made only of digits is a revision, not a version number
+    const { resolveVersion } = await import('../src/engine/versions.js')
+    const full = h.versions[1].rev
+    assert.equal((await resolveVersion(project, ID, 'template', full.slice(0, 7))).rev.slice(0, 7), full.slice(0, 7))
+    assert.equal((await resolveVersion(project, ID, 'template', 1)).number, 1)
+    assert.equal((await resolveVersion(project, ID, 'template', '1')).number, 1)
+    await assert.rejects(readVersion(project, ID, 'template', 'HEAD; rm -rf /'), /Invalid revision/)
+    await assert.rejects(readVersion(project, 'orders/missing', 'template', h.versions[0].rev), /did not exist/)
+    await assert.rejects(listVersions(project, 'orders/missing'), /Not found/)
+  } finally {
+    if (prevGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = prevGlobal
+    if (prevSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM; else process.env.GIT_CONFIG_NOSYSTEM = prevSystem
+  }
+})
+
+test('preview page: /preview/<id> renders the saved document (or a version) at a shareable URL', async () => {
+  const http = await import('node:http')
+  const { createHandler } = await import('../src/server/server.js')
+  const { initVersions } = await import('../src/engine/versions.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-preview-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const project = loadProject(dir)
+  const server = http.createServer(createHandler(project))
+  await new Promise(r => server.listen(0, '127.0.0.1', r))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const get = async (u) => { const r = await fetch(base + u); return { status: r.status, type: r.headers.get('content-type'), html: await r.text() } }
+  try {
+    const es = await get('/preview/orders/order-confirmation?lang=es')
+    assert.equal(es.status, 200)
+    assert.match(es.type, /text\/html/)
+    assert.match(es.html, /<base href="\/"><title>Pedido #A-1042 confirmado<\/title>/)
+    assert.doesNotMatch(es.html, /\{\{/) // rendered with the demo data
+    assert.match((await get('/preview/orders/order-confirmation?lang=en-US')).html, /<title>Order #A-1042 confirmed/)
+    assert.match((await get('/preview/orders/order-confirmation')).html, /<title>Pedido/) // first language
+    assert.equal((await get('/preview/orders/order-confirmation?lang=fr')).status, 404)
+    assert.equal((await get('/preview/orders/missing')).status, 404)
+    assert.equal((await get('/preview/..%2F..%2Fetc/passwd')).status >= 400, true)
+    assert.equal((await get('/preview/base.layout.mjml?kind=layout')).status, 200)
+    // a version: the saved files change, ?version=v1 still shows the first one
+    const prev = process.env.GIT_CONFIG_GLOBAL
+    process.env.GIT_CONFIG_GLOBAL = path.join(dir, '.no-global')
+    try { await initVersions(project) } finally { if (prev === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = prev }
+    const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+    fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Pedido #{{ order_id }} confirmado', 'Pedido nuevo'))
+    assert.match((await get('/preview/orders/order-confirmation?lang=es')).html, /<title>Pedido nuevo<\/title>/)
+    assert.match((await get('/preview/orders/order-confirmation?lang=es&version=v1')).html, /<title>Pedido #A-1042 confirmado · v1<\/title>/)
+    assert.equal((await get('/preview/orders/order-confirmation?version=v9')).status, 404)
+  } finally {
+    server.close()
+  }
+})
+
+test('library: createEngine renders the bundled templates (email, attachments, PDF, Jinja2 output, versions)', { timeout: 120000 }, async () => {
+  const { createEngine, BUNDLED_PROJECT } = await import('templaitor')
+  assert.equal(BUNDLED_PROJECT, path.resolve(import.meta.dirname, '..'))
+  const engine = createEngine()
+  assert.deepEqual(engine.templates().map(t => t.id), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
+  const data = JSON5.parse(fs.readFileSync(path.join(BUNDLED_PROJECT, 'templates/orders/order-confirmation/order-confirmation.json5'), 'utf8'))
+  const es = await engine.render('orders/order-confirmation', { lang: 'es-ES', data })
+  assert.equal(es.subject, `Pedido #${data.order_id} confirmado`)
+  assert.equal(es.locale, 'es-ES')
+  assert.doesNotMatch(es.html, /\{\{|\{%/)
+  assert.match(es.text, /Gracias/)
+  assert.deepEqual(es.attachments.map(a => a.filename), [`factura-${data.invoice.number}.pdf`])
+  assert.equal(es.version, null)
+  const [pdf] = await engine.attachments(es)
+  assert.equal(pdf.contentType, 'application/pdf')
+  assert.equal(pdf.content.subarray(0, 5).toString(), '%PDF-')
+  await assert.rejects(engine.pdf('documents/invoice', { lang: 'en', data: data.invoice }), (e) => e.status === 422 && /assets_url: is required/.test(e.message))
+  const doc = await engine.pdf('documents/invoice', { lang: 'en', data: { ...data.invoice, assets_url: data.assets_url } })
+  assert.equal(doc.pdf.subarray(0, 5).toString(), '%PDF-')
+  assert.equal(doc.locale, 'en-US')
+  const raw = await engine.compile('orders/order-confirmation', { lang: 'en' })
+  assert.match(raw.html, /\{\{ ?first_name ?\}\}/) // Jinja2 kept for a Jinja2 backend
+  await assert.rejects(engine.render('orders/order-confirmation', { lang: 'fr' }), /Language not available/)
+  await assert.rejects(engine.render('documents/invoice'), /PDF document/)
+  await assert.rejects(engine.render('orders/missing'), /not found/)
+  // a project of the consumer's own
+  assert.deepEqual(createEngine({ cwd: DEMO }).templates().length, 3)
+})
+
+test('versions (snapshot): exported from git, they keep working without .git (read-only)', async () => {
+  const { exportVersions } = await import('../src/engine/snapshot.js')
+  const { listVersions, readVersion, saveVersion, resolveVersion } = await import('../src/engine/versions.js')
+  const { execFileSync } = await import('node:child_process')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-snap-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe' }).toString()
+  git('init', '-q'); git('add', '.'); git('commit', '-q', '-m', 'first')
+  const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+  fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Seguir envío', 'Ver envío'))
+  git('commit', '-q', '-am', 'second')
+  const r = await exportVersions(loadProject(dir))
+  assert.equal(r.versions, 11) // 10 documents with 1 version + 1 with 2
+  fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true })
+
+  const project = loadProject(dir)
+  const list = await listVersions(project, 'orders/order-confirmation')
+  assert.equal(list.backend, 'snapshot')
+  assert.deepEqual(list.versions.map(v => [v.number, v.message]), [[2, 'second'], [1, 'first']])
+  assert.equal(list.dirty, false)
+  assert.match((await readVersion(project, 'orders/order-confirmation', 'template', list.versions[1].short)).yml, /Seguir envío/)
+  assert.match((await resolveVersion(project, 'orders/order-confirmation', 'template', 'v1')).yml, /Seguir envío/)
+  await assert.rejects(saveVersion(project, 'orders/order-confirmation', 'template', { message: 'x' }), /read-only/)
+  fs.appendFileSync(yml, '\n')
+  assert.equal((await listVersions(project, 'orders/order-confirmation')).dirty, true)
+})
+
+test('logic: show only if / repeat for each as <mj-raw> markers that move with their block', async () => {
+  const { markerOf, logicMap, setLogic, moveUnit, removeUnit, duplicateUnit, unitsOf } = await import('../src/shared/logic.js')
+  const src = [
+    '<mj-raw>{% if tracking_url %}</mj-raw>',
+    '<mj-section><mj-column><mj-text>A</mj-text></mj-column></mj-section>',
+    '<mj-raw>{% endif %}</mj-raw>',
+    '<mj-section><mj-column><mj-text>B</mj-text></mj-column></mj-section>',
+    '<mj-raw>{% endif %}</mj-raw>',
+  ].join('\n')
+  const tree = parse(src)
+  assert.deepEqual(markerOf(tree.children[0]), { kind: 'if', expr: 'tracking_url' })
+  let map = logicMap(tree)
+  assert.deepEqual(map.byId['1'], { if: 'tracking_url', for: null })
+  assert.deepEqual([...map.markers].sort(), ['0', '2']) // the lone {% endif %} (4) is not hidden
+  assert.deepEqual(unitsOf(tree.children).map(u => [u.start, u.end]), [[0, 2], [3, 3], [4, 4]])
+
+  // add a loop to A: if outside, for inside
+  const id = setLogic(tree, '1', { if: 'tracking_url', for: { item: 'item', list: 'items' } })
+  assert.equal(id, '2')
+  const out = serialize(tree)
+  assert.match(out, /\{% if tracking_url %\}[\s\S]*\{% for item in items %\}[\s\S]*>A<[\s\S]*\{% endfor %\}[\s\S]*\{% endif %\}/)
+  map = logicMap(parse(out))
+  assert.deepEqual(map.byId['2'], { if: 'tracking_url', for: { item: 'item', list: 'items' } })
+
+  // move A's unit after B: the markers go with it
+  const moved = moveUnit(tree, '2', '', 6)
+  assert.match(serialize(tree), />B<[\s\S]*\{% if tracking_url %\}[\s\S]*>A<[\s\S]*\{% endif %\}/)
+  assert.equal(tree.children[Number(moved)].children[0].children[0].content, 'A')
+  // duplicate and remove the whole unit
+  const copy = duplicateUnit(tree, moved)
+  assert.equal(serialize(tree).match(/\{% if tracking_url %\}/g).length, 2)
+  removeUnit(tree, copy)
+  removeUnit(tree, moved)
+  assert.doesNotMatch(serialize(tree), /tracking_url|>A</)
+  // clearing the logic removes the markers; invalid input is refused; Jinja2 delimiters are stripped
+  const t2 = parse('<mj-raw>{% if x %}</mj-raw>\n<mj-section></mj-section>\n<mj-raw>{% endif %}</mj-raw>')
+  assert.equal(setLogic(t2, '1', { if: '', for: null }), '0')
+  assert.equal(t2.children.length, 1)
+  assert.throws(() => setLogic(t2, '0', { for: { item: 'a b', list: 'x' } }), /not a valid loop variable/)
+  setLogic(t2, '0', { if: '{{ user.vip }}' })
+  assert.match(serialize(t2), /\{% if user\.vip %\}/)
+})
+
+test('logic: the design canvas always shows blocks with display logic, the preview and the output apply it', async () => {
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  const mjml = t.mjml.replace("<mj-text>$t('intro')</mj-text>", "<mj-raw>{% if vip %}</mj-raw>\n<mj-text>$t('intro')</mj-text>\n<mj-raw>{% endif %}</mj-raw>")
+  const design = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'design' })
+  assert.match(design.html, /Hemos recibido/)
+  assert.doesNotMatch(design.html, /\{% if vip %\}|if vip/) // not evaluated, not in the layout (floating tabs)
+  const preview = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'preview' }) // demo data has no `vip`
+  assert.doesNotMatch(preview.html, /Hemos recibido/)
+  const raw = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'raw' })
+  assert.match(raw.html, /\{% if vip %\}[\s\S]*Hemos recibido[\s\S]*\{% endif %\}/)
+})
+
+test('layouts: `format` in their frontmatter (email / pdf), stripped when applied; mismatch warning', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-layfmt-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const project = loadProject(dir)
+  assert.deepEqual(listLayouts(project).map(l => [l.id, l.format]), [['base.layout.mjml', 'email'], ['document.layout.mjml', 'pdf']])
+  // the frontmatter never reaches the output
+  const inv = readTemplate(project, 'documents/invoice')
+  const r = await previewDraft(project, { ...inv, langKey: 'en', mode: 'raw' })
+  assert.doesNotMatch(r.html, /format: pdf/)
+  assert.deepEqual(r.warnings, [])
+  // an email on a PDF layout is compiled, with a warning
+  const mail = readTemplate(project, 'orders/order-confirmation')
+  const w = await previewDraft(project, { ...mail, mjml: mail.mjml.replace('layout: base.layout.mjml', 'layout: document.layout.mjml'), langKey: 'en' })
+  assert.ok(w.warnings.some(x => /document\.layout\.mjml is a PDF layout, but this template is an email/.test(x)))
+  // new layouts declare their format; undeclared ones are offered to both (null)
+  const { createLayout } = await import('../src/engine/project.js')
+  createLayout(project, 'statement', { format: 'pdf' })
+  fs.writeFileSync(path.join(project.layoutsDir, 'legacy.mjml'), '<mjml><mj-body>$content</mj-body></mjml>\n')
+  const byId = Object.fromEntries(listLayouts(project).map(l => [l.id, l.format]))
+  assert.equal(byId['statement.mjml'], 'pdf')
+  assert.equal(byId['legacy.mjml'], null)
+})
+
+test('data contract: normalize, validate, infer, JSON Schema and the variables a template uses', async () => {
+  const { normalizeContract, validateData, inferContract, toJsonSchema, usedVariables, contractToYaml } = await import('../src/shared/contract.js')
+  const c = normalizeContract({
+    name: { type: 'string', required: true },
+    site: 'url',
+    tags: { type: 'list', of: 'string' },
+    items: { type: 'list', required: true, of: { qty: 'number', label: 'string' } },
+    customer: { email: 'email', since: 'date' },
+    'bad name': 'string',
+  })
+  assert.deepEqual(Object.keys(c), ['name', 'site', 'tags', 'items', 'customer'])
+  assert.equal(c.customer.type, 'object')
+  assert.deepEqual(validateData(c, { name: 'Ada', items: [{ qty: 1, label: 'x' }] }), [])
+  const errs = validateData(c, { site: 'ftp://x', items: [{ qty: 'two' }, 3], tags: 'a', customer: { email: 'nope', since: 'never' } })
+  assert.deepEqual(errs.map(e => e.path), ['name', 'site', 'tags', 'items[0].qty', 'items[1]', 'customer.email', 'customer.since'])
+  assert.equal(errs[0].message, 'is required')
+  // relative URLs and extra fields are fine
+  assert.deepEqual(validateData(c, { name: 'A', items: [], site: '/static', extra: 1 }), [])
+  // inference: types from values, used names required
+  const inf = inferContract({ a: 'x', n: 2, u: 'https://x.test', e: 'a@b.co', d: '2026-11-23', l: [{ k: 1 }], o: { p: true } }, ['a', 'missing'])
+  assert.deepEqual(Object.fromEntries(Object.entries(inf).map(([k, f]) => [k, f.type])), { a: 'string', n: 'number', u: 'url', e: 'email', d: 'date', l: 'list', o: 'object', missing: 'string' })
+  assert.equal(inf.a.required, true)
+  assert.equal(inf.n.required, false)
+  // round trip through the short YAML form
+  assert.deepEqual(normalizeContract(contractToYaml(c)), c)
+  const schema = toJsonSchema(c, { title: 't' })
+  assert.deepEqual(schema.required, ['name', 'items'])
+  assert.equal(schema.properties.items.items.properties.qty.type, 'number')
+  assert.equal(schema.properties.customer.properties.email.format, 'email')
+  // used variables: loop/set variables, filters, attributes, keyword args and strings are not data
+  assert.deepEqual(usedVariables("{{ user.name | default('x') }} {% for it in items %}{{ it.qty }}{% endfor %} {% set t = total %}{{ t }} {% if vip and not banned %}{% endif %} {{ fmt(price, digits=2) }} {{ 'lit' }}").sort(),
+    ['banned', 'fmt', 'items', 'price', 'total', 'user', 'vip'])
+})
+
+test('data contract: compile warnings, demo data checked, 422 on render (also for attached documents)', async () => {
+  const { renderMessage } = await import('../src/engine/message.js')
+  const { attachmentData } = await import('../src/engine/attachments.js')
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  // undeclared and unused fields
+  const mjml = t.mjml.replace('  order_id: { type: string, required: true }\n', '  coupon: string\n')
+  const r = await previewDraft(project, { ...t, mjml, langKey: 'en' })
+  assert.ok(r.warnings.some(w => /\{\{ order_id \}\} is used but not declared/.test(w)))
+  assert.ok(r.warnings.some(w => /coupon is declared in the data contract but not used/.test(w)))
+  // the design canvas (variables drawn as chips) sees the same data as the preview: no false "not used"
+  const design = await previewDraft(project, { ...t, langKey: 'en', mode: 'design' })
+  assert.deepEqual(design.usedVars.sort(), (await previewDraft(project, { ...t, langKey: 'en' })).usedVars.sort())
+  assert.deepEqual(design.warnings, [])
+  // demo data that does not match
+  const bad = await previewDraft(project, { ...t, data: '{ first_name: true }', langKey: 'en' }) // (numbers are accepted as text)
+  assert.ok(bad.warnings.some(w => w === 'Demo data: first_name: must be a text'))
+  assert.ok(bad.warnings.some(w => w === 'Demo data: items: is required'))
+  // render (send API / library): 422 with the list of errors
+  const data = JSON5.parse(t.data)
+  await assert.rejects(renderMessage(project, 'orders/order-confirmation', { data: { ...data, first_name: '' } }),
+    (e) => e.status === 422 && /first_name: is required/.test(e.message) && e.details[0].path === 'first_name')
+  // the attached invoice is checked with its own contract (context: invoice + the email's plain values)
+  await assert.rejects(renderMessage(project, 'orders/order-confirmation', { data: { ...data, invoice: { ...data.invoice, customer: undefined } } }),
+    (e) => e.status === 422 && /contract of the attachment documents\/invoice \(context: invoice\): customer: is required/.test(e.message))
+  assert.ok((await renderMessage(project, 'orders/order-confirmation', { data })).html.includes(data.first_name))
+  // attachment data: the context object + top-level plain values; demo data only fills gaps in previews
+  const att = { type: 'template', template: 'documents/invoice', context: 'invoice' }
+  const d = attachmentData(att, { assets_url: '/s', invoice: { number: '1' }, items: [1] })
+  assert.deepEqual(d, { assets_url: '/s', number: '1' })
+  assert.equal(attachmentData(att, { invoice: { number: '1' } }, { number: 'demo', customer: { name: 'Demo' } }).customer.name, 'Demo')
+  assert.equal(attachmentData(att, { invoice: { number: '1' } }).customer, undefined)
+})
+
+test('data contract rules: enum, min/max (value, length, items, dates), pattern — validation, JSON Schema, TypeScript', async () => {
+  const { normalizeContract, validateData, toJsonSchema, contractToYaml, rulesSummary, toTypeScript, typeNameOf } = await import('../src/shared/contract.js')
+  const c = normalizeContract({
+    code: { type: 'string', required: true, pattern: '^[A-Z]{2}\\d+$', min: 3, max: 8 },
+    plan: { type: 'string', enum: ['free', 'pro'] },
+    qty: { type: 'number', min: 1, max: 10 },
+    tags: { type: 'list', min: 1, max: 3, of: 'string' },
+    due: { type: 'date', min: '2026-01-01' },
+    flag: { type: 'boolean', min: 3, pattern: 'x' }, // rules that make no sense for the type are dropped
+    level: { type: 'number', enum: [1, 2, 3] },
+  })
+  assert.deepEqual(c.flag, { type: 'boolean', required: false, description: '' })
+  assert.deepEqual(validateData(c, { code: 'AB12', plan: 'pro', qty: 3, tags: ['a'], due: '2026-05-01', level: 2 }), [])
+  const errs = validateData(c, { code: 'x1', plan: 'gold', qty: 0, tags: [], due: '2025-05-01', level: 7 })
+  assert.deepEqual(errs.map(e => `${e.path}: ${e.message}`), [
+    'code: must have at least 3 character(s)', 'code: must match ^[A-Z]{2}\\d+$', 'plan: must be one of: free, pro',
+    'qty: must be at least 1', 'tags: must have at least 1 item(s)', 'due: must be on or after 2026-01-01', 'level: must be one of: 1, 2, 3',
+  ])
+  // a value of the wrong type gets the type error only
+  assert.deepEqual(validateData(c, { code: 5 }).map(e => e.message), ['must have at least 3 character(s)', 'must match ^[A-Z]{2}\\d+$'])
+  assert.deepEqual(validateData(c, { code: 'AB1', qty: 'x' }).map(e => e.message), ['must be a number'])
+  assert.deepEqual(normalizeContract(contractToYaml(c)), c)
+  const s = toJsonSchema(c).properties
+  assert.deepEqual([s.code.minLength, s.code.maxLength, s.code.pattern, s.plan.enum, s.qty.minimum, s.tags.minItems, s.due.formatMinimum], [3, 8, '^[A-Z]{2}\\d+$', ['free', 'pro'], 1, 1, '2026-01-01'])
+  assert.equal(rulesSummary(c.qty), '1–10')
+  assert.equal(rulesSummary(c.code), '3–8 chars · pattern')
+  // TypeScript: enums become unions, optional fields get "?", rules go in the doc comment
+  assert.equal(typeNameOf('orders/order-confirmation'), 'OrdersOrderConfirmationData')
+  const ts = toTypeScript([{ id: 'a/b', contract: c }, { id: 'c', contract: null }])
+  assert.match(ts, /export interface ABData \{/)
+  assert.match(ts, /  code: string/)
+  assert.match(ts, /  plan\?: "free" \| "pro"/)
+  assert.match(ts, /  level\?: 1 \| 2 \| 3/)
+  assert.match(ts, /  tags\?: Array<string>/)
+  assert.match(ts, /Rules: 1–10\./)
+  assert.match(ts, /export type CData = Record<string, unknown>/)
+  assert.match(ts, /"a\/b": ABData/)
+})
+
+test('templates.d.ts (shipped in the npm package) is up to date with the data contracts', async () => {
+  const { projectTypes } = await import('../src/engine/types.js')
+  const root = path.resolve(import.meta.dirname, '..')
+  assert.equal(fs.readFileSync(path.join(root, 'templates.d.ts'), 'utf8'), projectTypes(loadProject(root)),
+    'run `node bin/templaitor.js types --out templates.d.ts` after changing a data contract')
+})
+
+test('data contract: the demo data is also checked for what attached documents would receive', async () => {
+  const project = loadProject(DEMO)
+  const t = readTemplate(project, 'orders/order-confirmation')
+  assert.deepEqual((await previewDraft(project, { ...t, langKey: 'en' })).warnings, [])
+  const data = t.data.replace(/customer: \{[^}]*\},\n/, '')
+  const r = await previewDraft(project, { ...t, data, langKey: 'en' })
+  assert.deepEqual(r.warnings, ['Demo data → attachment documents/invoice (context: invoice): customer: is required'])
 })

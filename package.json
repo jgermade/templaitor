@@ -3,13 +3,27 @@
   "version": "0.1.4",
   "description": "Generic MJML template editor with Jinja2 output, WYSIWYG editing, reusable components and accessible PDFs",
   "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./engine/*": "./src/engine/*.js",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "templaitor": "bin/templaitor.js"
   },
   "files": [
     "bin",
     "src",
-    "dist/editor"
+    "dist/editor",
+    "templaitor.config.yml",
+    "templates",
+    ".templaitor",
+    "templates.d.ts"
   ],
   "engines": {
     "node": ">=20"
@@ -22,7 +36,8 @@
     "test": "node --test test/*.test.js",
     "prepare": "vite build --config vite.config.js",
     "build:site": "node scripts/build-site.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "prepack": "node scripts/prepack.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.1.0",
@@ -48,6 +63,7 @@
     "@simplewebauthn/browser": "^14.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "codemirror": "^6.0.2",
+    "country-flag-icons": "^1.6.20",
     "svelte": "^5.58.0",
     "vite": "^8.3.8"
   },

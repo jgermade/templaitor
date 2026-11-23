@@ -1,4 +1,5 @@
 <script>
+  import { ICONS } from './Icon.svelte'
   // Side-by-side diff (CodeMirror merge view). A is read-only; B can be editable, with controls to
   // copy a chunk of A into B (revert).
   import { onMount, untrack } from 'svelte'
@@ -37,7 +38,7 @@
       revertControls: editable ? 'a-to-b' : undefined,
       renderRevertControl: () => {
         const btn = document.createElement('button')
-        btn.textContent = '⇥'
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS['to-line']}</svg>`
         btn.title = 'Copy this chunk from A into the draft'
         btn.setAttribute('aria-label', 'Copy this chunk from A into the draft')
         btn.className = 'revert'

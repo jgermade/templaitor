@@ -22,6 +22,13 @@
 //     user: templaitor
 //     pass: …                                    # or TEMPLAITOR_SMTP_PASS
 //     from: "templaitor <no-reply@example.com>"
+//   project: .                                   # project mode (or TEMPLAITOR_PROJECT): serve ONE templaitor project —
+//                                                #   e.g. the templates of the repository being deployed — read-only, as the
+//                                                #   organization "project"; no other organizations can be created
+//   apiKeys: [ … ]                               # project mode (or TEMPLAITOR_API_KEYS, comma separated, ≥ 24 chars
+//                                                #   each): API keys for /v1/*, besides those created in the UI
+//   admins: [ ops@example.com ]                  # project mode (or TEMPLAITOR_ADMINS): owners of the project
+//                                                #   (send log, SMTP, API keys); the system `smtp` sends its emails
 //   send:
 //     maxAttempts: 6
 //     rateLimitPerMinute: 120                    # per organization (API sends)
@@ -60,7 +67,8 @@ export function loadServiceConfig({ cwd = process.cwd(), file, env = process.env
   } : null
 
   const url = new URL(baseUrl)
-  return {
+  const project = projectConfig(raw, env, cwd)
+  const cfg = {
     port,
     host: env.HOST || raw.host || '0.0.0.0',
     baseUrl,
@@ -70,8 +78,9 @@ export function loadServiceConfig({ cwd = process.cwd(), file, env = process.env
     secret,
     // behind a reverse proxy: take the client IP from X-Forwarded-For (rate limits)
     trustProxy: String(env.TEMPLAITOR_TRUST_PROXY ?? raw.trustProxy ?? 'false') === 'true',
-    signup: (env.TEMPLAITOR_SIGNUP || raw.signup || 'open') === 'invite' ? 'invite' : 'open',
+    signup: (env.TEMPLAITOR_SIGNUP || raw.signup || (project ? 'invite' : 'open')) === 'invite' ? 'invite' : 'open', // project mode: invite by default
     appName: raw.appName || 'templaitor',
+    project,
     database: databaseConfig(raw.database || {}, env, dataDir),
     storage: {
       driver: (env.TEMPLAITOR_STORAGE || storage.driver || 'fs') === 'db' ? 'db' : 'fs',
@@ -85,6 +94,26 @@ export function loadServiceConfig({ cwd = process.cwd(), file, env = process.env
       rateLimitPerMinute: Number(raw.send?.rateLimitPerMinute || 120),
       retentionDays: Number(env.TEMPLAITOR_RETENTION_DAYS ?? raw.send?.retentionDays ?? 30),
     },
+  }
+  if (project) {
+    // the project is served from its folder (fs storage, mapped to the organization "project")
+    cfg.storage.driver = 'fs'
+    cfg.storage.projects[project.slug] = project.dir
+  }
+  return cfg
+}
+
+function projectConfig(raw, env, cwd) {
+  const dir = env.TEMPLAITOR_PROJECT || raw.project
+  if (!dir) return null
+  const list = (v) => (Array.isArray(v) ? v : String(v ?? '').split(',')).map(s => String(s).trim()).filter(Boolean)
+  const apiKeys = list(env.TEMPLAITOR_API_KEYS ?? raw.apiKeys)
+  for (const k of apiKeys) if (k.length < 24) throw new Error('Each project API key (TEMPLAITOR_API_KEYS) needs at least 24 characters')
+  return {
+    dir: path.resolve(cwd, dir),
+    slug: 'project',
+    apiKeys,
+    admins: list(env.TEMPLAITOR_ADMINS ?? raw.admins).map(e => e.toLowerCase()),
   }
 }
 

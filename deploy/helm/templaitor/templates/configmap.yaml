@@ -11,6 +11,10 @@ data:
   TEMPLAITOR_DATABASE: {{ .Values.config.database.driver | quote }}
   TEMPLAITOR_TRUST_PROXY: {{ .Values.config.trustProxy | quote }}
   TEMPLAITOR_RETENTION_DAYS: {{ .Values.config.retentionDays | quote }}
+  {{- if .Values.project.enabled }}
+  TEMPLAITOR_PROJECT: {{ .Values.project.dir | quote }}
+  TEMPLAITOR_ADMINS: {{ join "," .Values.project.admins | quote }}
+  {{- end }}
   {{- with .Values.config.smtp }}
   {{- if .host }}
   TEMPLAITOR_SMTP_HOST: {{ .host | quote }}

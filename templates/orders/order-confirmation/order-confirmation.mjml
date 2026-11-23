@@ -1,0 +1,70 @@
+---
+layout: base.layout.mjml
+# attached to the email: local PDF templates are rendered in the email's language
+attachments:
+  - template: documents/invoice
+    filename: "$t('invoice_file')"
+    context: invoice            # the invoice is rendered with the email's `invoice` variable
+# data the backend sends (checked by /v1/send; schema.json when compiling)
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  order_id: { type: string, required: true }
+  items:
+    type: list
+    required: true
+    description: Ordered products
+    of: { qty: number, name: string, price: string }
+  total: { type: string, required: true, description: "Formatted total, without currency" }
+  tracking_url: { type: url, description: Shipment tracking page; without it the tracking button is hidden }
+  app_url: { type: url, required: true }
+  assets_url: { type: url, required: true }
+  year: number
+  invoice:
+    type: object
+    required: true
+    description: The attached invoice (documents/invoice)
+    fields:
+      number: string
+      date: string
+      due_date: string
+      payment_method: string
+      customer: { name: string, address: string }
+      lines: { type: list, of: { concept: string, qty: number, amount: string } }
+      total: string
+---
+
+$import(_components/banner, show_caption="true", caption="$t('banner_caption')")
+
+<mj-section background-color="#ffffff" padding="24px 24px 0">
+  <mj-column>
+    <mj-text font-size="20px" font-weight="600" color="#111827"><h1 style="margin:0;font:inherit;color:inherit;letter-spacing:inherit">$t('title')</h1></mj-text>
+    <mj-text>$t('intro')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section background-color="#ffffff" padding="0 24px 16px">
+  <mj-column>
+    <mj-table font-size="14px">
+      <thead>
+        <tr style="border-bottom:1px solid #e5e7eb;text-align:left;">
+          <th scope="col" style="padding:8px 0;">$t('product')</th>
+          <th scope="col" style="padding:8px 0;text-align:right;">$t('price')</th>
+        </tr>
+      </thead>
+      {% for item in items %}
+      <tr>
+        <td style="padding:6px 0;">{{ item.qty }} × {{ item.name }}</td>
+        <td style="padding:6px 0;text-align:right;">{{ item.price }} €</td>
+      </tr>
+      {% endfor %}
+    </mj-table>
+    <mj-divider border-color="#e5e7eb" border-width="1px" />
+    <mj-text align="right" font-weight="600">$t('total')</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-raw>{% if tracking_url %}</mj-raw>
+$import(_components/cta-button, url="{{ tracking_url }}", label="$t('track')", color="#047857")
+<mj-raw>{% endif %}</mj-raw>
+
+$import(_components/signature)

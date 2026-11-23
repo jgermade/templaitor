@@ -1,0 +1,36 @@
+---
+layout: base.layout.mjml
+# data the backend sends (checked by /v1/send; schema.json when compiling)
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  verification_token: { type: string, required: true, description: Token of the verification link }
+  app_url: { type: url, required: true, description: Base URL of the application }
+  assets_url: { type: url, required: true, description: Base URL of the images (the static folder) }
+  year: { type: number, description: Year shown in the footer }
+---
+
+<mj-section background-color="#ffffff" padding="24px 24px 0">
+  <mj-column>
+    <mj-text font-size="20px" font-weight="600" color="#111827"><h1 style="margin:0;font:inherit;color:inherit;letter-spacing:inherit">$t('title')</h1></mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section background-color="#ffffff" padding="16px 24px">
+  <mj-column>
+    <mj-text>$t('greeting')</mj-text>
+    <mj-text>$t('intro')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/cta-button, url="{{ app_url }}/verify?token={{ verification_token }}", label="$t('cta')")
+
+<mj-section background-color="#ffffff" padding="0 24px 16px">
+  <mj-column>
+    <mj-text font-size="12px" color="#6b7280">$t('expiry')</mj-text>
+    <mj-text font-size="12px" color="#6b7280">$t('ignore')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/signature)
+
+$import(_components/legal-notice)

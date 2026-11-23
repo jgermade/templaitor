@@ -105,6 +105,46 @@ npx templaitor compile --cwd path/to/project    # compile (--watch, --strict)
 npx templaitor new group/name --layout base.layout.mjml
 ```
 
+### This repository's templates
+
+The repository root is a templaitor project too (`templaitor.config.yml` + `templates/`, starting as a copy of
+the demo): **those are the templates it deploys** (the Docker image and the Helm chart serve them in project
+mode) and the ones the **npm package** ships. `make up` opens them; `examples/demo` stays as the starter of
+new organizations in the hosted service.
+
+### Use it as a library (the engine of another project)
+
+```bash
+npm install github:jgermade/templaitor        # or a release tarball / registry version
+```
+
+```js
+import { createEngine } from 'templaitor'
+
+const engine = createEngine()                         // the templates shipped in the package
+// const engine = createEngine({ cwd: './emails' })   // or a templaitor project of your own
+
+engine.templates()                                    // [{ id, format: 'email' | 'pdf', langs }]
+const msg = await engine.render('orders/order-confirmation', {
+  lang: 'es',                                         // key, locale (es-ES) or its language
+  data: { first_name: 'Ada', order_id: 'A-1042' },
+  version: 'v3',                                      // optional: the template as it was at a version
+})
+// msg → { subject, html, text, locale, version, attachments: [{ filename, … }], warnings }
+const files = await engine.attachments(msg)           // [{ filename, content: Buffer, contentType }]
+await mailer.sendMail({ to, subject: msg.subject, html: msg.html, text: msg.text, attachments: files })
+
+const { pdf } = await engine.pdf('documents/invoice', { lang: 'en', data })   // Buffer (PDF/UA-1 with WeasyPrint)
+const jinja = await engine.compile('orders/order-confirmation', { lang: 'en' }) // Jinja2 output, no data
+await engine.schema('orders/order-confirmation')      // its data contract as JSON Schema (render() checks it: 422)
+await engine.versions('orders/order-confirmation')    // [{ number, rev, message, author, date }]
+```
+
+Everything runs in-process (no server). PDFs need one of the PDF engines installed (see *PDF documents*). The
+version history travels inside the package (`.templaitor/versions.json`, exported from git by `prepack`).
+Lower-level pieces (`loadProject`, `compileSource`, `renderMessage`, `createHandler`…) are exported too, and
+`templaitor/engine/<module>` reaches any engine module.
+
 
 # Project Specs
 
@@ -272,6 +312,49 @@ does not reach PDF/UA-1: use it only for quick previews or when no other engine 
 `make verapdf` pulls it and `make pdf-tools` checks engines and validator. Failing rules are shown with
 their ISO 14289-1 clause and an explanation.
 
+## Data contract
+
+A template declares the data it expects in its frontmatter, `data:` (the `.yml` keeps only translations):
+
+```yaml
+---
+layout: base.layout.mjml
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  items:
+    type: list
+    required: true
+    of: { qty: number, name: string, price: string }
+  tracking_url: { type: url, description: "Tracking page; without it, no tracking button" }
+  invoice: { number: string, date: string }      # an object: its fields
+---
+```
+
+Types: `string` · `number` · `boolean` · `date` · `url` · `email` · `list` (`of`: a type or fields) · `object`.
+(In `{ … }` quote values that contain commas.)
+
+Rules (optional, per field): `enum: [free, pro]` (allowed values) · `min` / `max` — the value of a number, the
+length of a string / url / email, the number of items of a list, the earliest / latest date — · `pattern` (a
+regular expression for strings), e.g. `order_id: { type: string, required: true, pattern: "^A-\\d+$" }`.
+
+- **Editor** (Design view, *Data*): the fields with their type, *required* and description, nested fields for
+  lists and objects, "not used" marks, the variables used but not declared (one click declares them), and
+  *Generate from demo data* for templates without a contract. The demo data (Preview / PDF) is an example
+  that must fulfil it. Variable suggestions in the inspector come from the contract.
+- **Warnings**: a variable used but not declared, a field declared but not used, demo data that does not match.
+- **Send API and library**: `/v1/send`, `/v1/render`, `engine.render()` and `engine.pdf()` reject data that
+  does not match with **422** and the list of errors (`details: [{ path, message }]`) — also for the documents
+  an email attaches (their `context` object plus the email's top-level plain values). Nothing is queued.
+- **Export**: compiling writes `<name>.schema.json` (JSON Schema 2020-12) next to the output; also
+  `engine.schema(id)` and `GET /v1/schema?template=` — for validating or generating types in the backend.
+- **TypeScript**: `templaitor types [--out templates.d.ts]` (also written by a full `compile`, and
+  `engine.types()`) declares `export interface <Name>Data` per template (enums as unions, optional fields with
+  `?`, descriptions and rules as comments) and `TemplateData` (id → data). The npm package ships the types of
+  its own templates, so `engine.render('orders/order-confirmation', { data })` is type-checked; for your own
+  project: `createEngine<TemplateData>({ cwd })` with the types you generated.
+- **Attached documents**: the editor also checks what each attached PDF would receive from the demo data in a
+  real send (its `context` object + the email's plain values) against the document's contract.
+
 ## Email attachments
 
 An email lists its attachments in the frontmatter. They can be **local** (a PDF template of the project,
@@ -330,6 +413,11 @@ WYSIWYG: `$content` shows as a dashed slot that can be moved in "Structure". A l
 of its own, so the preview uses those of the first template using it (not saved with the layout) and its
 `$t` texts are shown but not editable there. New layouts can be created and unused ones deleted.
 
+A layout declares what it is for in its frontmatter — `format: email` or `format: pdf` (removed when the layout
+is applied). The editor only offers a template the layouts of its format (switching a template to PDF also
+switches it to a PDF layout), new layouts are created for emails or PDF documents, and compiling an email on a
+PDF layout (or the other way round) gives a warning. A layout without `format:` is offered to both.
+
 ## Visual editor
 
 - **Design**: the canvas is the real HTML compiled by MJML. Click to select a block; type directly into
@@ -341,17 +429,39 @@ of its own, so the preview uses those of the first template using it (not saved 
   bar, open the preview in a new tab and the `text` toggle. On the left, demo data (JSON5) and collapsible
   sections: Messages, Components, Blocks, Structure and Template. The inspector appears when a block is
   selected.
+- **Right panel** (always there in Design): the **inspector** of the selected block, or — with nothing
+  selected (Esc) — the **Add** library: **Blocks** and **Components**, dragged to the canvas (a line shows
+  where they land: before, after or inside a block; a block is wrapped in a column/section where it needs
+  one) or to the Structure tree. A click adds a block at the end; a component is added **only by dragging
+  it** (keyboard alternative: focus it and press Enter).
 - **Structure**: block tree with drag and drop (validates where each component may go), move up/down,
   duplicate and delete. **Blocks**: palette of MJML components; new texts and buttons are translatable in
   every language from the start.
 - **Inspector**: component attributes, translations in every language, key renaming, insertion of variables
   (from the demo data) and links.
+- **Display** (in the inspector of any block): **Show only if** (a Jinja2 condition, e.g. `tracking_url`) and
+  **Repeat for each** (`item` in `items`, suggested from the demo data's lists). They are stored as
+  `<mj-raw>{% if … %}</mj-raw>` / `{% for … %}` markers right around the block, so the output is plain Jinja2;
+  the editor treats the block and its markers as one unit (moving, duplicating or deleting it keeps them
+  together, and they are hidden from the Structure tree, which shows them as badges). On the design canvas
+  the logic is not evaluated — the block is always there, with floating tabs `? condition` / `↻ item in items`
+  at its top-left —; the Preview applies it with the demo data.
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
+  The preview also opens in a new tab at a real URL, `/preview/<template>?lang=es` (`&version=v3` for a
+  version, `&kind=component|layout`), which can be reloaded, bookmarked and shared (in the hosted service,
+  with members of the organization). It shows the saved files, so unsaved changes are saved first.
 - **Code**: `.mjml`, `.yml`, `.json5`, layouts, partials and `links.yml` with a live preview.
-- **Compare**: the current draft (B) against a base (A) — the **saved version**, a **git commit** of the
-  document (when the project is in a repository: the commits that touched its `.mjml`/`.yml`/`.json5`),
-  or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
+- **Versions** (top bar): save the current state of a template, component or layout as a **version** with a
+  description, browse its versions (number, description, author, date), **compare** one with the draft or
+  **restore** it into the draft (unsaved, so Undo reverts it and Save keeps it). Locally a version is a
+  **git commit** of the document's own files (`.mjml`/`.yml`/`.json5`) — other changes you have staged are
+  left alone, and commits made from the terminal show up as versions too. A project that is not in a
+  repository gets a **Create a git repository** button (`git init`, a `.gitignore` for the compiled output
+  and a first version of every document). In the hosted service: git commits in the organization's folder
+  (`fs` storage, author = the signed-in user) or rows in the database (`db` storage).
+- **Compare**: the current draft (B) against a base (A) — the **saved files**, a **version** of the
+  document, or **another template** (component, layout). Each side has its own language (e.g. `es` ↔ `en`) and its
   own demo data (or the same data for both).
   - *Visual*: **side by side** (one scroll), **overlay** (opacity of B), **difference** (identical pixels
     are black, changes show in color) and **swipe**; desktop or mobile width.
@@ -384,7 +494,9 @@ tools do not change: `templaitor editor`, `make up` and `compile` keep working a
   switcher and the settings (members, SMTP, API keys, send log, account and passkeys) are in the top bar.
 - **Template storage** (configurable): `fs` — a project folder per organization (`dataDir/orgs/<slug>`), or
   an existing folder such as a git checkout (`storage.projects`) — or `db` — the files live in the database
-  and are materialized into a cache for the engine.
+  and are materialized into a cache for the engine. **Template versions** follow the storage: with `fs`
+  each organization's folder is a git repository (created with the organization; the image includes git)
+  and versions are commits authored by the signed-in user; with `db` they are stored in the database.
 - **Sending service** with each organization's **SMTP** (SES, Postmark, Mailgun, Brevo, your own server…;
   the password is stored encrypted), a persistent **queue** with retries (30 s → 6 h, 6 attempts) and a
   **send log** (the HTML, text and attachments of sent messages are purged after `send.retentionDays`,
@@ -395,6 +507,9 @@ tools do not change: `templaitor editor`, `make up` and `compile` keep working a
 curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
   -H "Idempotency-Key: order-A-1042" \
   -d '{"template": "orders/order-confirmation", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
+# the same template pinned to a version (v3 of orders/order-confirmation; "latest" = newest version)
+curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -d '{"template": "orders/order-confirmation", "version": "v3", "lang": "es", "to": "ada@example.com", "data": {"order_id": "A-1042"}}'
 # raw HTML (your own rendering)
 curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
   -d '{"to": ["ada@example.com"], "subject": "Hi", "html": "<p>Hello</p>",
@@ -403,9 +518,11 @@ curl https://templaitor.example.com/v1/send -H "Authorization: Bearer tpl_…" -
 
 | Endpoint | |
 |---|---|
-| `POST /v1/send` | `template` + `lang` + `data` (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
-| `POST /v1/render` | same body, returns `{ subject, html, text, attachments }` without sending |
-| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error |
+| `POST /v1/send` | `template` + `lang` + `data` (+ `version`: `3` · `"v3"` · `"latest"` · a revision / version id — sends the template **as it was at that version**; without it, the current files) (hosted) or `subject` + `html` (+ `text`) (raw); `to`/`cc`/`bcc`, `replyTo`, `from` (same domain as the org's); `Idempotency-Key` header → `202 { id, status: "queued" }` |
+| `POST /v1/render` | same body, returns `{ subject, html, text, attachments, version }` without sending |
+| `GET /v1/schema?template=` | the template's data contract as JSON Schema (what `data` must fulfil; otherwise `/v1/send` answers 422) |
+| `GET /v1/versions?template=` | versions of a hosted template: `{ number, rev, short, message, author, date }`, newest first |
+| `GET /v1/messages/:id` | `queued` · `sending` · `sent` · `failed`, attempts, last error, `version` used (`{ number, rev, short }` or `null`) |
 | `GET /v1/templates` | the organization's templates and languages |
 
 - **Security**: PDFs are rendered in a **sandbox** (only `data:` URLs and the project's static files load:
@@ -424,6 +541,23 @@ Put it behind a TLS reverse proxy (passkeys need HTTPS on the real domain). Conf
 `templaitor.server.yml` (see `templaitor.server.example.yml`) or `TEMPLAITOR_*` environment variables. Back
 up the data volume (SQLite database and organization projects). Plan: [`ROADMAP/2026-11-21/hosted-service.md`](ROADMAP/2026-11-21/hosted-service.md).
 
+**Project mode — deploying this repository's templates**: with `TEMPLAITOR_PROJECT=<folder>` (or `project:`)
+the service serves **one** templaitor project — in the Docker image, `/app`: the templates of this repository —
+as the organization `project`: the send API (`/v1/send`, `/v1/render`, `/v1/versions`, `/v1/templates`) with
+API keys from `TEMPLAITOR_API_KEYS` (comma separated, ≥ 24 characters), the deployment's SMTP
+(`TEMPLAITOR_SMTP_*`) for the sends, owners from `TEMPLAITOR_ADMINS` (they sign in to see the send log, set
+another SMTP or create more API keys), sign-up by invitation, and a **read-only** editor: the templates change
+in the repository and are deployed again. No other organizations can be created. The image has no `.git`, so
+the version history goes in as a snapshot (`templaitor versions export` → `.templaitor/versions.json`; CI
+and `make docker` run it), and pinned versions keep working. `deploy/docker-compose.yml` and the Helm chart
+(`project.enabled`, `project.apiKeys`, `project.admins`) use project mode by default; set
+`TEMPLAITOR_PROJECT=` (empty) / `project.enabled=false` for the multi-organization service.
+
+```bash
+docker run -p 3000:3000 -e TEMPLAITOR_SECRET=… -e TEMPLAITOR_PROJECT=/app \
+  -e TEMPLAITOR_API_KEYS=$(openssl rand -hex 24) -e TEMPLAITOR_SMTP_HOST=smtp.example.com … ghcr.io/jgermade/templaitor
+```
+
 **Database**: SQLite (a file in the data volume) by default — one instance. **Postgres** for several
 instances behind a load balancer: `TEMPLAITOR_DATABASE_URL=postgres://…` (or `database.url`), together with
 `TEMPLAITOR_STORAGE=db` so the templates are not on one instance's disk. With Docker:
@@ -440,7 +574,8 @@ against Postgres too when `TEMPLAITOR_TEST_POSTGRES_URL` points to a server (CI 
 ## Architecture
 
 ```
-bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · serve)
+bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · versions · serve)
+src/index.js               public API of the npm package: createEngine() (render, attachments, pdf, compile, versions)
 src/shared/                code shared by Node and the browser
   mjml-tree.js             MJML parser/serializer that keeps $ commands and Jinja2
   components.js            component catalog (attributes, valid nesting)
@@ -453,7 +588,9 @@ src/engine/                compilation engine (ported from doomus-rs)
   a11y.js                  accessibility checker (WCAG 2.1 AA)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
   attachments.js           email attachments (local PDF templates per language, remote files)
-  history.js               git history of a document (compare mode)
+  versions.js · history.js template versions (list, read, save, init) · git version store
+  snapshot.js              versions exported from git for deployments without .git (read-only store)
+  message.js               a template rendered for one recipient (send API and library)
   commands.js · guard.js · resolver.js · render.js · project.js
 src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
 src/service/               hosted service (templaitor serve)
@@ -462,10 +599,12 @@ src/service/               hosted service (templaitor serve)
   repo.js · db/            data access (portable SQL, async) · SQLite and Postgres adapters, migrations
   storage.js · workspaces.js   fs/db template storage · one project + editor handler per org
   sender.js · netguard.js  send queue and SMTP delivery · SSRF-safe fetch for remote attachments
+  versions.js              version store in the database (db storage)
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
   src/stores/editor.svelte.js   state: the source texts are the single source of truth
   src/lib/bridge.js             iframe script (selection, inline editing, serialization)
-examples/demo/             demo project
+templaitor.config.yml · templates/   this repository's templates (deployed and shipped in the package)
+examples/demo/             demo project (starter of new organizations)
 ```
 
 ## Website, CI and releases

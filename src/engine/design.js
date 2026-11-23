@@ -17,6 +17,7 @@ import { NON_VISUAL, describe } from '../shared/components.js'
 import { lookupMessage, parseAttrs, resolveCommands } from './commands.js'
 import { normalizeParams } from '../shared/imports.js'
 import { splitWrapper } from '../shared/semantics.js'
+import { markerOf } from '../shared/logic.js'
 
 const NO_CLASS = new Set(['mj-raw', 'mj-body', 'mjml'])
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
@@ -52,6 +53,10 @@ export function annotateBody(body, ctx) {
       return [...attrs, ['css-class', prev ? `${prev} ${cls}` : cls]]
     },
     transformContent: (node) => {
+      // Display logic ({% if %} / {% for %} markers around a block): not evaluated while designing, so the
+      // block is always there to select and edit
+      const logic = !hidden.has(node) && markerOf(node)
+      if (logic) return '' // the canvas draws the logic as floating tabs over the block (bridge.js)
       if (!visual(node) || !describe(node.tag).editable) return node.content
       // wrapping heading/paragraph: the editable region goes inside (the wrapper is kept)
       const wrap = node.tag === 'mj-text' ? splitWrapper(node.content) : null

@@ -1,7 +1,7 @@
 .PHONY: install i test up build mailpit down verapdf pdf-tools site screenshots serve docker binary helm
 
-# Project opened by `make up` (override: make up PROJECT=path/to/project)
-PROJECT  ?= examples/demo
+# Project opened by `make up`: the templates of this repository (override: make up PROJECT=examples/demo)
+PROJECT  ?= .
 
 # Local Mailpit (docker compose): SMTP on :1025 and inbox under /mailpit/ of the editor
 # (http://localhost:5180/mailpit/, also through GATE)
@@ -91,7 +91,9 @@ serve: build
 	PORT=$(SERVE_PORT) node bin/templaitor.js serve
 
 # Docker image of the hosted service
-docker:
+# the image has no .git: the templates' version history goes in as a snapshot (.templaitor/versions.json)
+docker: node_modules
+	node bin/templaitor.js versions export
 	docker build -t templaitor:latest .
 
 # Self-contained binary bundle for this machine (reuses the local Node >= 22.13) -> artifacts/

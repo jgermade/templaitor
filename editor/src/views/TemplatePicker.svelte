@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -27,10 +28,14 @@
 
   async function newLayout() {
     open = false
-    const id = await promptDialog({ title: 'New layout', label: 'Name', placeholder: 'marketing', okLabel: 'Create', pattern: '[\\w.\\-]+', hint: 'Creates _layouts/<name>.mjml with $content.' })
-    if (!id) return
+    const r = await promptDialog({
+      title: 'New layout', label: 'Name', placeholder: 'marketing', okLabel: 'Create', pattern: '[\\w.\\-]+',
+      hint: 'Creates _layouts/<name>.mjml with $content.',
+      choice: { label: 'For', value: 'email', options: [{ value: 'email', label: 'Emails', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF documents', icon: 'pdf', color: '#dc2626' }] },
+    })
+    if (!r) return
     try {
-      const l = await api.createLayout(id.trim())
+      const l = await api.createLayout(r.value.trim(), r.choice)
       await store.refreshTemplates()
       await pick(l.id, 'layout')
     } catch (e) { store.notify(e.message, 'error') }
@@ -66,30 +71,32 @@
       {#each groups as [group, items]}
         {#each items as t}
           <button class="item" class:cur={store.kind === 'template' && store.doc?.id === t.id} onclick={() => pick(t.id, 'template')}>
+            <span class="fmt" class:pdf={t.format === 'pdf'}><Icon name={t.format === 'pdf' ? 'pdf' : 'email'} size={14} label={t.format === 'pdf' ? 'PDF document' : 'Email'} /></span>
             <span class="muted">{group === '—' ? '' : `${group}/`}</span>{t.name}
             <span class="langs">{t.langs.join(' · ')}</span>
           </button>
         {/each}
       {/each}
-      <button class="item add" onclick={() => { open = false; onnew?.() }}>＋ New template</button>
+      <button class="item add" onclick={() => { open = false; onnew?.() }}><Icon name="plus" size={13} /> New template</button>
 
       <div class="head">Components</div>
       {#each comps as c}
         <button class="item" class:cur={store.kind === 'component' && store.doc?.id === c.id} onclick={() => pick(c.id, 'component')}>
-          <span class="diamond">◆</span>{c.name}
+          <span class="diamond"><Icon name="component" size={10} /></span>{c.name}
           <span class="langs">{c.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newComponent}>＋ New component</button>
+      <button class="item add" onclick={newComponent}><Icon name="plus" size={13} /> New component</button>
 
       <div class="head">Layouts</div>
       {#each lays as l}
         <button class="item" class:cur={store.kind === 'layout' && store.doc?.id === l.id} onclick={() => pick(l.id, 'layout')}>
-          <span class="lay">⧉</span>{l.name}
+          <span class="lay"><Icon name="layout" size={13} /></span>{l.name}
+          {#if l.format}<span class="fmt small" class:pdf={l.format === 'pdf'}><Icon name={l.format === 'pdf' ? 'pdf' : 'email'} size={12} label={l.format === 'pdf' ? 'PDF layout' : 'Email layout'} /></span>{/if}
           <span class="langs">{l.usedBy.length} use(s)</span>
         </button>
       {/each}
-      <button class="item add" onclick={newLayout}>＋ New layout</button>
+      <button class="item add" onclick={newLayout}><Icon name="plus" size={13} /> New layout</button>
     </div>
   </div>
 {/if}
@@ -111,4 +118,7 @@
   .langs { margin-left: auto; font-size: 11px; color: var(--muted); font-family: var(--mono); }
   .diamond { color: #7c3aed; margin-right: 6px; font-size: 11px; }
   .lay { color: #b45309; margin-right: 6px; font-size: 12px; }
+  .fmt { display: inline-grid; color: #2563eb; margin-right: 7px; }
+  .fmt.pdf { color: #dc2626; }
+  .fmt.small { margin: 0 0 0 6px; }
 </style>

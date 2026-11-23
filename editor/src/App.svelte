@@ -1,9 +1,13 @@
 <script>
+  import Icon from './components/Icon.svelte'
+  import StatusIcon from './components/StatusIcon.svelte'
+  import Checkbox from './components/Checkbox.svelte'
   import { onMount } from 'svelte'
   import Topbar from './views/Topbar.svelte'
   import Sidebar from './views/Sidebar.svelte'
   import Canvas from './views/Canvas.svelte'
   import Inspector from './views/Inspector.svelte'
+  import LibraryPanel from './views/LibraryPanel.svelte'
   import CodeView from './views/CodeView.svelte'
   import PdfView from './views/PdfView.svelte'
   import CompareView from './views/CompareView.svelte'
@@ -61,6 +65,7 @@
     ...(store.preview.warnings || []).map(m => ({ level: 'warn', m })),
     ...store.missing.map(x => ({ level: 'warn', m: `Missing $t('${x.key}') in ${x.lang}` })),
   ])
+  const issueErrors = $derived(issues.filter(i => i.level === 'error').length)
 
   function isTyping(e) {
     const t = e.target
@@ -101,9 +106,9 @@
       <div class="subject">
         <span class="label">{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : store.isPdf ? 'Title' : 'Subject'}</span>
         {#if store.isComponent}
-          <span class="rendered muted">◆ {store.doc.name} — preview with the layout &lt;mj-head&gt;</span>
+          <span class="rendered muted"><Icon name="component" size={12} /> {store.doc.name} — preview with the layout &lt;mj-head&gt;</span>
         {:else if store.isLayout}
-          <span class="rendered muted">⧉ {store.doc.id} — the dashed slot is <code>$content</code>, where each template goes</span>
+          <span class="rendered muted"><Icon name="layout" size={13} /> {store.doc.id} — the dashed slot is <code>$content</code>, where each template goes</span>
         {:else if store.view === 'design'}
           <input
             value={store.i18n.subject?.[store.lang] ?? ''}
@@ -118,7 +123,7 @@
         {#if store.attachments.length && store.preview.attachments?.length}
           <ul class="attachments" aria-label="Attachments">
             {#each store.preview.attachments as a (a.index)}
-              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}>📎 {a.filename}</button></li>
+              <li><button class="ghost chip" onclick={() => store.openAttachment(a.index)} title={a.type === 'url' ? a.url : `${a.template} (${a.locale}) rendered with the demo data`}><Icon name="paperclip" size={14} /> {a.filename}</button></li>
             {/each}
           </ul>
         {/if}
@@ -127,12 +132,16 @@
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
           <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Accessibility report (WCAG 2.1 AA)">
-            ♿ {fails ? `${fails} ✕` : warns ? `${warns} ⚠` : '✓'}
+            <StatusIcon mark="a11y" status={fails ? 'fail' : warns ? 'warn' : 'pass'} size={22} label={fails ? `Accessibility: ${fails} failing` : warns ? `Accessibility: ${warns} warnings` : 'Accessibility: passes'} />
+            {#if fails}{fails}{:else if warns}{warns}{/if}
           </button>
         {/if}
         <div class="issues-wrap">
-          <button class="ghost issues" class:has={issues.length} onclick={() => (showIssues = !showIssues)}>
-            {issues.length ? `⚠ ${issues.length}` : '✓'}
+          <button class="ghost issues" class:has={issues.length} class:bad={issueErrors} aria-expanded={showIssues && !!issues.length}
+            onclick={() => (showIssues = !showIssues)} title="MJML compilation: errors, warnings and missing translations">
+            <StatusIcon mark="mjml" size={22} status={issueErrors ? 'fail' : issues.length ? 'warn' : 'pass'}
+              label={issues.length ? `MJML: ${issues.length} issue(s)` : 'MJML: compiles without issues'} />
+            {#if issues.length}{issues.length}{/if}
           </button>
           {#if showIssues && issues.length}
             <ul class="issue-list">
@@ -140,10 +149,10 @@
             </ul>
           {/if}
         </div>
-        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        <button class="ghost tab-btn" onclick={() => store.openPreviewTab()} title="Open the preview in a new tab (a URL you can reload and share)" aria-label="Open the preview in a new tab">
+          <Icon name="eye" size={15} /><span>Preview</span><Icon name="external" size={11} />
         </button>
-        {#if !store.isPdf}<label class="text-toggle">text <input type="checkbox" bind:checked={showText} /></label>{/if}
+        {#if !store.isPdf}<Checkbox class="text-toggle" bind:checked={showText}>text</Checkbox>{/if}
       </div>
     {/if}
 
@@ -163,7 +172,7 @@
         <CompareView />
       {:else}
         {@const report = store.view === 'preview' || store.view === 'pdf'}
-        <div class="layout" class:with-inspector={(store.view === 'design' && store.selected && !showText) || report}>
+        <div class="layout" class:with-inspector={(store.view === 'design' && !showText) || report}>
           <Sidebar />
           <div class="center">
             {#if store.view === 'pdf'}
@@ -176,8 +185,9 @@
           </div>
           {#if report}
             <A11yReport />
-          {:else if store.view === 'design' && store.selected && !showText}
-            <Inspector />
+          {:else if store.view === 'design' && !showText}
+            <!-- always there in Design: the selection's inspector, or the blocks and components to add -->
+            {#if store.selected}<Inspector />{:else}<LibraryPanel />{/if}
           {/if}
         </div>
       {/if}
@@ -194,7 +204,7 @@
   main { flex: 1; min-height: 0; }
   .layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; min-height: 0; }
   .layout.with-inspector { grid-template-columns: 400px minmax(0, 1fr) 340px; }
-  .a11y { font-size: 12px; padding: 2px 8px; color: var(--ok); font-weight: 600; }
+  .a11y { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 6px; color: var(--ok); font-weight: 600; }
   .a11y.warn { color: var(--warn); }
   .a11y.bad { color: var(--danger); }
   .center { min-width: 0; min-height: 0; overflow: auto; background: #f4f4f5; }
@@ -209,14 +219,15 @@
   .attachments .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .subject .rendered { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grow { flex: 1; }
-  .tab-btn { padding: 3px 6px; color: #52525b; display: grid; place-content: center; }
-  .text-toggle { display: flex; align-items: center; gap: 6px; color: #3f3f46; cursor: pointer; }
-  .text-toggle input { width: 15px; height: 15px; margin: 0; }
+  .tab-btn { padding: 3px 8px; color: #3f3f46; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+  .tab-btn :global(.icon:last-child) { color: #71717a; }
+  .subject :global(.text-toggle) { color: #3f3f46; }
   .spinner { width: 12px; height: 12px; flex: none; border: 2px solid #c7d2fe; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .issues-wrap { position: relative; }
-  .issues { font-size: 12px; padding: 2px 8px; color: var(--ok); }
+  .issues-wrap { position: relative; display: flex; align-items: center; }
+  .issues { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 1px 6px; color: var(--ok); }
   .issues.has { color: var(--warn); }
+  .issues.bad { color: var(--danger); }
   .issue-list {
     position: absolute; right: 0; top: 30px; margin: 0; padding: 8px 12px; list-style: none; z-index: 20;
     background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12);

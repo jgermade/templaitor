@@ -1,4 +1,6 @@
 <script>
+  import Icon from '../components/Icon.svelte'
+  import Choice from '../components/Choice.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -31,7 +33,13 @@
 {#if store.doc}
   <div class="wrap">
     {#if lay}
-      <p class="muted">Templates use it with <code>layout: {lay.id}</code> in their frontmatter; their content goes into <code>$content</code>.</p>
+      <div class="field">
+        <span>Format</span>
+        <Choice label="Layout format" size="sm" value={store.frontmatter.format === 'pdf' ? 'pdf' : 'email'}
+          onchange={(v) => store.setFrontmatter(['format'], v)} options={[{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]} />
+      </div>
+      <p class="muted">Offered to {store.frontmatter.format === 'pdf' ? 'PDF documents' : 'emails'}.
+Templates use it with <code>layout: {lay.id}</code> in their frontmatter; their content goes into <code>$content</code>.</p>
       <div class="field"><span>Used by</span>
         {#each lay.usedBy as u}
           <button class="ghost uselink mono" onclick={() => store.open(u.id)}>@ {u.id}</button>
@@ -40,16 +48,14 @@
     {:else if comp}
       <p class="muted">Inserted with <code>$import({comp.importPath})</code>. Its texts live in <code>{comp.name}.yml</code>; a template can override any key in its own <code>.yml</code>.</p>
       <div class="field"><span>Used by</span>
-        {#each comp.usedBy as u}<div class="mono">{u.kind === 'layout' ? '⧉' : '@'} {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
+        {#each comp.usedBy as u}<div class="mono"><Icon name={u.kind === 'layout' ? 'layout' : 'template'} size={12} /> {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
       </div>
     {:else}
-      <label class="field">
+      <div class="field">
         <span>Format</span>
-        <select value={store.isPdf ? 'pdf' : 'email'} onchange={(e) => store.setFormat(e.currentTarget.value)}>
-          <option value="email">Email</option>
-          <option value="pdf">PDF document</option>
-        </select>
-      </label>
+        <Choice label="Format" size="sm" value={store.isPdf ? 'pdf' : 'email'} onchange={(v) => store.setFormat(v)}
+          options={[{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]} />
+      </div>
       {#if store.isPdf}
         <div class="pdfgrid">
           <label class="field"><span>Size</span>
@@ -57,12 +63,10 @@
               {#each ['A4', 'A5', 'A3', 'Letter', 'Legal'] as s}<option value={s}>{s}</option>{/each}
             </select>
           </label>
-          <label class="field"><span>Orientation</span>
-            <select value={store.pdfSettings.orientation || 'portrait'} onchange={(e) => store.setFrontmatter(['pdf', 'orientation'], e.currentTarget.value)}>
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
-            </select>
-          </label>
+          <div class="field"><span>Orientation</span>
+            <Choice label="Orientation" size="sm" value={store.pdfSettings.orientation || 'portrait'} onchange={(v) => store.setFrontmatter(['pdf', 'orientation'], v)}
+              options={[{ value: 'portrait', label: 'Portrait', icon: 'portrait' }, { value: 'landscape', label: 'Landscape', icon: 'landscape' }]} />
+          </div>
           <label class="field"><span>Margins</span>
             <input class="mono" value={typeof store.pdfSettings.margin === 'object' ? '' : store.pdfSettings.margin ?? ''} placeholder="15mm" oninput={(e) => store.setFrontmatter(['pdf', 'margin'], e.currentTarget.value)} />
           </label>
@@ -80,10 +84,13 @@
         <div class="layrow">
           <select value={store.frontmatter.layout || ''} onchange={(e) => store.setLayout(e.currentTarget.value)} disabled={!store.isFragment}>
             {#if !store.isFragment}<option value="">— full MJML document —</option>{/if}
-            {#each store.layouts as l}<option value={l.id}>{l.id}</option>{/each}
+            {#each store.layoutsFor(store.isPdf ? 'pdf' : 'email') as l}<option value={l.id}>{l.id}</option>{/each}
+            {#if store.frontmatter.layout && !store.layoutsFor(store.isPdf ? 'pdf' : 'email').some(l => l.id === store.frontmatter.layout)}
+              <option value={store.frontmatter.layout}>{store.frontmatter.layout} (not {store.isPdf ? 'a PDF' : 'an email'} layout)</option>
+            {/if}
           </select>
           {#if store.frontmatter.layout}
-            <button title="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}>✎</button>
+            <button title="Edit layout" aria-label="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}><Icon name="pencil" size={13} /></button>
           {/if}
         </div>
       </label>
@@ -92,8 +99,8 @@
           {#each store.attachments as a, i (i)}
             <div class="att">
               <div class="atthead">
-                <span>📎 {a.type === 'url' ? 'Remote file' : a.type === 'template' ? 'Local PDF' : 'Invalid entry'}</span>
-                <button class="ghost" aria-label={`Remove attachment ${i + 1}`} title="Remove" onclick={() => store.removeAttachment(i)}>✕</button>
+                <span><Icon name="paperclip" size={13} /> {a.type === 'url' ? 'Remote file' : a.type === 'template' ? 'Local PDF' : 'Invalid entry'}</span>
+                <button class="ghost" aria-label={`Remove attachment ${i + 1}`} title="Remove" onclick={() => store.removeAttachment(i)}><Icon name="x" size={13} /></button>
               </div>
               {#if a.type === 'url'}
                 <label class="field"><span>URL</span>
@@ -120,8 +127,8 @@
             </div>
           {:else}<div class="muted">No attachments</div>{/each}
           <div class="attadd">
-            <button onclick={() => store.addAttachment({ template: pdfTemplates[0].id })} disabled={!pdfTemplates.length} title={pdfTemplates.length ? 'Attach a PDF template of this project' : 'There are no PDF templates'}>+ Local PDF</button>
-            <button onclick={() => store.addAttachment({ url: 'https://' })}>+ Remote file</button>
+            <button onclick={() => store.addAttachment({ template: pdfTemplates[0].id })} disabled={!pdfTemplates.length} title={pdfTemplates.length ? 'Attach a PDF template of this project' : 'There are no PDF templates'}><Icon name="plus" size={13} /> Local PDF</button>
+            <button onclick={() => store.addAttachment({ url: 'https://' })}><Icon name="plus" size={13} /> Remote file</button>
           </div>
           <p class="muted tip">Local PDFs are rendered in the email's language. <code>$lang</code>, <code>$t()</code> and <code>{'{{ }}'}</code> work in URLs and file names.</p>
         </div>
@@ -136,7 +143,7 @@
 
     <ul class="help muted">
       <li>Click a block to select it; type directly into texts and buttons.</li>
-      <li>Double-click a component (◆) to edit it.</li>
+      <li>Double-click a component (<Icon name="component" size={9} label="component" />) to edit it.</li>
       <li><code>{'{{ variable }}'}</code> creates a Jinja2 variable.</li>
       <li><kbd>Del</kbd> deletes · <kbd>Ctrl+Z</kbd> undoes · <kbd>Ctrl+S</kbd> saves.</li>
     </ul>

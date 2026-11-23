@@ -16,7 +16,8 @@ export function bridgeMain() {
     .tpl-design [data-tpl-edit] { cursor: text; border-radius: 2px; min-height: 1em; }
     .tpl-design [data-tpl-edit][contenteditable="true"] { outline: 2px solid #f59e0b; outline-offset: 2px; background: rgba(245,158,11,.06); }
     .tpl-design [data-tpl-edit]:empty::before { content: 'Type here…'; opacity: .45; font-style: italic; }
-    .tpl-design [data-tpl-missing]:empty::before { content: '⚠ Missing translation'; color: #dc2626; opacity: 1; }
+    .tpl-design [data-tpl-missing]:empty::before { content: 'Missing translation'; color: #dc2626; opacity: 1; padding-left: 1.3em;
+      background: no-repeat left center / 1em 1em url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23dc2626' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E"); }
     .tpl-chip { display: inline-block; padding: 0 .45em; margin: 0 1px; border-radius: 999px; border: 1px solid #c7d2fe;
       background: #eef2ff; color: #4338ca !important; font: 600 .82em/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
       white-space: nowrap; vertical-align: baseline; user-select: all; text-decoration: none; text-transform: none; }
@@ -25,20 +26,37 @@ export function bridgeMain() {
     .tpl-chip--t { background: #e0f2fe; border-color: #7dd3fc; color: #075985 !important; }
     .tpl-chip--cmd { background: #f3f4f6; border-color: #d1d5db; color: #374151 !important; }
     .tpl-chip--param { background: #f5f3ff; border-color: #c4b5fd; color: #6d28d9 !important; }
-    .tpl-chip--param::before { content: '⚙ '; opacity: .6; }
+    .tpl-chip--param::before { content: ''; display: inline-block; width: .95em; height: .95em; margin-right: .3em; vertical-align: -.12em; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1'/%3E%3C/svg%3E") center / contain no-repeat; opacity: .7; }
     .tpl-chip--param { font-family: inherit; font-weight: 600; font-size: .92em; }
     .tpl-chip--var::before { content: '{ '; opacity: .5 } .tpl-chip--var::after { content: ' }'; opacity: .5 }
-    .tpl-chip--link::before { content: '🔗 '; } .tpl-chip--t::before { content: '🌐 '; }
+    .tpl-chip--link::before { content: ''; display: inline-block; width: .95em; height: .95em; margin-right: .3em; vertical-align: -.12em; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/%3E%3C/svg%3E") center / contain no-repeat; }
+    .tpl-chip--t::before { content: ''; display: inline-block; width: .95em; height: .95em; margin-right: .3em; vertical-align: -.12em; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z'/%3E%3C/svg%3E") center / contain no-repeat; }
     .tpl-page-break { position: relative; height: 0; border-top: 2px dashed #a1a1aa; margin: 22px 0; }
     .tpl-page-break::after { content: 'Page break'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
       background: #fff; color: #71717a; font: 600 10px/16px system-ui, sans-serif; padding: 0 8px; border-radius: 8px; border: 1px solid #d4d4d8; }
-    #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
-      font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; }
+    .tpl-badge-main, .tpl-badge-logic { padding: 0 6px; border-radius: 3px 3px 0 0; }
+    #tpl-badge.inside > span { border-radius: 0 0 3px 3px; }
+    .tpl-logic-float { position: absolute; z-index: 99990; pointer-events: none; display: flex; transform: translateY(-100%); }
+    .tpl-logic-float.inside { transform: none; }
+    .tpl-logic-float.inside > span { border-radius: 0 0 3px 3px; }
+    .tpl-logic-float > .tpl-badge-logic:first-child { margin-left: 0; }
+    .tpl-badge-logic svg { margin-right: 4px; vertical-align: -1px; }
+    .tpl-badge-logic { margin-left: 2px; font: 600 10px/16px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tpl-badge-logic--if { background: #fef3c7; color: #92400e; }
+    .tpl-badge-logic--for { background: #e0f2fe; color: #075985; }
+    #tpl-drop { position: absolute; z-index: 99998; pointer-events: none; display: none; border-radius: 3px; }
+    #tpl-drop.line { height: 0; border-top: 3px solid #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, .18); }
+    #tpl-drop.inside { border: 2px dashed #7c3aed; background: rgba(124, 58, 237, .06); }
+    #tpl-drop span { position: absolute; left: 0; top: -20px; background: #7c3aed; color: #fff; font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
+    #tpl-drop.inside span { top: 2px; left: 2px; }
+    #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; color: #fff;
+      font: 600 10px/16px system-ui, sans-serif; transform: translateY(-100%); display: none; white-space: nowrap; }
   `
 
   let mode = 'design'
   let selectedId = null
   let selectedLabel = ''
+  let selectedTags = [] // display logic of the selection: [{ kind: 'if' | 'for', text }]
   let editing = null
   let savedRange = null
   let pending = null
@@ -70,6 +88,7 @@ export function bridgeMain() {
   }
 
   function applySelection(scroll) {
+    drawLogic()
     document.querySelectorAll('.tpl-selected').forEach(e => e.classList.remove('tpl-selected'))
     const badge = document.getElementById('tpl-badge')
     const els = mode === 'design' ? elsOf(selectedId) : []
@@ -85,16 +104,58 @@ export function bridgeMain() {
     const el = elOf(selectedId)
     if (!badge || !el || !selectedLabel) { if (badge) badge.style.display = 'none'; return }
     const r = el.getBoundingClientRect()
-    badge.textContent = selectedLabel
-    badge.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
-    badge.style.display = 'block'
+    // label tab, then one tab per display logic (if / for each), side by side
+    badge.textContent = ''
+    const main = document.createElement('span')
+    main.className = 'tpl-badge-main'
+    main.textContent = selectedLabel
+    main.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
+    badge.appendChild(main)
+    for (const t of selectedTags) badge.appendChild(logicTab(t))
+    badge.style.display = 'flex'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
     // if it does not fit above (block at the very top), draw it inside
     const inside = r.top < 18
     badge.style.transform = inside ? 'none' : 'translateY(-100%)'
-    badge.style.borderRadius = inside ? '0 0 3px 0' : '3px 3px 0 0'
+    badge.classList.toggle('inside', inside) // tabs hang down instead of up
   }
+
+  const REPEAT_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8H16"/></svg>' // ↻
+
+  /** A logic tab: "? condition" or "↻ item in items" (the repeat sign is an SVG) */
+  function logicTab(t) {
+    const span = document.createElement('span')
+    span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
+    if (t.kind === 'for') span.innerHTML = REPEAT_SVG
+    span.appendChild(document.createTextNode(t.text))
+    if (t.label) span.title = t.label
+    return span
+  }
+
+  // ── Display logic: floating tabs over the blocks that have it ─────────
+  // (where the selection badge goes, without taking space in the layout; the selected block shows its
+  // logic in the badge instead)
+  let logicItems = [] // [{ id, tags: [{ kind, text }] }]
+
+  function drawLogic() {
+    document.querySelectorAll('.tpl-logic-float').forEach(e => e.remove())
+    if (mode !== 'design') return
+    for (const { id, tags } of logicItems) {
+      if (String(id) === String(selectedId) || !tags.length) continue
+      const el = elOf(id)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      const box = document.createElement('div')
+      box.className = `tpl-logic-float${r.top + scrollY < 18 ? ' inside' : ''}`
+      box.style.left = `${r.left + scrollX}px`
+      box.style.top = `${r.top + scrollY}px`
+      for (const t of tags) box.appendChild(logicTab(t))
+      document.body.appendChild(box)
+    }
+  }
+  // images loading or fonts changing move the blocks
+  new ResizeObserver(() => { drawLogic(); positionBadge() }).observe(document.documentElement)
 
   // ── Editable region serialization → source code ─────────
   const INLINE = /^(B|STRONG|I|EM|U|S|SMALL|SUP|SUB|CODE|SPAN|A)$/
@@ -168,13 +229,78 @@ export function bridgeMain() {
     scrollTo(0, y)
   }
 
+  // ── Dropping a component dragged from the editor panel ────────
+  let dropTargets = null // { [nodeId]: { before, after, inside } } while a component is dragged
+  let dropLabel = ''
+  let dropAt = null
+
+  function dropIndicator() {
+    let d = document.getElementById('tpl-drop')
+    if (!d) {
+      d = document.createElement('div')
+      d.id = 'tpl-drop'
+      d.appendChild(document.createElement('span'))
+      document.body.appendChild(d)
+    }
+    return d
+  }
+
+  /** Closest node under the pointer that accepts the component, and where (before · after · inside) */
+  function dropTargetAt(target, y) {
+    for (let el = nodeEl(target); el; el = nodeEl(el.parentElement)) {
+      const id = idOf(el)
+      const t = dropTargets?.[id]
+      if (!t) continue
+      const r = el.getBoundingClientRect()
+      const f = (y - r.top) / Math.max(r.height, 1)
+      const where = t.inside && (f > 0.25 && f < 0.75 || (!t.before && !t.after)) ? 'inside'
+        : f < 0.5 ? (t.before ? 'before' : t.after ? 'after' : null) : (t.after ? 'after' : t.before ? 'before' : null)
+      if (where) return { id, where, el }
+    }
+    return null
+  }
+
+  function showDrop(at) {
+    const d = dropIndicator()
+    if (!at) { d.style.display = 'none'; return }
+    const r = at.el.getBoundingClientRect()
+    d.className = at.where === 'inside' ? 'inside' : 'line'
+    d.style.display = 'block'
+    d.style.left = `${r.left + scrollX}px`
+    d.style.width = `${r.width}px`
+    d.style.top = `${(at.where === 'after' ? r.bottom : r.top) + scrollY - (at.where === 'inside' ? 0 : 1)}px`
+    d.style.height = at.where === 'inside' ? `${r.height}px` : '0'
+    d.firstChild.textContent = `${dropLabel} · ${at.where === 'inside' ? 'inside' : at.where}`
+  }
+
+  document.addEventListener('dragover', (e) => {
+    if (!dropTargets || mode !== 'design') return
+    dropAt = dropTargetAt(e.target, e.clientY)
+    showDrop(dropAt)
+    if (!dropAt) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  })
+  document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) showDrop(null) })
+  document.addEventListener('drop', (e) => {
+    if (!dropTargets) return
+    e.preventDefault()
+    const at = dropAt ?? dropTargetAt(e.target, e.clientY)
+    showDrop(null)
+    if (at) post({ type: 'drop', id: at.id, where: at.where })
+  })
+
   addEventListener('message', (e) => {
     const msg = e.data
     if (!msg?.__tpl) return
+    if (msg.type === 'logic') { logicItems = msg.items || []; drawLogic() }
+    if (msg.type === 'dragtargets') { dropTargets = msg.targets; dropLabel = msg.label || 'Component' }
+    if (msg.type === 'dragend') { dropTargets = null; dropAt = null; showDrop(null) }
     if (msg.type === 'update') { mode = msg.mode; applyUpdate(msg) }
     if (msg.type === 'select') {
       selectedId = msg.id
       selectedLabel = msg.label || ''
+      selectedTags = msg.tags || []
       applySelection(msg.scroll)
     }
     if (msg.type === 'insert' && editing) {
@@ -256,7 +382,7 @@ export function bridgeMain() {
     if (e.key === 'Escape') post({ type: 'select', id: null })
   })
 
-  addEventListener('resize', positionBadge)
+  addEventListener('resize', () => { positionBadge(); drawLogic() })
   ensureChrome()
   post({ type: 'ready' })
 }

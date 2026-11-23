@@ -1,4 +1,6 @@
 <script>
+  import Checkbox from '../components/Checkbox.svelte'
+  import Icon from '../components/Icon.svelte'
   // Hosted service: sign in (email code or passkey) and first organization.
   import { session, svc } from '../lib/service.svelte.js'
   import logo from '../../../assets/brand/logo.svg'
@@ -70,7 +72,7 @@
       </form>
       {#if passkeysSupported}
         <div class="or" aria-hidden="true">or</div>
-        <button class="wide" onclick={passkey} disabled={busy}>🔑 Sign in with a passkey</button>
+        <button class="wide" onclick={passkey} disabled={busy}><Icon name="key" size={15} /> Sign in with a passkey</button>
       {/if}
       {#if session.signup === 'invite'}<p class="muted small">Only invited emails can sign in.</p>{/if}
     {:else if step === 'code'}
@@ -83,7 +85,7 @@
         </label>
         <button class="primary wide" disabled={busy}>Sign in</button>
       </form>
-      <button class="ghost wide" onclick={() => { step = 'email'; code = ''; error = '' }}>← Use another email</button>
+      <button class="ghost wide" onclick={() => { step = 'email'; code = ''; error = '' }}><Icon name="arrow-left" size={14} /> Use another email</button>
     {:else}
       <h1>Create your organization</h1>
       <p class="muted">Signed in as {session.user?.email}. Organizations hold templates, members, the SMTP and the API keys.</p>
@@ -93,8 +95,8 @@
         </label>
         <fieldset class="field">
           <legend>Start with</legend>
-          <label class="radio"><input type="radio" bind:group={starter} value="blank" /> A blank project (one layout and one template)</label>
-          <label class="radio"><input type="radio" bind:group={starter} value="demo" /> The demo project (emails, components and a PDF invoice)</label>
+          <Checkbox type="radio" bind:group={starter} value="blank" class="radio">A blank project (one layout and one template)</Checkbox>
+          <Checkbox type="radio" bind:group={starter} value="demo" class="radio">The demo project (emails, components and a PDF invoice)</Checkbox>
         </fieldset>
         <button class="primary wide" disabled={busy}>Create organization</button>
       </form>
@@ -115,7 +117,7 @@
   .field input { padding: 8px; font-size: 14px; }
   .field > span, legend { font-size: 12px; color: #52525b; }
   fieldset { border: 0; padding: 0; margin: 0 0 8px; }
-  .radio { display: flex; gap: 6px; align-items: baseline; margin: 6px 0; font-size: 13px; }
+  :global(.cb.radio) { display: flex; margin: 6px 0; font-size: 13px; }
   .code { font-family: var(--mono); font-size: 22px !important; letter-spacing: 6px; text-align: center; }
   .or { text-align: center; color: #52525b; margin: 12px 0 8px; font-size: 12px; }
   .error { color: #b91c1c; margin: 12px 0 0; }

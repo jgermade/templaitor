@@ -15,7 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 import JSON5 from 'json5'
-import { resolveImports, resolveImportPath, parseFrontmatter } from './resolver.js'
+import { resolveImports, resolveImportPath, parseFrontmatter, readLayoutFile, layoutFormat } from './resolver.js'
 import { findImportCalls, normalizeParams } from '../shared/imports.js'
 
 export const DEFAULT_LOCALES = {
@@ -60,7 +60,8 @@ export function loadProject(cwd = process.cwd(), overrides = {}) {
   }
   // layout whose <mj-head> is used to preview standalone components
   const layouts = listMjmlFiles(p.layoutsDir)
-  const previewLayout = config.previewLayout ?? layouts[0]
+  const previewLayout = config.previewLayout
+    ?? layouts.find(f => layoutFormat(readLayoutFile(path.join(p.layoutsDir, f)).meta) !== 'pdf') ?? layouts[0]
   p.previewLayoutFile = previewLayout ? path.resolve(p.layoutsDir, previewLayout) : null
   return p
 }
@@ -218,7 +219,7 @@ function layoutNeeds(project, layout) {
   const file = path.resolve(project.layoutsDir, layout)
   if (!fs.existsSync(file)) return { vars: [], keys: [] }
   const imported = []
-  let src = resolveImports(fs.readFileSync(file, 'utf8'), project.templatesDir, { onImport: f => imported.push(f) })
+  let src = resolveImports(readLayoutFile(file).body, project.templatesDir, { onImport: f => imported.push(f) })
   const provided = new Set(Object.values(importedMessages(imported)).flatMap(m => Object.keys(m)))
   const links = readLinks(project)
   for (const m of src.matchAll(/\$link\{\s*([\w.-]+)/g)) src += ` ${links[m[1]] ?? ''}`
@@ -297,6 +298,7 @@ export function listLayouts(project) {
     kind: 'layout',
     id: file,
     name: file.replace(/\.mjml$/, ''),
+    format: layoutFormat(readLayoutFile(path.join(project.layoutsDir, file)).meta), // email · pdf · null
     usedBy: templates.filter(t => t.layout === file).map(t => ({ kind: 'template', id: t.id })),
   }))
 }
@@ -328,12 +330,17 @@ export function writeLayout(project, id, { mjml }) {
   return readLayout(project, id)
 }
 
-export function createLayout(project, id) {
+export function createLayout(project, id, { format = 'email' } = {}) {
   const name = String(id || '').trim().replace(/\.mjml$/, '')
   const file = layoutFile(project, `${name}.mjml`)
   if (fs.existsSync(file)) throw httpError(409, `Layout ${name}.mjml already exists`)
   fs.mkdirSync(project.layoutsDir, { recursive: true })
+  const pdf = format === 'pdf'
   fs.writeFileSync(file, [
+    '---',
+    `format: ${pdf ? 'pdf' : 'email'}   # the templates it is offered to (email · pdf)`,
+    '---',
+    '',
     '<mjml lang="$lang">',
     '  <mj-head>',
     '    <mj-attributes>',
@@ -341,7 +348,7 @@ export function createLayout(project, id) {
     '      <mj-text font-size="14px" line-height="1.6" color="#333333" />',
     '    </mj-attributes>',
     '  </mj-head>',
-    '  <mj-body background-color="#f4f4f5">',
+    `  <mj-body background-color="${pdf ? '#ffffff' : '#f4f4f5'}">`,
     '    $content',
     '  </mj-body>',
     '</mjml>',
@@ -434,8 +441,9 @@ function sanitizeId(id) {
   return clean
 }
 
-export function httpError(status, message) {
+export function httpError(status, message, extra = {}) {
   const err = new Error(message)
   err.status = status
+  Object.assign(err, extra)
   return err
 }

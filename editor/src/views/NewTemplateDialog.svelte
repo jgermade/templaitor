@@ -1,6 +1,9 @@
 <script>
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import Choice from '../components/Choice.svelte'
+
+  const FORMATS = [{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]
 
   let { open = $bindable(false) } = $props()
   let dialog = $state()
@@ -11,7 +14,7 @@
 
   $effect(() => {
     if (!dialog) return
-    if (open && !dialog.open) { error = ''; format = 'email'; layout = store.project?.layouts?.[0] || ''; dialog.showModal() }
+    if (open && !dialog.open) { error = ''; format = 'email'; layout = store.layoutsFor('email')[0]?.id || ''; dialog.showModal() }
     if (!open && dialog.open) dialog.close()
   })
 
@@ -37,21 +40,17 @@
       <span>Id (folder/name)</span>
       <input class="mono" placeholder="customers/welcome" bind:value={id} required pattern="[\w.\-]+(/[\w.\-]+)*" />
     </label>
-    <label class="field">
+    <div class="field">
       <span>Format</span>
-      <select bind:value={format} onchange={() => {
-        // suggests a layout matching the format (document layouts are usually called document*)
-        const ls = store.project?.layouts || []
-        layout = (format === 'pdf' ? ls.find(l => /document|pdf/i.test(l)) : ls.find(l => !/document|pdf/i.test(l))) || ls[0] || ''
-      }}>
-        <option value="email">Email</option>
-        <option value="pdf">PDF document</option>
-      </select>
-    </label>
+      <Choice label="Format" bind:value={format} options={FORMATS} onchange={() => {
+        // only the layouts of this format (`format:` in the layout's frontmatter)
+        if (!store.layoutsFor(format).some(l => l.id === layout)) layout = store.layoutsFor(format)[0]?.id || ''
+      }} />
+    </div>
     <label class="field">
       <span>Layout</span>
       <select bind:value={layout}>
-        {#each store.project?.layouts || [] as l}<option value={l}>{l}</option>{/each}
+        {#each store.layoutsFor(format) as l}<option value={l.id}>{l.id}</option>{/each}
         <option value="">None (full MJML document)</option>
       </select>
     </label>

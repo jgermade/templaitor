@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import Self from './OutlineNode.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { describe, NON_VISUAL } from '@shared/components.js'
@@ -13,6 +14,7 @@
   const slot = $derived(node.type === 'text' && node.value.trim() === '$content')
   const def = $derived(isEl ? describe(node.tag) : null)
   const hasKids = $derived(isEl && node.children.length > 0)
+  const logic = $derived(store.logicOf(node.id))
 
   const summary = $derived.by(() => {
     if (instance) return instance.comp ? `${instance.comp.usedBy.length} use(s)` : instance.ref
@@ -20,7 +22,7 @@
     if (node.type === 'comment') return `<!-- ${node.value} -->`
     if (node.content != null) {
       const key = store.keyOf(node)
-      const text = key ? store.messages[key] ?? `⚠ ${key}` : node.content
+      const text = key ? store.messages[key] ?? `(missing) ${key}` : node.content
       return String(text).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
     }
     if (node.tag === 'mj-image') return node.attrs.find(([k]) => k === 'src')?.[1]?.split('/').pop() || ''
@@ -28,17 +30,20 @@
   })
 
   function onDragOver(e) {
-    if (!drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`)) return
+    const item = drag.item
+    if (!item && (!drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`))) return
     const r = e.currentTarget.getBoundingClientRect()
     const y = (e.clientY - r.top) / r.height
-    const canInside = isEl && node.content == null && store.accepts(node.id, drag.tag)
+    // a new item from the library may land wrapped (block → column / section); a moved node as it is
+    const fits = (pid) => (item ? !!store.fitIn(item, pid) : store.accepts(pid, drag.tag))
+    const canInside = isEl && node.content == null && fits(node.id)
     let where = y < 0.3 ? 'before' : y > 0.7 ? 'after' : canInside ? 'inside' : y < 0.5 ? 'before' : 'after'
-    if (where !== 'inside' && !store.accepts(node.id.split('.').slice(0, -1).join('.'), drag.tag)) {
+    if (where !== 'inside' && !fits(node.id.split('.').slice(0, -1).join('.'))) {
       where = canInside ? 'inside' : null
     }
     if (!where) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = item ? 'copy' : 'move'
     dropWhere = where
   }
 
@@ -46,12 +51,15 @@
     e.preventDefault()
     const where = dropWhere
     dropWhere = null
-    if (where && drag.id) store.drop(drag.id, node.id, where)
+    if (where && drag.item) store.dropItem(drag.item, node.id, where)
+    else if (where && drag.id) store.drop(drag.id, node.id, where)
+    // the new block gets selected and the library (the drag source) unmounts: its dragend never comes
+    drag.item = null
     drag.id = null
   }
 </script>
 
-{#if !(isEl && NON_VISUAL.has(node.tag) && node.tag !== 'mjml')}
+{#if !(isEl && NON_VISUAL.has(node.tag) && node.tag !== 'mjml') && !store.logic.markers.has(node.id)}
   <div
     class="row drop-{dropWhere}"
     class:selected={store.selectedId === node.id}
@@ -62,7 +70,7 @@
     tabindex="-1"
     draggable={node.tag !== 'mjml' && node.tag !== 'mj-body'}
     ondblclick={() => instance?.comp && store.openComponent(instance.comp.id)}
-    ondragstart={(e) => { drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
+    ondragstart={(e) => { drag.item = null; drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
     ondragend={() => { drag.id = null; dropWhere = null }}
     ondragover={onDragOver}
     ondragleave={() => (dropWhere = null)}
@@ -71,17 +79,19 @@
     onkeydown={() => {}}
   >
     <button class="twisty ghost" class:hidden={!hasKids} onclick={(e) => { e.stopPropagation(); collapsed = !collapsed }} tabindex="-1">
-      {collapsed ? '▸' : '▾'}
+      <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={15} strokeWidth={2.6} />
     </button>
-    <span class="icon" class:comp={instance} class:slot>{isEl ? def.icon : instance ? '◆' : slot ? '⧉' : node.type === 'comment' ? '#' : '$'}</span>
+    <span class="icon" class:comp={instance} class:slot><Icon name={isEl ? def.icon : instance ? 'component' : slot ? 'layout' : node.type === 'comment' ? 'hash' : 'variable'} size={instance ? 10 : 13} /></span>
     <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
+    {#if logic.if}<span class="logic if" title={`Shown only if ${logic.if}`}>? {logic.if}</span>{/if}
+    {#if logic.for}<span class="logic for" title={`Repeated for each ${logic.for.item} in ${logic.for.list}`}><Icon name="repeat" size={11} /> {logic.for.item} in {logic.for.list}</span>{/if}
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
       <span class="actions">
-        <button class="ghost" title="Move up" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}>↑</button>
-        <button class="ghost" title="Move down" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}>↓</button>
-        <button class="ghost" title="Duplicate" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}>⧉</button>
-        <button class="ghost danger" title="Delete" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}>✕</button>
+        <button class="ghost" title="Move up" aria-label="Move up" onclick={(e) => { e.stopPropagation(); store.move(node.id, -1) }}><Icon name="arrow-up" size={13} /></button>
+        <button class="ghost" title="Move down" aria-label="Move down" onclick={(e) => { e.stopPropagation(); store.move(node.id, 1) }}><Icon name="arrow-down" size={13} /></button>
+        <button class="ghost" title="Duplicate" aria-label="Duplicate" onclick={(e) => { e.stopPropagation(); store.duplicate(node.id) }}><Icon name="copy" size={13} /></button>
+        <button class="ghost danger" title="Delete" aria-label="Delete" onclick={(e) => { e.stopPropagation(); store.selectedId = node.id; store.removeSelected() }}><Icon name="trash" size={13} /></button>
       </span>
     {/if}
   </div>
@@ -102,8 +112,12 @@
   .row.drop-before { border-top-color: var(--accent); }
   .row.drop-after { border-bottom-color: var(--accent); }
   .row.drop-inside { background: #e0e7ff; outline: 1px dashed var(--accent); }
-  .twisty { width: 16px; padding: 0; font-size: 10px; color: var(--muted); }
+  .twisty { display: inline-grid; place-content: center; width: 18px; height: 18px; padding: 0; color: #3f3f46; border-radius: 4px; }
+  .twisty:hover { background: #e4e4e7; }
   .twisty.hidden { visibility: hidden; }
+  .logic { flex: none; display: inline-flex; align-items: center; gap: 3px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 10.5px/16px var(--mono); padding: 0 6px; border-radius: 999px; }
+  .logic.if { background: #fef3c7; color: #92400e; }
+  .logic.for { background: #e0f2fe; color: #075985; }
   .icon { width: 18px; text-align: center; font-size: 12px; color: var(--muted); flex: none; }
   .label { font-weight: 500; flex: none; }
   .muted .label { color: var(--muted); font-weight: 400; }

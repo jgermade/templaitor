@@ -15,7 +15,7 @@ import { listEngines, resolveEngine } from '../engine/pdf.js'
 import { verapdfRunner } from '../engine/verapdf.js'
 import { readLinks } from '../engine/project.js'
 import { renderJinja } from '../engine/render.js'
-import { documentHistory, documentAt } from '../engine/history.js'
+import { listVersions, readVersion, saveVersion, initVersions, resolveVersion } from '../engine/versions.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EDITOR_DIST = path.resolve(__dirname, '../../dist/editor')
@@ -62,11 +62,14 @@ export function createHandler(project) {
       mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
     }, { engine: body.engine }),
 
-    'POST /api/layouts': ({ body }) => createLayout(project, body.id),
+    'POST /api/layouts': ({ body }) => createLayout(project, body.id, { format: body.format === 'pdf' ? 'pdf' : 'email' }),
 
-    // compare mode: git history of a document and the document at a commit
-    'GET /api/history': ({ query }) => documentHistory(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
-    'GET /api/version': ({ query }) => documentAt(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
+    // versions of a document (git commits, or the database in the hosted service): list, read, save, init.
+    // `req.templaitorActor` (hosted service) is the signed-in user, recorded as the author.
+    'GET /api/versions': ({ query }) => listVersions(project, query.get('id'), docKind(query.get('kind')), { limit: query.get('limit') }),
+    'GET /api/version': ({ query }) => readVersion(project, query.get('id'), docKind(query.get('kind')), query.get('rev')),
+    'POST /api/versions': ({ body, req }) => saveVersion(project, body.id, docKind(body.kind), { message: body.message, author: req.templaitorActor }),
+    'POST /api/versions/init': ({ req }) => initVersions(project, { author: req.templaitorActor }),
 
     // `kind`: 'template' (default) | 'component' | 'layout'
     'GET /api/template': ({ query }) => (query.get('kind') === 'layout'
@@ -185,11 +188,15 @@ export function createHandler(project) {
         })
         return res.end(att.content)
       }
+      if (url.pathname.startsWith('/preview/') && req.method === 'GET') {
+        // shareable preview: the saved document (or a version) rendered with its demo data, at a real URL
+        return await previewPage(project, url, res)
+      }
       if (url.pathname.startsWith('/api/')) {
         const route = routes[`${req.method} ${url.pathname}`]
         if (!route) throw httpError(404, 'Route not found')
         const body = ['POST', 'PUT'].includes(req.method) ? await readJson(req) : null
-        return sendJson(res, await route({ query: url.searchParams, body }))
+        return sendJson(res, await route({ query: url.searchParams, body, req }))
       }
       if (url.pathname.startsWith('/static/')) {
         return serveFile(res, project.staticDir, url.pathname.slice('/static/'.length))
@@ -216,6 +223,48 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
 }
 
 // ── helpers ───────────────────────────────────────────────────
+
+/**
+ * GET /preview/<id>?lang=es|es-ES&kind=template|component|layout&version=v3
+ * The saved files (or a version) rendered with the demo data, as a normal page: it can be reloaded,
+ * bookmarked and shared with whoever can open the editor.
+ */
+async function previewPage(project, url, res) {
+  const q = url.searchParams
+  const kind = docKind(q.get('kind'))
+  const id = url.pathname.slice('/preview/'.length).split('/').map(decodeURIComponent).join('/').replace(/\/+$/, '')
+  try {
+    let doc = kind === 'layout' ? readLayout(project, id) : readTemplate(project, id, kindOf(kind))
+    let version = null
+    if (q.get('version')) {
+      const v = await resolveVersion(project, doc.id, kind, q.get('version'))
+      version = v.number ? `v${v.number}` : v.short
+      doc = { ...doc, mjml: v.mjml, ...(kind === 'layout' ? {} : { yml: v.yml ?? '', data: v.data ?? doc.data }) }
+    }
+    let langs = []
+    try { langs = Object.keys(YAML.parse(doc.yml || '')?.messages || {}) } catch {}
+    const want = String(q.get('lang') || '').toLowerCase()
+    const lang = langs.find(l => l.toLowerCase() === want)
+      ?? langs.find(l => String(project.locales[l] || '').toLowerCase() === want)
+      ?? langs.find(l => l.toLowerCase() === want.split(/[-_]/)[0])
+    if (want && !lang && langs.length) throw httpError(404, `Language not available: ${q.get('lang')} (available: ${langs.join(', ')})`)
+    const r = await previewDraft(project, { mjml: doc.mjml, yml: doc.yml, data: doc.data, langKey: lang, mode: 'preview', kind })
+    const title = `${r.subject || doc.name || id}${version ? ` · ${version}` : ''}`
+    // relative URLs (static images) resolve from the server root, as in the editor
+    const html = /<head(\s[^>]*)?>/i.test(r.html)
+      ? r.html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}<base href="/"><title>${escapeHtml(title)}</title>`)
+      : `<!doctype html><html><head><base href="/"><title>${escapeHtml(title)}</title></head><body>${r.html}</body></html>`
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(html)
+  } catch (err) {
+    if (!err.status) console.error(err)
+    res.writeHead(err.status || 500, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview not available</title></head>
+<body style="font: 15px/1.5 system-ui, sans-serif; margin: 40px; color: #18181b"><h1 style="font-size: 18px">Preview not available</h1><p>${escapeHtml(err.message)}</p></body></html>`)
+  }
+}
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
 function pdfInfo(project) {
   const engines = listEngines()

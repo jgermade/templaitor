@@ -1,4 +1,5 @@
 <script>
+  import Icon from '../components/Icon.svelte'
   import AttrField from '../components/AttrField.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { describe } from '@shared/components.js'
@@ -32,10 +33,39 @@
         else if (!Array.isArray(v)) out.push(name)
       }
     }
+    // the data contract defines the variables; without one, the demo data suggests them
+    if (store.hasContract) {
+      for (const [k, f] of Object.entries(store.contract)) {
+        if (f.type === 'object') for (const [k2, f2] of Object.entries(f.fields || {})) { if (f2.type !== 'list') out.push(`${k}.${k2}`) }
+        else if (f.type !== 'list') out.push(k)
+      }
+      return out
+    }
     walk(store.demoData, '', 0)
     return out
   })
   const links = $derived(Object.keys(store.project?.links || {}))
+
+  // Display: Jinja2 logic around the block ({% if %} / {% for %} markers, see @shared/logic.js)
+  const logic = $derived(store.logicOf(node?.id))
+  const canLogic = $derived(node != null && node.id !== '' && !['mjml', 'mj-body', 'mj-head'].includes(node.tag)
+    && store.accepts(String(node.id).split('.').slice(0, -1).join('.'), 'mj-raw'))
+  // lists of the demo data (up to 2 levels): candidates for "repeat for each"
+  const lists = $derived.by(() => {
+    const out = []
+    if (store.hasContract) {
+      for (const [k, f] of Object.entries(store.contract)) {
+        if (f.type === 'list') out.push(k)
+        if (f.type === 'object') for (const [k2, f2] of Object.entries(f.fields || {})) if (f2.type === 'list') out.push(`${k}.${k2}`)
+      }
+      return out
+    }
+    for (const [k, v] of Object.entries(store.demoData || {})) {
+      if (Array.isArray(v)) out.push(k)
+      else if (v && typeof v === 'object') for (const [k2, v2] of Object.entries(v)) if (Array.isArray(v2)) out.push(`${k}.${k2}`)
+    }
+    return out
+  })
 
   let newAttr = $state('')
   let renaming = $state(null)
@@ -47,20 +77,20 @@
       <nav class="crumbs">
         <button class="ghost" onclick={() => (store.selectedId = null)}>{store.isComponent ? 'Component' : store.isLayout ? 'Layout' : 'Template'}</button>
         {#each crumbs as c}
-          <span class="muted">›</span>
+          <Icon name="chevron-right" size={11} class="sep" />
           <button class="ghost" class:cur={c.id === store.selectedId} onclick={() => (store.selectedId = c.id)}>{c.label}</button>
         {/each}
       </nav>
       <div class="title">
-        <span class="ic" class:comp={instance}>{def?.icon ?? (instance ? '◆' : '$')}</span>
+        <span class="ic" class:comp={instance}><Icon name={def?.icon ?? (instance ? 'component' : 'variable')} size={14} /></span>
         <b>{def?.label ?? (instance ? instance.name : 'Code')}</b>
         {#if node.tag}<code class="muted">&lt;{node.tag}&gt;</code>{/if}
         <span class="grow"></span>
         {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}
-          <button class="ghost" title="Duplicate" onclick={() => store.duplicate(node.id)}>⧉</button>
-          <button class="ghost danger" title="Delete (Del)" onclick={() => store.removeSelected()}>🗑</button>
+          <button class="ghost" title="Duplicate" aria-label="Duplicate" onclick={() => store.duplicate(node.id)}><Icon name="copy" size={15} /></button>
+          <button class="ghost danger" title="Delete (Del)" aria-label="Delete" onclick={() => store.removeSelected()}><Icon name="trash" size={15} /></button>
         {/if}
-        <button class="ghost" title="Close (Esc)" onclick={() => (store.selectedId = null)}>✕</button>
+        <button class="ghost" title="Close (Esc)" aria-label="Close" onclick={() => (store.selectedId = null)}><Icon name="x" size={15} /></button>
       </div>
     </div>
 
@@ -69,7 +99,7 @@
         <section class="comp">
           <div class="panel-title">Reusable component</div>
           {#if instance.comp}
-            <p>This block is an instance of <b>◆ {instance.comp.name}</b>, used in {instance.comp.usedBy.length} place(s). Changes to the component apply everywhere.</p>
+            <p>This block is an instance of <b><Icon name="component" size={10} /> {instance.comp.name}</b>, used in {instance.comp.usedBy.length} place(s). Changes to the component apply everywhere.</p>
             {@const decl = instance.comp.params}
             {@const given = Object.fromEntries(instance.params)}
             {#if Object.keys(decl).length || instance.params.length}
@@ -87,13 +117,13 @@
                 <div class="extra">
                   <input class="mono" value={k} disabled title="Parameter not declared by the component" />
                   <input class="mono" value={v} oninput={(e) => store.setParam(node.id, k, e.currentTarget.value)} />
-                  <button class="ghost" title="Remove" onclick={() => store.setParam(node.id, k, '')}>✕</button>
+                  <button class="ghost" title="Remove" aria-label="Remove {k}" onclick={() => store.setParam(node.id, k, '')}><Icon name="x" size={13} /></button>
                 </div>
               {/each}
               <p class="hint muted">Empty = the component default. Values accept <code>{'{{ variables }}'}</code> and <code>$t('key')</code>.</p>
             {/if}
             <div class="btns">
-              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}>✎ Edit component</button>
+              <button class="primary" onclick={() => store.openComponent(instance.comp.id)}><Icon name="pencil" size={14} /> Edit component</button>
               <button onclick={() => store.detach(node.id)} title="Replaces the instance with a copy editable only in this template">Detach (copy here)</button>
             </div>
           {:else}
@@ -148,7 +178,7 @@
               <textarea class="mono" rows={def?.editable ? 4 : 10} value={node.content} oninput={(e) => store.setContent(node.id, e.currentTarget.value)}></textarea>
             </label>
             {#if def?.editable}
-              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}>🌐 Make translatable ($t)</button>
+              <button class="ghost small" onclick={() => store.makeTranslatable(node.id)}><Icon name="globe" size={13} /> Make translatable ($t)</button>
             {/if}
           {/if}
 
@@ -160,14 +190,39 @@
               {/each}
               {#if store.isComponent}
                 {#each Object.keys(store.componentParams) as pname}
-                  <button class="chip param" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$param.${pname}`)}>⚙ {pname}</button>
+                  <button class="chip param" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$param.${pname}`)}><Icon name="settings" size={12} /> {pname}</button>
                 {/each}
               {/if}
               {#each links as l}
-                <button class="chip link" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$link{ ${l}, label: ${l} }`)}>🔗 {l}</button>
+                <button class="chip link" onmousedown={(e) => e.preventDefault()} onclick={() => store.insertToken(`$link{ ${l}, label: ${l} }`)}><Icon name="link" size={12} /> {l}</button>
               {/each}
             </div>
           {/if}
+        </section>
+      {/if}
+
+      {#if canLogic}
+        <section class="logic">
+          <div class="panel-title">Display</div>
+          <label class="field">
+            <span><Icon name="condition" size={12} /> Show only if</span>
+            <input class="mono" class:on-if={!!logic.if} list="tpl-logic-vars" value={logic.if ?? ''} placeholder="always (e.g. tracking_url)"
+              onchange={(e) => store.setLogic(node.id, { ...logic, if: e.currentTarget.value })} />
+          </label>
+          <div class="field">
+            <span id="logic-for"><Icon name="repeat" size={12} /> Repeat for each</span>
+            <div class="for" role="group" aria-labelledby="logic-for">
+              <input class="mono item" class:on-for={!!logic.for} aria-label="Loop variable" value={logic.for?.item ?? ''} placeholder="item"
+                onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: e.currentTarget.value, list: logic.for?.list ?? '' } })} />
+              <span class="in">in</span>
+              <input class="mono" class:on-for={!!logic.for} list="tpl-logic-lists" aria-label="List" value={logic.for?.list ?? ''} placeholder="no repetition (e.g. items)"
+                onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: logic.for?.item || 'item', list: e.currentTarget.value } })} />
+            </div>
+          </div>
+          <datalist id="tpl-logic-vars">{#each variables as v}<option value={v}></option>{/each}</datalist>
+          <datalist id="tpl-logic-lists">{#each lists as l}<option value={l}></option>{/each}</datalist>
+          <p class="hint muted">Jinja2, evaluated with each recipient's data (the preview uses the demo data). Empty = always shown, once.
+            {#if logic.for}Inside the block, use <code>{`{{ ${logic.for.item.split(',')[0]}.… }}`}</code>.{/if}</p>
         </section>
       {/if}
 
@@ -181,7 +236,7 @@
             <div class="extra">
               <input class="mono" value={k} onchange={(e) => store.renameAttr(node.id, k, e.currentTarget.value.trim())} />
               <input class="mono" value={v} oninput={(e) => store.setAttr(node.id, k, e.currentTarget.value)} />
-              <button class="ghost" title="Remove" onclick={() => store.setAttr(node.id, k, null)}>✕</button>
+              <button class="ghost" title="Remove" aria-label="Remove {k}" onclick={() => store.setAttr(node.id, k, null)}><Icon name="x" size={13} /></button>
             </div>
           {/each}
           <form class="extra" onsubmit={(e) => { e.preventDefault(); if (newAttr.trim()) { store.setAttr(node.id, newAttr.trim(), ' '); newAttr = '' } }}>
@@ -214,6 +269,14 @@
   .body { padding: 0 12px 24px; }
   section { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 4px; }
   section .panel-title { padding-left: 0; }
+  .logic .field > span { display: inline-flex; align-items: center; gap: 5px; }
+  .for { display: flex; align-items: center; gap: 6px; }
+  .for input { flex: 1; min-width: 0; }
+  .for .item { flex: 0 0 72px; }
+  .in { font: 600 12px var(--mono); color: #52525b; }
+  /* same colours as the labels of the design canvas (bridge.js .tpl-logic) when the logic is set */
+  .logic input.on-if { background: #fef3c7; border-color: #fcd34d; color: #92400e; font-weight: 600; }
+  .logic input.on-for { background: #e0f2fe; border-color: #7dd3fc; color: #075985; font-weight: 600; }
   .keyrow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .missing { color: var(--danger); }
   .small { font-size: 12px; padding: 2px 6px; }

@@ -11,6 +11,12 @@
   let ready = $state(false)
   const srcdoc = `<!doctype html><html><head><meta charset="utf-8"></head><body>${bridgeScript}</body></html>`
 
+  const logicTags = (l) => [
+    // compact notation: "? condition" · "↻ item in items" (the ↻ is drawn by the bridge as an SVG)
+    ...(l?.if ? [{ kind: 'if', text: `? ${l.if}`, label: `Shown only if ${l.if}` }] : []),
+    ...(l?.for ? [{ kind: 'for', text: `${l.for.item} in ${l.for.list}`, label: `Repeated for each ${l.for.item} in ${l.for.list}` }] : []),
+  ]
+
   const post = (msg) => iframe?.contentWindow?.postMessage({ __tpl: true, ...msg }, '*')
 
   // content
@@ -24,8 +30,28 @@
     const id = store.selectedId
     const node = id != null ? findNode(store.tree, id) : null
     const inst = store.instanceOf(node)
-    const label = inst ? `◆ ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
-    if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
+    const label = inst ? `Component ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
+    // display logic (show only if / repeat for each) goes in the selection badge, after the label
+    const tags = id != null ? logicTags(store.logicOf(id)) : []
+    if (ready) post({ type: 'select', id, label, tags, scroll: store.selectSource !== 'canvas' })
+  })
+
+  let dragged = null
+  // display logic of every block, drawn by the iframe as floating tabs (the selected one goes in the badge)
+  $effect(() => {
+    const items = Object.entries(store.logic.byId).map(([id, l]) => ({ id, tags: logicTags(l) }))
+    if (ready) post({ type: 'logic', items })
+  })
+
+  // a block or component dragged from the library: the canvas gets the valid drop targets (the iframe
+  // draws the line)
+  $effect(() => {
+    const item = store.drag.item
+    if (!ready) return
+    if (item && mode === 'design') {
+      dragged = item // dragend (in the library) may arrive before the iframe's drop message
+      post({ type: 'dragtargets', targets: store.dropTargets(item), label: item.label })
+    } else post({ type: 'dragend' })
   })
 
   // variable insertion from the inspector
@@ -41,6 +67,7 @@
       case 'ready':
         ready = true
         if (store.preview.html) post({ type: 'update', html: store.preview.html, mode })
+        post({ type: 'logic', items: Object.entries(store.logic.byId).map(([id, l]) => ({ id, tags: logicTags(l) })) })
         break
       case 'select':
         store.selectSource = 'canvas'
@@ -60,6 +87,14 @@
         else if (kind === 'c') store.setInner(ref, msg.value)
         break
       }
+      case 'drop':
+        if (dragged && store.dropItem(dragged, msg.id, msg.where)) {
+          store.selectSource = 'canvas'
+          queueMicrotask(() => (store.selectSource = null))
+        }
+        dragged = null
+        store.drag.item = null
+        break
       case 'opencomp': {
         const info = store.instanceOf(findNode(store.tree, msg.id))
         if (info?.comp) store.openComponent(info.comp.id)

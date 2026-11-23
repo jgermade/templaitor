@@ -10,7 +10,7 @@ import { sha256 } from './crypto.js'
 const DEMO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../examples/demo')
 const SKIP = new Set(['dist', 'node_modules', '.git'])
 
-export function createStorage({ config, repo }) {
+export function createStorage({ config, repo, log = null }) {
   const materialized = new Map() // org id → stamp of the files written to the cache
 
   const fsDir = (org) => config.storage.projects[org.slug] ?? path.join(config.storage.dir, org.slug)
@@ -90,6 +90,8 @@ export function createStorage({ config, repo }) {
         createTemplate(loadProject(dir), 'general/welcome', { layout: 'base.layout.mjml', langs: Object.keys(loc) })
       }
       if (config.storage.driver === 'db') { materialized.set(org.id, await repo.filesStamp(org.id)); await storage.sync(org) }
+      // fs storage: the org's folder is a git repository, so template versions work from the start
+      else await initGit(dir, { name: config.appName, email: `templaitor@${config.rpId}` }, log)
       return dir
     },
 
@@ -101,6 +103,16 @@ export function createStorage({ config, repo }) {
     },
   }
   return storage
+}
+
+async function initGit(dir, committer, log) {
+  const { loadProject } = await import('../engine/project.js')
+  const { gitVersionStore } = await import('../engine/history.js')
+  try {
+    await gitVersionStore(loadProject(dir), { rootMustBe: dir, committer }).init()
+  } catch (e) {
+    log?.(`git init of ${dir}: ${e.message} (template versions stay off until git is available)`)
+  }
 }
 
 function configYaml(obj) {

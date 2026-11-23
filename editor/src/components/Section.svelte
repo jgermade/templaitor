@@ -1,4 +1,5 @@
 <script>
+  import Icon from './Icon.svelte'
   // Collapsible sidebar section; remembers its state per browser
   let { title, id, open = false, count = null, actions, children } = $props()
 
@@ -17,7 +18,7 @@
 
 <details open={isOpen} ontoggle={toggle}>
   <summary>
-    <span class="caret">▸</span>
+    <span class="caret"><Icon name="chevron-right" size={16} strokeWidth={2.6} /></span>
     <span class="title">{title}</span>
     {#if count !== null}<span class="count">{count}</span>{/if}
     <span class="grow"></span>
@@ -34,7 +35,7 @@
   }
   summary::-webkit-details-marker { display: none; }
   summary:hover { background: rgba(0,0,0,.025); }
-  .caret { font-size: 10px; color: var(--muted); transition: transform .15s; width: 10px; }
+  .caret { display: inline-grid; place-content: center; color: #3f3f46; transition: transform .15s; width: 16px; height: 16px; }
   details[open] .caret { transform: rotate(90deg); }
   .count { font-size: 11px; color: var(--muted); background: #e9e9ec; border-radius: 999px; padding: 0 6px; }
   .grow { flex: 1; }

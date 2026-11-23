@@ -1,0 +1,32 @@
+subject:
+  es: "Factura {{ number }} · Acme"
+  en: "Invoice {{ number }} · Acme"
+
+messages:
+  es:
+    title: Factura
+    meta: "Nº {{ number }} · Fecha {{ date }}"
+    bill_to: "<b>Facturar a</b><br>{{ customer.name }}<br>{{ customer.address }}"
+    payment: "<b>Forma de pago</b><br>{{ payment_method }}<br>Vence el {{ due_date }}"
+    lines_caption: Detalle
+    concept: Concepto
+    qty: Cantidad
+    amount: Importe
+    total: "<b>Total: {{ total }} €</b> (IVA incluido)"
+    terms_title: Condiciones
+    terms: >
+      El pago debe realizarse antes de la fecha de vencimiento. Para cualquier consulta sobre esta
+      factura, responde indicando su número.
+  en:
+    title: Invoice
+    meta: "No. {{ number }} · Date {{ date }}"
+    bill_to: "<b>Bill to</b><br>{{ customer.name }}<br>{{ customer.address }}"
+    payment: "<b>Payment</b><br>{{ payment_method }}<br>Due on {{ due_date }}"
+    lines_caption: Details
+    concept: Item
+    qty: Quantity
+    amount: Amount
+    total: "<b>Total: {{ total }} €</b> (VAT included)"
+    terms_title: Terms
+    terms: >
+      Payment is due before the due date. For any question about this invoice, reply quoting its number.

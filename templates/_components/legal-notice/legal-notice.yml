@@ -1,0 +1,11 @@
+messages:
+  es:
+    legal_notice: >
+      Comunicación enviada por Acme S.L., con domicilio social en Calle Ejemplo 1, 28000 Madrid.
+      Recibes este email por ser cliente de Acme. La dirección $link{ homepage, label: noreply@example.com }
+      solo se usa para comunicaciones automáticas: por favor, no respondas a este mensaje.
+  en:
+    legal_notice: >
+      This message was sent by Acme Ltd., registered at 1 Example Street, Madrid.
+      You are receiving it because you are an Acme customer. The address $link{ homepage, label: noreply@example.com }
+      is only used for automated messages: please do not reply.

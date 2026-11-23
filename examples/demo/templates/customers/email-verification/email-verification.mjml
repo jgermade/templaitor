@@ -1,5 +1,12 @@
 ---
 layout: base.layout.mjml
+# data the backend sends (checked by /v1/send; schema.json when compiling)
+data:
+  first_name: { type: string, required: true, description: Recipient's first name }
+  verification_token: { type: string, required: true, description: Token of the verification link }
+  app_url: { type: url, required: true, description: Base URL of the application }
+  assets_url: { type: url, required: true, description: Base URL of the images (the static folder) }
+  year: { type: number, description: Year shown in the footer }
 ---
 
 <mj-section background-color="#ffffff" padding="24px 24px 0">

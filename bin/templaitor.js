@@ -19,6 +19,11 @@ Usage:
   templaitor engines                          Available PDF engines and validator
   templaitor editor [--port 3333] [--open]    Open the visual editor
   templaitor new <group/name> [--layout x]    Create a new template
+  templaitor types [--out templates.d.ts]     TypeScript types of the templates' data contracts
+  templaitor versions <template> [--kind component|layout]
+                                              List the versions of a document (git)
+  templaitor versions export [--out file]     Export every version from git to .templaitor/versions.json
+                                              (deployments without .git keep their history)
   templaitor serve [--config templaitor.server.yml] [--port 3000]
                                               Hosted service: users, organizations, editor and send API
                                               (Node ≥ 22.13; see "Hosted service" in the README)
@@ -55,6 +60,34 @@ async function main() {
   }
 
   const project = loadProject(cwd)
+
+  if (cmd === 'types') {
+    // TypeScript declarations of the data contracts → stdout or --out file
+    const { projectTypes } = await import('../src/engine/types.js')
+    const ts = projectTypes(project)
+    const out = flag('out')
+    if (typeof out === 'string') { fs.writeFileSync(path.resolve(out), ts); console.log(`✓ ${path.relative(process.cwd(), path.resolve(out))}`) } else process.stdout.write(ts)
+    return
+  }
+
+  if (cmd === 'versions') {
+    // templaitor versions export [--out file]  ·  templaitor versions <template> [--kind component|layout]
+    if (target === 'export') {
+      const { exportVersions } = await import('../src/engine/snapshot.js')
+      const out = flag('out')
+      const r = await exportVersions(project, { file: typeof out === 'string' ? path.resolve(out) : undefined, log: console.log })
+      console.log(`\n✓ ${r.versions} version(s) of ${r.documents} document(s) → ${path.relative(process.cwd(), r.file)}`)
+      return
+    }
+    if (!target) throw new Error('Usage: templaitor versions <template> | templaitor versions export [--out file]')
+    const { listVersions } = await import('../src/engine/versions.js')
+    const kind = typeof flag('kind') === 'string' ? flag('kind') : 'template'
+    const r = await listVersions(project, target, kind, { limit: 200 })
+    if (!r.available) throw new Error(r.reason || 'Versions are not available')
+    for (const v of r.versions) console.log(`v${v.number}\t${v.short}\t${v.date.slice(0, 10)}\t${v.author}\t${v.message}`)
+    if (r.dirty) console.log('(the saved files have changes that are not in a version)')
+    return
+  }
 
   if (cmd === 'compile') {
     const run = async () => {
