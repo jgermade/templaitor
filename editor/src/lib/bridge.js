@@ -39,7 +39,9 @@ export function bridgeMain() {
     .tpl-logic--if { background: #fef3c7; color: #92400e; }
     .tpl-logic--for { background: #e0f2fe; color: #075985; }
     .tpl-logic-hidden { display: none !important; }
-    .tpl-badge-logic { margin-left: 6px; padding: 0 6px; border-radius: 999px; font: 600 10px/14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tpl-badge-main, .tpl-badge-logic { padding: 0 6px; border-radius: 3px 3px 0 0; }
+    #tpl-badge.inside > span { border-radius: 0 0 3px 3px; }
+    .tpl-badge-logic { margin-left: 2px; font: 600 10px/16px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .tpl-badge-logic--if { background: #fef3c7; color: #92400e; }
     .tpl-badge-logic--for { background: #e0f2fe; color: #075985; }
     #tpl-drop { position: absolute; z-index: 99998; pointer-events: none; display: none; border-radius: 3px; }
@@ -47,8 +49,8 @@ export function bridgeMain() {
     #tpl-drop.inside { border: 2px dashed #7c3aed; background: rgba(124, 58, 237, .06); }
     #tpl-drop span { position: absolute; left: 0; top: -20px; background: #7c3aed; color: #fff; font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
     #tpl-drop.inside span { top: 2px; left: 2px; }
-    #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
-      font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; white-space: nowrap; }
+    #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; color: #fff;
+      font: 600 10px/16px system-ui, sans-serif; transform: translateY(-100%); display: none; white-space: nowrap; }
   `
 
   let mode = 'design'
@@ -103,21 +105,26 @@ export function bridgeMain() {
     const el = elOf(selectedId)
     if (!badge || !el || !selectedLabel) { if (badge) badge.style.display = 'none'; return }
     const r = el.getBoundingClientRect()
-    badge.textContent = selectedLabel
+    // label tab, then one tab per display logic (if / for each), side by side
+    badge.textContent = ''
+    const main = document.createElement('span')
+    main.className = 'tpl-badge-main'
+    main.textContent = selectedLabel
+    main.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
+    badge.appendChild(main)
     for (const t of selectedTags) {
       const span = document.createElement('span')
       span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
       span.textContent = t.text
       badge.appendChild(span)
     }
-    badge.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
-    badge.style.display = 'block'
+    badge.style.display = 'flex'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
     // if it does not fit above (block at the very top), draw it inside
     const inside = r.top < 18
     badge.style.transform = inside ? 'none' : 'translateY(-100%)'
-    badge.style.borderRadius = inside ? '0 0 3px 0' : '3px 3px 0 0'
+    badge.classList.toggle('inside', inside) // tabs hang down instead of up
   }
 
   // ── Editable region serialization → source code ─────────
