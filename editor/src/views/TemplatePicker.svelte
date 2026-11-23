@@ -28,10 +28,14 @@
 
   async function newLayout() {
     open = false
-    const id = await promptDialog({ title: 'New layout', label: 'Name', placeholder: 'marketing', okLabel: 'Create', pattern: '[\\w.\\-]+', hint: 'Creates _layouts/<name>.mjml with $content.' })
-    if (!id) return
+    const r = await promptDialog({
+      title: 'New layout', label: 'Name', placeholder: 'marketing', okLabel: 'Create', pattern: '[\\w.\\-]+',
+      hint: 'Creates _layouts/<name>.mjml with $content.',
+      choice: { label: 'For', value: 'email', options: [{ value: 'email', label: 'Emails', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF documents', icon: 'pdf', color: '#dc2626' }] },
+    })
+    if (!r) return
     try {
-      const l = await api.createLayout(id.trim())
+      const l = await api.createLayout(r.value.trim(), r.choice)
       await store.refreshTemplates()
       await pick(l.id, 'layout')
     } catch (e) { store.notify(e.message, 'error') }
@@ -88,6 +92,7 @@
       {#each lays as l}
         <button class="item" class:cur={store.kind === 'layout' && store.doc?.id === l.id} onclick={() => pick(l.id, 'layout')}>
           <span class="lay"><Icon name="layout" size={13} /></span>{l.name}
+          {#if l.format}<span class="fmt small" class:pdf={l.format === 'pdf'}><Icon name={l.format === 'pdf' ? 'pdf' : 'email'} size={12} label={l.format === 'pdf' ? 'PDF layout' : 'Email layout'} /></span>{/if}
           <span class="langs">{l.usedBy.length} use(s)</span>
         </button>
       {/each}
@@ -115,4 +120,5 @@
   .lay { color: #b45309; margin-right: 6px; font-size: 12px; }
   .fmt { display: inline-grid; color: #2563eb; margin-right: 7px; }
   .fmt.pdf { color: #dc2626; }
+  .fmt.small { margin: 0 0 0 6px; }
 </style>

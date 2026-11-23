@@ -584,3 +584,26 @@ test('logic: the design canvas shows blocks with display logic (labelled), the p
   const raw = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'raw' })
   assert.match(raw.html, /\{% if vip %\}[\s\S]*Hemos recibido[\s\S]*\{% endif %\}/)
 })
+
+test('layouts: `format` in their frontmatter (email / pdf), stripped when applied; mismatch warning', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-layfmt-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const project = loadProject(dir)
+  assert.deepEqual(listLayouts(project).map(l => [l.id, l.format]), [['base.layout.mjml', 'email'], ['document.layout.mjml', 'pdf']])
+  // the frontmatter never reaches the output
+  const inv = readTemplate(project, 'documents/invoice')
+  const r = await previewDraft(project, { ...inv, langKey: 'en', mode: 'raw' })
+  assert.doesNotMatch(r.html, /format: pdf/)
+  assert.deepEqual(r.warnings, [])
+  // an email on a PDF layout is compiled, with a warning
+  const mail = readTemplate(project, 'orders/order-confirmation')
+  const w = await previewDraft(project, { ...mail, mjml: mail.mjml.replace('layout: base.layout.mjml', 'layout: document.layout.mjml'), langKey: 'en' })
+  assert.ok(w.warnings.some(x => /document\.layout\.mjml is a PDF layout, but this template is an email/.test(x)))
+  // new layouts declare their format; undeclared ones are offered to both (null)
+  const { createLayout } = await import('../src/engine/project.js')
+  createLayout(project, 'statement', { format: 'pdf' })
+  fs.writeFileSync(path.join(project.layoutsDir, 'legacy.mjml'), '<mjml><mj-body>$content</mj-body></mjml>\n')
+  const byId = Object.fromEntries(listLayouts(project).map(l => [l.id, l.format]))
+  assert.equal(byId['statement.mjml'], 'pdf')
+  assert.equal(byId['legacy.mjml'], null)
+})

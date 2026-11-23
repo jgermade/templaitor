@@ -1,3 +1,7 @@
+---
+format: pdf   # the templates it is offered to (email · pdf)
+---
+
 <mjml lang="$lang">
   <mj-head>
     <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" />

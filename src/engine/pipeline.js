@@ -4,7 +4,7 @@ import YAML from 'yaml'
 import JSON5 from 'json5'
 import mjml2html from 'mjml'
 import { convert as htmlToText } from 'html-to-text'
-import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment } from './resolver.js'
+import { parseFrontmatter, resolveImports, applyLayout, expandImport, wrapFragment, readLayoutFile, layoutFormat } from './resolver.js'
 import { applyParams } from '../shared/imports.js'
 import { isPdf, pdfOptions, injectPrintCss, engineOptions, renderPdf } from './pdf.js'
 import { validatePdf } from './verapdf.js'
@@ -80,6 +80,9 @@ export async function compileSource(project, { mjml, i18n = {}, links = {}, lang
   const withImports = resolveImports(body, project.templatesDir, { onImport, warn })
   let unified = withImports
   if (meta.layout) {
+    const lf = fs.existsSync(path.join(project.layoutsDir, meta.layout)) ? layoutFormat(readLayoutFile(path.join(project.layoutsDir, meta.layout)).meta) : null
+    const tf = isPdf(meta) ? 'pdf' : 'email'
+    if (lf && kind === 'template' && lf !== tf) warn(`${meta.layout} is a ${lf === 'pdf' ? 'PDF' : 'email'} layout, but this template is ${tf === 'pdf' ? 'a PDF document' : 'an email'}`)
     unified = applyLayout(withImports, meta.layout, { layoutsDir: project.layoutsDir, baseDir: project.templatesDir, onImport, warn })
   } else if (kind === 'component' && !/<mjml[\s>]/.test(withImports)) {
     unified = resolveImports(wrapFragment(withImports, project.previewLayoutFile), project.templatesDir, { onImport, warn })

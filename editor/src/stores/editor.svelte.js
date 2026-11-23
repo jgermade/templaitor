@@ -452,6 +452,11 @@ class EditorStore {
     }, `fm:${path.join('.')}`)
   }
 
+  /** Layouts offered to templates of `format` (a layout without `format:` is offered to both) */
+  layoutsFor(format) {
+    return this.layouts.filter(l => !l.format || l.format === format)
+  }
+
   setFormat(format) {
     this.#editFrontmatter(fm => {
       if (format === 'pdf') {
@@ -463,6 +468,13 @@ class EditorStore {
       }
     })
     if (format !== 'pdf' && this.view === 'pdf') this.view = 'preview'
+    // the layout follows the format: an email layout for an email, a PDF layout for a document
+    const current = this.layouts.find(l => l.id === this.frontmatter.layout)
+    const next = this.layoutsFor(format)[0]
+    if (current?.format && current.format !== format && next) {
+      this.setLayout(next.id)
+      this.notify(`Layout changed to ${next.id} (a ${format === 'pdf' ? 'PDF' : 'email'} layout)`)
+    }
   }
 
   // ── Attachments (email frontmatter) ──

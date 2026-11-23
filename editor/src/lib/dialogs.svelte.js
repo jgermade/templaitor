@@ -25,9 +25,13 @@ export function confirmDialog({ title, message = '', okLabel = 'OK', cancelLabel
   return dialogs.open({ type: 'confirm', title, message, okLabel, cancelLabel, danger })
 }
 
+/**
+ * Text prompt → the text, or null when cancelled. With `choice` ({ label, value, options } as for
+ * components/Choice.svelte) it also asks for one option → { value, choice }.
+ */
 export function promptDialog({
   title, message = '', label = '', value = '', placeholder = '', okLabel = 'OK', cancelLabel = 'Cancel',
-  inputType = 'text', pattern = null, hint = '',
+  inputType = 'text', pattern = null, hint = '', choice = null,
 } = {}) {
-  return dialogs.open({ type: 'prompt', title, message, label, value, placeholder, okLabel, cancelLabel, inputType, pattern, hint })
+  return dialogs.open({ type: 'prompt', title, message, label, value, placeholder, okLabel, cancelLabel, inputType, pattern, hint, choice })
 }

@@ -33,7 +33,13 @@
 {#if store.doc}
   <div class="wrap">
     {#if lay}
-      <p class="muted">Templates use it with <code>layout: {lay.id}</code> in their frontmatter; their content goes into <code>$content</code>.</p>
+      <div class="field">
+        <span>Format</span>
+        <Choice label="Layout format" size="sm" value={store.frontmatter.format === 'pdf' ? 'pdf' : 'email'}
+          onchange={(v) => store.setFrontmatter(['format'], v)} options={[{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]} />
+      </div>
+      <p class="muted">Offered to {store.frontmatter.format === 'pdf' ? 'PDF documents' : 'emails'}.
+Templates use it with <code>layout: {lay.id}</code> in their frontmatter; their content goes into <code>$content</code>.</p>
       <div class="field"><span>Used by</span>
         {#each lay.usedBy as u}
           <button class="ghost uselink mono" onclick={() => store.open(u.id)}>@ {u.id}</button>
@@ -78,7 +84,10 @@
         <div class="layrow">
           <select value={store.frontmatter.layout || ''} onchange={(e) => store.setLayout(e.currentTarget.value)} disabled={!store.isFragment}>
             {#if !store.isFragment}<option value="">— full MJML document —</option>{/if}
-            {#each store.layouts as l}<option value={l.id}>{l.id}</option>{/each}
+            {#each store.layoutsFor(store.isPdf ? 'pdf' : 'email') as l}<option value={l.id}>{l.id}</option>{/each}
+            {#if store.frontmatter.layout && !store.layoutsFor(store.isPdf ? 'pdf' : 'email').some(l => l.id === store.frontmatter.layout)}
+              <option value={store.frontmatter.layout}>{store.frontmatter.layout} (not {store.isPdf ? 'a PDF' : 'an email'} layout)</option>
+            {/if}
           </select>
           {#if store.frontmatter.layout}
             <button title="Edit layout" aria-label="Edit layout" onclick={() => store.openLayout(store.frontmatter.layout)}><Icon name="pencil" size={13} /></button>

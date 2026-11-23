@@ -1,10 +1,12 @@
 <script>
+  import Choice from './Choice.svelte'
   // Renders the active modal from lib/dialogs (a single <dialog> for the whole app)
   import { dialogs } from '../lib/dialogs.svelte.js'
 
   let dialog = $state()
   let input = $state()
   let value = $state('')
+  let choiceValue = $state(null)
 
   const d = $derived(dialogs.current)
 
@@ -12,6 +14,7 @@
     if (!dialog) return
     if (d && !dialog.open) {
       value = d.value ?? ''
+      choiceValue = d.choice?.value ?? null
       dialog.showModal()
       queueMicrotask(() => (d.type === 'prompt' ? input?.select() : dialog.querySelector('button.ok')?.focus()))
     }
@@ -23,7 +26,7 @@
     if (d.type === 'prompt') {
       const v = value.trim()
       if (!v) return input?.focus()
-      dialogs.close(v)
+      dialogs.close(d.choice ? { value: v, choice: choiceValue } : v)
     } else {
       dialogs.close(true)
     }
@@ -43,6 +46,11 @@
           <input bind:this={input} bind:value type={d.inputType} placeholder={d.placeholder} pattern={d.pattern} required class:mono={d.inputType === 'text'} />
         </label>
         {#if d.hint}<p class="hint">{d.hint}</p>{/if}
+        {#if d.choice}
+          <div class="field choice"><span>{d.choice.label}</span>
+            <Choice label={d.choice.label} bind:value={choiceValue} options={d.choice.options} />
+          </div>
+        {/if}
       {/if}
       <div class="actions">
         <button type="button" onclick={cancel}>{d.cancelLabel}</button>
@@ -65,6 +73,7 @@
   .msg { margin: 0 0 12px; color: #3f3f46; white-space: pre-line; }
   .field input { width: 100%; padding: 7px 10px; font-size: 14px; }
   .hint { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .choice { margin-top: 12px; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .actions button { padding: 6px 14px; }
   .danger-btn { background: var(--danger); border-color: var(--danger); color: #fff; }

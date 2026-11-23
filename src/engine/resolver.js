@@ -48,10 +48,24 @@ export function resolveImports(content, baseDir, { seen = [], onImport, warn } =
   })
 }
 
+/**
+ * A layout file → { meta, body }. Its optional frontmatter declares what it is for:
+ *   format: email | pdf     (undeclared: offered for both)
+ */
+export function readLayoutFile(file) {
+  return parseFrontmatter(fs.readFileSync(file, 'utf8'))
+}
+
+/** Declared format of a layout: 'email' · 'pdf' · null (undeclared) */
+export function layoutFormat(meta) {
+  const f = String(meta?.format || '').toLowerCase()
+  return f === 'pdf' || f === 'email' ? f : null
+}
+
 export function applyLayout(body, layoutName, { layoutsDir, baseDir, onImport, warn }) {
   const layoutPath = path.resolve(layoutsDir, layoutName)
   if (!fs.existsSync(layoutPath)) throw new Error(`Layout not found: ${layoutName}`)
-  const layout = fs.readFileSync(layoutPath, 'utf8')
+  const layout = readLayoutFile(layoutPath).body
   if (!layout.includes('$content')) throw new Error(`Layout ${layoutName} does not contain $content`)
   const unified = layout.replace('$content', () => body)
   return resolveImports(unified, baseDir, { onImport, warn })
@@ -65,7 +79,7 @@ export function wrapFragment(body, layoutPath) {
   let head = ''
   let bodyAttrs = ''
   if (layoutPath && fs.existsSync(layoutPath)) {
-    const layout = fs.readFileSync(layoutPath, 'utf8')
+    const layout = readLayoutFile(layoutPath).body
     head = layout.match(/<mj-head[\s\S]*?<\/mj-head>/)?.[0] || ''
     bodyAttrs = layout.match(/<mj-body([^>]*)>/)?.[1] || ''
   }

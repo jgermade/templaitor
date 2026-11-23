@@ -14,7 +14,7 @@
 
   $effect(() => {
     if (!dialog) return
-    if (open && !dialog.open) { error = ''; format = 'email'; layout = store.project?.layouts?.[0] || ''; dialog.showModal() }
+    if (open && !dialog.open) { error = ''; format = 'email'; layout = store.layoutsFor('email')[0]?.id || ''; dialog.showModal() }
     if (!open && dialog.open) dialog.close()
   })
 
@@ -43,15 +43,14 @@
     <div class="field">
       <span>Format</span>
       <Choice label="Format" bind:value={format} options={FORMATS} onchange={() => {
-        // suggests a layout matching the format (document layouts are usually called document*)
-        const ls = store.project?.layouts || []
-        layout = (format === 'pdf' ? ls.find(l => /document|pdf/i.test(l)) : ls.find(l => !/document|pdf/i.test(l))) || ls[0] || ''
+        // only the layouts of this format (`format:` in the layout's frontmatter)
+        if (!store.layoutsFor(format).some(l => l.id === layout)) layout = store.layoutsFor(format)[0]?.id || ''
       }} />
     </div>
     <label class="field">
       <span>Layout</span>
       <select bind:value={layout}>
-        {#each store.project?.layouts || [] as l}<option value={l}>{l}</option>{/each}
+        {#each store.layoutsFor(format) as l}<option value={l.id}>{l.id}</option>{/each}
         <option value="">None (full MJML document)</option>
       </select>
     </label>

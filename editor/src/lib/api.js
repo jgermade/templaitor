@@ -16,7 +16,7 @@ export const api = {
   templates: () => request('GET', '/api/templates'),
   components: () => request('GET', '/api/components'),
   layouts: () => request('GET', '/api/layouts'),
-  createLayout: (id) => request('POST', '/api/layouts', { id }),
+  createLayout: (id, format = 'email') => request('POST', '/api/layouts', { id, format }),
   template: (id, kind = 'template') => request('GET', `/api/template?${q({ id, kind })}`),
   save: (doc) => request('PUT', '/api/template', doc),
   create: (id, layout, format) => request('POST', '/api/templates', { id, layout, format }),

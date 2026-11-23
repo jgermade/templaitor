@@ -369,6 +369,11 @@ WYSIWYG: `$content` shows as a dashed slot that can be moved in "Structure". A l
 of its own, so the preview uses those of the first template using it (not saved with the layout) and its
 `$t` texts are shown but not editable there. New layouts can be created and unused ones deleted.
 
+A layout declares what it is for in its frontmatter — `format: email` or `format: pdf` (removed when the layout
+is applied). The editor only offers a template the layouts of its format (switching a template to PDF also
+switches it to a PDF layout), new layouts are created for emails or PDF documents, and compiling an email on a
+PDF layout (or the other way round) gives a warning. A layout without `format:` is offered to both.
+
 ## Visual editor
 
 - **Design**: the canvas is the real HTML compiled by MJML. Click to select a block; type directly into

@@ -62,7 +62,7 @@ export function createHandler(project) {
       mjml: body.mjml, yml: body.yml, data: body.data, langKey: body.lang, kind: previewKind(body.kind),
     }, { engine: body.engine }),
 
-    'POST /api/layouts': ({ body }) => createLayout(project, body.id),
+    'POST /api/layouts': ({ body }) => createLayout(project, body.id, { format: body.format === 'pdf' ? 'pdf' : 'email' }),
 
     // versions of a document (git commits, or the database in the hosted service): list, read, save, init.
     // `req.templaitorActor` (hosted service) is the signed-in user, recorded as the author.
