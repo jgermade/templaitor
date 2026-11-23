@@ -25,7 +25,13 @@
     const node = id != null ? findNode(store.tree, id) : null
     const inst = store.instanceOf(node)
     const label = inst ? `Component ${inst.name} · double-click to edit` : node?.tag ? `${describe(node.tag).label} · ${node.tag}` : ''
-    if (ready) post({ type: 'select', id, label, scroll: store.selectSource !== 'canvas' })
+    // display logic (show only if / repeat for each) goes in the selection badge, after the label
+    const logic = id != null ? store.logicOf(id) : null
+    const tags = [
+      ...(logic?.if ? [{ kind: 'if', text: `if ${logic.if}` }] : []),
+      ...(logic?.for ? [{ kind: 'for', text: `for each ${logic.for.item} in ${logic.for.list}` }] : []),
+    ]
+    if (ready) post({ type: 'select', id, label, tags, scroll: store.selectSource !== 'canvas' })
   })
 
   let dragged = null

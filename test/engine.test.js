@@ -578,7 +578,7 @@ test('logic: the design canvas shows blocks with display logic (labelled), the p
   const mjml = t.mjml.replace("<mj-text>$t('intro')</mj-text>", "<mj-raw>{% if vip %}</mj-raw>\n<mj-text>$t('intro')</mj-text>\n<mj-raw>{% endif %}</mj-raw>")
   const design = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'design' })
   assert.match(design.html, /Hemos recibido/)
-  assert.match(design.html, /class="tpl-logic tpl-logic--if">if vip</)
+  assert.match(design.html, /class="tpl-logic tpl-logic--if" data-tpl-of="[\d.]+">if vip</) // labelled with its block
   const preview = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'preview' }) // demo data has no `vip`
   assert.doesNotMatch(preview.html, /Hemos recibido/)
   const raw = await previewDraft(project, { ...t, mjml, langKey: 'es', mode: 'raw' })

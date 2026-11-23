@@ -17,7 +17,7 @@ import { NON_VISUAL, describe } from '../shared/components.js'
 import { lookupMessage, parseAttrs, resolveCommands } from './commands.js'
 import { normalizeParams } from '../shared/imports.js'
 import { splitWrapper } from '../shared/semantics.js'
-import { markerOf } from '../shared/logic.js'
+import { markerOf, logicMap } from '../shared/logic.js'
 
 const NO_CLASS = new Set(['mj-raw', 'mj-body', 'mjml'])
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
@@ -35,6 +35,8 @@ export function annotateBody(body, ctx) {
   // parent tag of each node: inside a column, MJML puts <mj-raw> between table rows
   const parentTag = new Map()
   walk(tree, (node, parent) => { if (parent) parentTag.set(node, parent.tag) })
+  // block each marker belongs to (its label hides while that block is selected: the badge shows the logic)
+  const { owners } = logicMap(tree)
   const visual = (node) => node.type === 'element' && !hidden.has(node) && !NON_VISUAL.has(node.tag) && !NO_CLASS.has(node.tag)
 
   return serialize(tree, {
@@ -59,7 +61,7 @@ export function annotateBody(body, ctx) {
       // Display logic ({% if %} / {% for %} markers around a block): not evaluated while designing, so the
       // block is always there to select and edit; a label above it says when it is shown / repeated
       const logic = !hidden.has(node) && markerOf(node)
-      if (logic) return logicLabel(logic, parentTag.get(node))
+      if (logic) return logicLabel(logic, parentTag.get(node), owners.get(node))
       if (!visual(node) || !describe(node.tag).editable) return node.content
       // wrapping heading/paragraph: the editable region goes inside (the wrapper is kept)
       const wrap = node.tag === 'mj-text' ? splitWrapper(node.content) : null
@@ -80,12 +82,13 @@ export function annotateBody(body, ctx) {
   })
 }
 
-function logicLabel(m, parentTag) {
-  const label = m.kind === 'if' ? `<div class="tpl-logic tpl-logic--if">${encode(`if ${m.expr}`)}</div>`
-    : m.kind === 'for' ? `<div class="tpl-logic tpl-logic--for">${encode(`for each ${m.item} in ${m.list}`)}</div>`
+function logicLabel(m, parentTag, owner) {
+  const of = owner != null ? ` data-tpl-of="${owner}"` : ''
+  const label = m.kind === 'if' ? `<div class="tpl-logic tpl-logic--if"${of}>${encode(`if ${m.expr}`)}</div>`
+    : m.kind === 'for' ? `<div class="tpl-logic tpl-logic--for"${of}>${encode(`for each ${m.item} in ${m.list}`)}</div>`
       : '' // endif / endfor
   // a <div> between the rows of a column's table would be moved out of the table by the browser
-  return label && parentTag === 'mj-column' ? `<tr><td class="tpl-logic-cell">${label}</td></tr>` : label
+  return label && parentTag === 'mj-column' ? `<tr class="tpl-logic-row"${of}><td class="tpl-logic-cell">${label}</td></tr>` : label
 }
 
 function annotateInstance(source, id) {

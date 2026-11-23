@@ -57,10 +57,11 @@ export function logicOf(layers) {
   return out
 }
 
-/** Every block with logic and the markers that belong to one → { byId: { [id]: logic }, markers: Set<id> } */
+/** Every block with logic and the markers that belong to one → { byId: { [id]: logic }, markers: Set<id>, owners: Map<marker node, block id> } */
 export function logicMap(root) {
   const byId = {}
   const markers = new Set()
+  const owners = new Map() // marker node → the block it wraps
   const visit = (node) => {
     const kids = node.children || []
     kids.forEach((child, i) => {
@@ -68,12 +69,12 @@ export function logicMap(root) {
       const u = unitOf(kids, i)
       if (!u.layers.length) return
       byId[child.id] = logicOf(u.layers)
-      for (let j = u.start; j <= u.end; j++) if (j !== i) markers.add(kids[j].id)
+      for (let j = u.start; j <= u.end; j++) if (j !== i) { markers.add(kids[j].id); owners.set(kids[j], child.id) }
     })
     kids.forEach(visit)
   }
   visit(root)
-  return { byId, markers }
+  return { byId, markers, owners }
 }
 
 /** Position of the unit of node `id` → { pid, parent, idx, start, end, layers } */

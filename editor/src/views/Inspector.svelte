@@ -191,16 +191,16 @@
           <div class="panel-title">Display</div>
           <label class="field">
             <span><Icon name="branch" size={12} /> Show only if</span>
-            <input class="mono" list="tpl-logic-vars" value={logic.if ?? ''} placeholder="always (e.g. tracking_url)"
+            <input class="mono" class:on-if={!!logic.if} list="tpl-logic-vars" value={logic.if ?? ''} placeholder="always (e.g. tracking_url)"
               onchange={(e) => store.setLogic(node.id, { ...logic, if: e.currentTarget.value })} />
           </label>
           <div class="field">
             <span id="logic-for"><Icon name="repeat" size={12} /> Repeat for each</span>
             <div class="for" role="group" aria-labelledby="logic-for">
-              <input class="mono item" aria-label="Loop variable" value={logic.for?.item ?? ''} placeholder="item"
+              <input class="mono item" class:on-for={!!logic.for} aria-label="Loop variable" value={logic.for?.item ?? ''} placeholder="item"
                 onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: e.currentTarget.value, list: logic.for?.list ?? '' } })} />
               <span class="in">in</span>
-              <input class="mono" list="tpl-logic-lists" aria-label="List" value={logic.for?.list ?? ''} placeholder="no repetition (e.g. items)"
+              <input class="mono" class:on-for={!!logic.for} list="tpl-logic-lists" aria-label="List" value={logic.for?.list ?? ''} placeholder="no repetition (e.g. items)"
                 onchange={(e) => store.setLogic(node.id, { ...logic, for: { item: logic.for?.item || 'item', list: e.currentTarget.value } })} />
             </div>
           </div>
@@ -259,6 +259,9 @@
   .for input { flex: 1; min-width: 0; }
   .for .item { flex: 0 0 72px; }
   .in { font: 600 12px var(--mono); color: #52525b; }
+  /* same colours as the labels of the design canvas (bridge.js .tpl-logic) when the logic is set */
+  .logic input.on-if { background: #fef3c7; border-color: #fcd34d; color: #92400e; font-weight: 600; }
+  .logic input.on-for { background: #e0f2fe; border-color: #7dd3fc; color: #075985; font-weight: 600; }
   .keyrow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .missing { color: var(--danger); }
   .small { font-size: 12px; padding: 2px 6px; }

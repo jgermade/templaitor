@@ -38,18 +38,23 @@ export function bridgeMain() {
     .tpl-logic { display: inline-block; margin: 6px 0 2px; padding: 0 8px; border-radius: 999px; font: 600 11px/18px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .tpl-logic--if { background: #fef3c7; color: #92400e; }
     .tpl-logic--for { background: #e0f2fe; color: #075985; }
+    .tpl-logic-hidden { display: none !important; }
+    .tpl-badge-logic { margin-left: 6px; padding: 0 6px; border-radius: 999px; font: 600 10px/14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tpl-badge-logic--if { background: #fef3c7; color: #92400e; }
+    .tpl-badge-logic--for { background: #e0f2fe; color: #075985; }
     #tpl-drop { position: absolute; z-index: 99998; pointer-events: none; display: none; border-radius: 3px; }
     #tpl-drop.line { height: 0; border-top: 3px solid #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, .18); }
     #tpl-drop.inside { border: 2px dashed #7c3aed; background: rgba(124, 58, 237, .06); }
     #tpl-drop span { position: absolute; left: 0; top: -20px; background: #7c3aed; color: #fff; font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
     #tpl-drop.inside span { top: 2px; left: 2px; }
     #tpl-badge { position: absolute; z-index: 99999; pointer-events: none; background: #4f46e5; color: #fff;
-      font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; }
+      font: 600 10px/16px system-ui, sans-serif; padding: 0 6px; border-radius: 3px 3px 0 0; transform: translateY(-100%); display: none; white-space: nowrap; }
   `
 
   let mode = 'design'
   let selectedId = null
   let selectedLabel = ''
+  let selectedTags = [] // display logic of the selection: [{ kind: 'if' | 'for', text }]
   let editing = null
   let savedRange = null
   let pending = null
@@ -81,6 +86,8 @@ export function bridgeMain() {
   }
 
   function applySelection(scroll) {
+    // the selected block's logic is in the badge: its labels on the canvas step aside
+    document.querySelectorAll('[data-tpl-of]').forEach(e => e.classList.toggle('tpl-logic-hidden', mode === 'design' && e.dataset.tplOf === String(selectedId)))
     document.querySelectorAll('.tpl-selected').forEach(e => e.classList.remove('tpl-selected'))
     const badge = document.getElementById('tpl-badge')
     const els = mode === 'design' ? elsOf(selectedId) : []
@@ -97,6 +104,12 @@ export function bridgeMain() {
     if (!badge || !el || !selectedLabel) { if (badge) badge.style.display = 'none'; return }
     const r = el.getBoundingClientRect()
     badge.textContent = selectedLabel
+    for (const t of selectedTags) {
+      const span = document.createElement('span')
+      span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
+      span.textContent = t.text
+      badge.appendChild(span)
+    }
     badge.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
     badge.style.display = 'block'
     badge.style.left = `${r.left + scrollX}px`
@@ -249,6 +262,7 @@ export function bridgeMain() {
     if (msg.type === 'select') {
       selectedId = msg.id
       selectedLabel = msg.label || ''
+      selectedTags = msg.tags || []
       applySelection(msg.scroll)
     }
     if (msg.type === 'insert' && editing) {
