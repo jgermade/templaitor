@@ -400,8 +400,8 @@ PDF layout (or the other way round) gives a warning. A layout without `format:` 
   `<mj-raw>{% if … %}</mj-raw>` / `{% for … %}` markers right around the block, so the output is plain Jinja2;
   the editor treats the block and its markers as one unit (moving, duplicating or deleting it keeps them
   together, and they are hidden from the Structure tree, which shows them as badges). On the design canvas
-  the logic is not evaluated — the block is always there, with an "if …" / "for each …" label above it —; the
-  Preview applies it with the demo data.
+  the logic is not evaluated — the block is always there, with floating tabs `? condition` / `↻ item in items`
+  at its top-left —; the Preview applies it with the demo data.
 - **Messages**: every key of the active language, add/remove keys and languages.
 - **Preview / text**: rendered with the demo data (nunjucks, Jinja2 compatible) and the TXT version.
   The preview also opens in a new tab at a real URL, `/preview/<template>?lang=es` (`&version=v3` for a

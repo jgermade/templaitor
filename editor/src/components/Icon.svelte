@@ -65,7 +65,8 @@
     landscape: '<rect x="3" y="6" width="18" height="12" rx="1.5"/>',
     // condition (Jinja2 {% if %}): the letters "if", drawn
     condition: '<circle cx="7" cy="5.2" r="1.4" fill="currentColor" stroke="none"/><path d="M7 9.5V19M18.5 5.3a2.7 2.7 0 0 0-4.6 1.9V19M10.8 11h6.4"/>',
-    repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+    // loop (Jinja2 {% for %}): ↻
+    repeat: '<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8H16"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     'page-break': '<path d="M4 4v5h16V4M4 20v-5h16v5"/><path d="M2 12h3M9 12h2M13 12h2M19 12h3"/>',
   }

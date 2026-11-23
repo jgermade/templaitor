@@ -12,8 +12,9 @@
   const srcdoc = `<!doctype html><html><head><meta charset="utf-8"></head><body>${bridgeScript}</body></html>`
 
   const logicTags = (l) => [
-    ...(l?.if ? [{ kind: 'if', text: `if ${l.if}` }] : []),
-    ...(l?.for ? [{ kind: 'for', text: `for each ${l.for.item} in ${l.for.list}` }] : []),
+    // compact notation: "? condition" · "↻ item in items" (the ↻ is drawn by the bridge as an SVG)
+    ...(l?.if ? [{ kind: 'if', text: `? ${l.if}`, label: `Shown only if ${l.if}` }] : []),
+    ...(l?.for ? [{ kind: 'for', text: `${l.for.item} in ${l.for.list}`, label: `Repeated for each ${l.for.item} in ${l.for.list}` }] : []),
   ]
 
   const post = (msg) => iframe?.contentWindow?.postMessage({ __tpl: true, ...msg }, '*')

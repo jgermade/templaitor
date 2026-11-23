@@ -83,7 +83,7 @@
     </button>
     <span class="icon" class:comp={instance} class:slot><Icon name={isEl ? def.icon : instance ? 'component' : slot ? 'layout' : node.type === 'comment' ? 'hash' : 'variable'} size={instance ? 10 : 13} /></span>
     <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
-    {#if logic.if}<span class="logic if" title={`Shown only if ${logic.if}`}><Icon name="condition" size={11} /> {logic.if}</span>{/if}
+    {#if logic.if}<span class="logic if" title={`Shown only if ${logic.if}`}>? {logic.if}</span>{/if}
     {#if logic.for}<span class="logic for" title={`Repeated for each ${logic.for.item} in ${logic.for.list}`}><Icon name="repeat" size={11} /> {logic.for.item} in {logic.for.list}</span>{/if}
     <span class="summary" title={summary}>{summary}</span>
     {#if node.tag !== 'mjml' && node.tag !== 'mj-body'}

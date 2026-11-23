@@ -40,6 +40,7 @@ export function bridgeMain() {
     .tpl-logic-float.inside { transform: none; }
     .tpl-logic-float.inside > span { border-radius: 0 0 3px 3px; }
     .tpl-logic-float > .tpl-badge-logic:first-child { margin-left: 0; }
+    .tpl-badge-logic svg { margin-right: 4px; vertical-align: -1px; }
     .tpl-badge-logic { margin-left: 2px; font: 600 10px/16px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .tpl-badge-logic--if { background: #fef3c7; color: #92400e; }
     .tpl-badge-logic--for { background: #e0f2fe; color: #075985; }
@@ -110,12 +111,7 @@ export function bridgeMain() {
     main.textContent = selectedLabel
     main.style.background = el.classList.contains('tpl-comp') ? '#7c3aed' : '#4f46e5'
     badge.appendChild(main)
-    for (const t of selectedTags) {
-      const span = document.createElement('span')
-      span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
-      span.textContent = t.text
-      badge.appendChild(span)
-    }
+    for (const t of selectedTags) badge.appendChild(logicTab(t))
     badge.style.display = 'flex'
     badge.style.left = `${r.left + scrollX}px`
     badge.style.top = `${r.top + scrollY}px`
@@ -123,6 +119,18 @@ export function bridgeMain() {
     const inside = r.top < 18
     badge.style.transform = inside ? 'none' : 'translateY(-100%)'
     badge.classList.toggle('inside', inside) // tabs hang down instead of up
+  }
+
+  const REPEAT_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8H16"/></svg>' // ↻
+
+  /** A logic tab: "? condition" or "↻ item in items" (the repeat sign is an SVG) */
+  function logicTab(t) {
+    const span = document.createElement('span')
+    span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
+    if (t.kind === 'for') span.innerHTML = REPEAT_SVG
+    span.appendChild(document.createTextNode(t.text))
+    if (t.label) span.title = t.label
+    return span
   }
 
   // ── Display logic: floating tabs over the blocks that have it ─────────
@@ -142,12 +150,7 @@ export function bridgeMain() {
       box.className = `tpl-logic-float${r.top + scrollY < 18 ? ' inside' : ''}`
       box.style.left = `${r.left + scrollX}px`
       box.style.top = `${r.top + scrollY}px`
-      for (const t of tags) {
-        const span = document.createElement('span')
-        span.className = `tpl-badge-logic tpl-badge-logic--${t.kind}`
-        span.textContent = t.text
-        box.appendChild(span)
-      }
+      for (const t of tags) box.appendChild(logicTab(t))
       document.body.appendChild(box)
     }
   }
