@@ -92,7 +92,7 @@ export function gitVersionStore(project, { rootMustBe = null, committer = null }
     async list(doc, { limit = 50 } = {}) {
       await requireRoot()
       const files = Object.values(doc.files).map(rel)
-      const n = Math.min(Number(limit) || 50, 200)
+      const n = Number(limit) || 50
       const [log, count, status] = await Promise.all([
         git(cwd(), ['log', `-n${n}`, FORMAT, '--', ...files]),
         git(cwd(), ['rev-list', '--count', 'HEAD', '--', ...files]),
@@ -159,7 +159,7 @@ export function gitVersionStore(project, { rootMustBe = null, committer = null }
       const ignore = path.join(project.cwd, '.gitignore')
       if (!fs.existsSync(ignore)) {
         const out = path.relative(project.cwd, project.outDir).split(path.sep).join('/')
-        fs.writeFileSync(ignore, `${out && !out.startsWith('..') ? `/${out}/\n` : ''}node_modules/\n`)
+        fs.writeFileSync(ignore, `${out && !out.startsWith('..') ? `/${out}/\n` : ''}node_modules/\n.templaitor/\n`)
       }
       await git(project.cwd, ['add', '-A'])
       const authorArgs = author?.email ? [`--author=${clean(author.name, 100) || clean(author.email, 200)} <${clean(author.email, 200)}>`] : []

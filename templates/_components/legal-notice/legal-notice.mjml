@@ -1,0 +1,5 @@
+<mj-section background-color="#ffffff" padding="8px 24px 32px">
+  <mj-column background-color="#f3f4f6" border-radius="8px" padding="16px 8px">
+    <mj-text font-size="12px" color="#4b5563" align="center" line-height="1.7">$t('legal_notice')</mj-text>
+  </mj-column>
+</mj-section>

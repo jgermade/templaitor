@@ -123,7 +123,7 @@
       {store.dirty ? 'Save' : 'Saved'}
     </button>
   {:else}
-    <span class="readonly" title="Your role in this organization is viewer">Read-only</span>
+    <span class="readonly" title={session.activeOrg?.readOnly ? "The templates of this deployment come from its repository" : "Your role in this organization is viewer"}>Read-only</span>
   {/if}
 
   <div class="flags" role="group" aria-label="Language">

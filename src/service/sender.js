@@ -1,12 +1,8 @@
 // Sending service: builds messages (hosted template + data, or raw HTML), queues them in the database
 // and delivers them with each organization's SMTP, with retries.
 import crypto from 'node:crypto'
-import YAML from 'yaml'
 import { convert as htmlToText } from 'html-to-text'
-import { compileSource, langsOf, renderDraftAttachments } from '../engine/pipeline.js'
-import { readTemplate, readLinks } from '../engine/project.js'
-import { renderJinja } from '../engine/render.js'
-import { resolveVersion } from '../engine/versions.js'
+import { renderMessage, renderAttachments } from '../engine/message.js'
 import { httpError } from './http.js'
 import { safeFetch } from './netguard.js'
 
@@ -44,35 +40,13 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
     const headers = { replyTo: body.replyTo ? list(body.replyTo, 'replyTo')[0] : undefined }
     if (body.template) {
       const ws = await workspaces.get(org.id)
-      let tpl
-      try { tpl = readTemplate(ws.project, body.template) } catch (e) { throw httpError(e.status === 404 ? 404 : 400, e.message) }
-      // pinned version (`version: 3 | "v3" | "latest" | <rev>`): the template's own files at that version;
-      // layouts, components and attached documents are used as they are now
-      let version = null
-      if (body.version != null && body.version !== '') {
-        if (!['string', 'number'].includes(typeof body.version)) throw httpError(400, '`version` must be a number, "v<n>", "latest" or a revision')
-        const v = await resolveVersion(ws.project, tpl.id, 'template', body.version)
-        tpl = { ...tpl, mjml: v.mjml, yml: v.yml ?? '' }
-        version = { number: v.number ?? null, rev: v.rev, short: v.short }
-      }
-      const i18n = YAML.parse(tpl.yml || '') || {}
-      const langs = langsOf(ws.project, i18n)
-      const langKey = resolveLang(ws.project, langs, body.lang)
-      const r = await compileSource(ws.project, { mjml: tpl.mjml, i18n, links: readLinks(ws.project), langKey })
-      if (r.format !== 'email') throw httpError(400, `${body.template} is a PDF document, not an email`)
       const data = body.data && typeof body.data === 'object' ? body.data : {}
-      let subject, html, text
-      try {
-        subject = renderJinja(r.subject, data).trim()
-        html = renderJinja(r.html, data)
-        text = renderJinja(r.text, data)
-      } catch (e) {
-        throw httpError(422, `Jinja2: ${String(e.message).split('\n').pop().trim()}`)
-      }
+      const r = await renderMessage(ws.project, body.template, { lang: body.lang, data, version: body.version })
       return {
-        kind: 'hosted', template: tpl.id, version, locale: r.locale, recipients, from, headers, subject, html, text,
+        kind: 'hosted', template: r.template, version: r.version, locale: r.locale, recipients, from, headers,
+        subject: r.subject, html: r.html, text: r.text,
         // attachments are rendered by the worker from this snapshot (PDF rendering is slow)
-        attachments: r.attachments.length ? { snapshot: { mjml: tpl.mjml, yml: tpl.yml, langKey }, data, names: r.attachments.map(a => renderJinja(a.filename, data)) } : null,
+        attachments: r.snapshot ? { snapshot: r.snapshot, data, names: r.attachments.map(a => a.filename) } : null,
         warnings: r.warnings,
       }
     }
@@ -96,17 +70,6 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
     }
   }
 
-  function resolveLang(project, langs, lang) {
-    if (!lang) return langs[0]
-    const want = String(lang)
-    // accepts the key (`es`) or the locale (`es-ES`)
-    const byKey = langs.find(l => l === want)
-    const byLocale = langs.find(l => (project.locales[l] || l).toLowerCase() === want.toLowerCase())
-    const found = byKey || byLocale || langs.find(l => l === want.split(/[-_]/)[0].toLowerCase())
-    if (!found) throw httpError(400, `Language not available: ${want} (available: ${langs.join(', ')})`)
-    return found
-  }
-
   function fromAddress(org, requested) {
     const smtp = workspaces.smtpOf(org)
     const base = smtp?.from || `no-reply@${config.rpId}`
@@ -120,8 +83,7 @@ export function createSender({ config, repo, workspaces, transportFactory, log =
     if (!payload.attachments) return []
     if (payload.attachments.snapshot) {
       const ws = await workspaces.get(org.id)
-      const out = await renderDraftAttachments(ws.project, payload.attachments.snapshot, { values: payload.attachments.data })
-      return out.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
+      return renderAttachments(ws.project, payload.attachments.snapshot, payload.attachments.data)
     }
     const out = []
     for (const a of payload.attachments.list) {

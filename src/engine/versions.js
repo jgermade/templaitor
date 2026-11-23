@@ -6,11 +6,27 @@
 // A store implements: info() · list(doc, { limit }) · read(doc, rev) · revOf(doc, number) · save(doc, { message, author }) · init?()
 import fs from 'node:fs'
 import { documentFiles, gitVersionStore } from './history.js'
+import { snapshotFile, snapshotVersionStore } from './snapshot.js'
 import { httpError } from './project.js'
 
 export function versionStore(project) {
-  project.versionStore ??= gitVersionStore(project)
+  project.versionStore ??= autoVersionStore(project)
   return project.versionStore
+}
+
+/**
+ * git when the project is in a repository; otherwise the snapshot exported at build time
+ * (`templaitor versions export` → .templaitor/versions.json), e.g. inside a Docker image without .git
+ */
+export function autoVersionStore(project, gitOptions = {}) {
+  const git = gitVersionStore(project, gitOptions)
+  const file = snapshotFile(project)
+  // an installed package (…/node_modules/…) always uses its snapshot: the git repository around it, if any,
+  // is the consumer's, not the one where its versions were made
+  const installed = project.cwd.split(/[\\/]/).includes('node_modules')
+  const pick = async () => (fs.existsSync(file) && (installed || !(await git.info()).available) ? snapshotVersionStore(project, file) : git)
+  const call = (m) => async (...a) => { const s = await pick(); if (!s[m]) throw httpError(409, 'Versions are read-only here'); return s[m](...a) }
+  return { backend: 'auto', info: call('info'), list: call('list'), read: call('read'), revOf: call('revOf'), save: call('save'), init: call('init') }
 }
 
 function docOf(project, id, kind) {
@@ -34,7 +50,7 @@ export async function listVersions(project, id, kind = 'template', { limit } = {
   const info = await store.info()
   if (!info.available) return { ...info, dirty: false, versions: [] }
   const doc = docOf(project, id, kind)
-  return { ...info, ...await store.list(doc, { limit }) }
+  return { ...info, ...await store.list(doc, { limit: Math.min(Number(limit) || 50, 200) }) }
 }
 
 /** A document at a version → { id, short, number?, message, author, date, kind, mjml, yml, data } */

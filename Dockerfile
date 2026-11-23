@@ -1,5 +1,6 @@
 # templaitor hosted service (templaitor serve): users, organizations, editor per org and send API.
 # PDFs are rendered with WeasyPrint (PDF/UA-1) inside a sandbox.
+# It ships the templates of this repository: TEMPLAITOR_PROJECT=/app serves only them (project mode).
 
 # ── build: editor bundle ──
 FROM node:22-bookworm-slim AS build
@@ -7,7 +8,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY . .
-RUN npm run build
+# .templaitor/versions.json (version history of the templates) when `templaitor versions export` ran before
+RUN npm run build && mkdir -p .templaitor
 
 # ── runtime ──
 FROM node:22-bookworm-slim
@@ -29,6 +31,10 @@ COPY bin ./bin
 COPY src ./src
 COPY assets ./assets
 COPY examples/demo ./examples/demo
+# the templates of this repository (project mode: TEMPLAITOR_PROJECT=/app) and their version history
+COPY templaitor.config.yml ./
+COPY templates ./templates
+COPY --from=build /app/.templaitor ./.templaitor
 COPY --from=build /app/dist/editor ./dist/editor
 RUN mkdir -p /data && chown node:node /data
 USER node

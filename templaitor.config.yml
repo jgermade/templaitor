@@ -1,0 +1,31 @@
+# templaitor project of this repository: the templates it deploys (Docker image / Helm chart in project mode)
+# and ships in the npm package (`import { createEngine } from 'templaitor'`). They start as a copy of the demo
+# (examples/demo, which stays as the starter of new organizations): replace them with your own.
+name: templaitor
+templates: templates          # templates root
+outDir: dist/templates        # compiled output (HTML/TXT with Jinja2); dist/editor is the editor build
+layouts: _layouts             # relative to `templates`
+components: _components     # reusable components: $import(_components/name)
+links: _shared/links.yml
+static: _shared               # served at /static/ by the editor
+
+# language (key in the .yml) → locale used in file names and in $lang
+locales:
+  es: es-ES
+  en: en-US
+
+output:
+  text: true                  # writes <name>.<locale>.txt
+  subject: true               # writes <name>.<locale>.subject.txt
+
+# PDF: rendering engine (weasyprint · prince · chromium · auto). weasyprint and prince produce PDF/UA-1.
+pdf:
+  engine: auto
+
+# SMTP for "Send a test" in the editor (local Mailpit: `make up` starts it with docker compose)
+smtp:
+  host: localhost
+  port: 1025
+  from: noreply@example.com
+  label: mailpit              # send button label
+  web: /mailpit/              # web inbox (relative: works locally and through intergate)

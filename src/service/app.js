@@ -9,7 +9,7 @@ import { createMailer } from './mailer.js'
 import { createStorage } from './storage.js'
 import { createWorkspaces } from './workspaces.js'
 import { createSender, messageView } from './sender.js'
-import { encrypt, hashToken, randomToken } from './crypto.js'
+import { encrypt, hashToken, randomToken, safeEqual } from './crypto.js'
 import { httpError, readJson, sendJson } from './http.js'
 import { listTemplates } from '../engine/project.js'
 import { listVersions } from '../engine/versions.js'
@@ -34,6 +34,21 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   const sender = createSender({ config, repo, workspaces, transportFactory, log })
   const origin = new URL(config.baseUrl).origin
 
+  // project mode: the organization "project" maps the deployed folder; the configured admins own it
+  if (config.project) {
+    if (!fs.existsSync(path.join(config.project.dir, 'templaitor.config.yml'))) throw new Error(`No templaitor project in ${config.project.dir} (TEMPLAITOR_PROJECT)`)
+    let org = await repo.orgBySlug(config.project.slug)
+    if (!org) {
+      const { loadProject } = await import('../engine/project.js')
+      org = await repo.createOrg({ name: loadProject(config.project.dir).name, slug: config.project.slug })
+    }
+    for (const email of config.project.admins) {
+      const user = await repo.userByEmail(email) ?? await repo.createUser(email)
+      if (!await repo.membership(org.id, user.id)) await repo.addMember(org.id, user.id, 'owner')
+      else await repo.setRole(org.id, user.id, 'owner')
+    }
+  }
+
   // ── helpers ──
   const requireUser = (ctx) => {
     if (!ctx.auth) throw httpError(401, 'Sign in first')
@@ -47,9 +62,12 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     if (!roleAtLeast(m.role, minRole)) throw httpError(403, `This action needs the ${minRole} role`)
     return { org, role: m.role, user }
   }
+  const isProjectOrg = (org) => !!config.project && org?.slug === config.project.slug
   const orgView = (org, role) => ({
     id: org.id, slug: org.slug, name: org.name, role,
     storage: storage.driver, mapped: storage.isMapped(org),
+    // project mode: the templates come from the deployed repository, so the editor is read-only
+    ...(isProjectOrg(org) ? { project: true, readOnly: true } : {}),
   })
   const smtpView = (org) => {
     const s = org.smtp || {}
@@ -57,6 +75,11 @@ export async function createApp(config, { transportFactory, mailTransportFactory
   }
 
   async function apiKeyOrg(req) {
+    // project mode: keys from the deployment's configuration (TEMPLAITOR_API_KEYS)
+    const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(\S+)$/)?.[1]
+    if (bearer && config.project?.apiKeys.some(k => safeEqual(k, bearer))) {
+      return { org: await repo.orgBySlug(config.project.slug), key: { id: null } }
+    }
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(tpl_([A-Za-z0-9]{8})_[A-Za-z0-9_-]+)$/)
     if (!m) throw httpError(401, 'Missing API key (Authorization: Bearer tpl_…)')
     const key = await repo.apiKeyByPrefix(m[2])
@@ -99,6 +122,7 @@ export async function createApp(config, { transportFactory, mailTransportFactory
     ['GET', '/orgs', async (ctx) => (await repo.orgsOfUser(requireUser(ctx).id)).map(o => orgView(o, o.role))],
     ['POST', '/orgs', async (ctx) => {
       const user = requireUser(ctx)
+      if (config.project) throw httpError(403, 'This deployment serves one project: organizations cannot be created')
       const name = String(ctx.body.name || '').trim().slice(0, 80)
       if (!name) throw httpError(400, 'The organization needs a name')
       const slug = await uniqueSlug(repo, ctx.body.slug || name)
@@ -309,6 +333,9 @@ export async function createApp(config, { transportFactory, mailTransportFactory
       throw httpError(403, 'Your role in this organization is read-only (viewer)')
     }
     const ws = await workspaces.get(orgId)
+    if (write && isProjectOrg(ws.org) && !VIEWER_POSTS.has(url.pathname)) {
+      throw httpError(403, 'The templates of this deployment come from its repository: change them there and deploy again')
+    }
     if (write && storage.driver === 'db' && !VIEWER_POSTS.has(url.pathname)) {
       // db storage: the changes reach the database before the response is sent (read-your-writes,
       // also from other instances)

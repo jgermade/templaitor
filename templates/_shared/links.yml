@@ -1,0 +1,5 @@
+# URLs shared by every template: $link{ name, label: ..., title: ... }
+# They may contain Jinja2 variables (resolved at runtime).
+homepage: "https://example.com"
+help: "{{ app_url }}/help"
+email_verification: "{{ app_url }}/verify?token={{ verification_token }}"

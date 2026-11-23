@@ -105,6 +105,45 @@ npx templaitor compile --cwd path/to/project    # compile (--watch, --strict)
 npx templaitor new group/name --layout base.layout.mjml
 ```
 
+### This repository's templates
+
+The repository root is a templaitor project too (`templaitor.config.yml` + `templates/`, starting as a copy of
+the demo): **those are the templates it deploys** (the Docker image and the Helm chart serve them in project
+mode) and the ones the **npm package** ships. `make up` opens them; `examples/demo` stays as the starter of
+new organizations in the hosted service.
+
+### Use it as a library (the engine of another project)
+
+```bash
+npm install github:jgermade/templaitor        # or a release tarball / registry version
+```
+
+```js
+import { createEngine } from 'templaitor'
+
+const engine = createEngine()                         // the templates shipped in the package
+// const engine = createEngine({ cwd: './emails' })   // or a templaitor project of your own
+
+engine.templates()                                    // [{ id, format: 'email' | 'pdf', langs }]
+const msg = await engine.render('orders/order-confirmation', {
+  lang: 'es',                                         // key, locale (es-ES) or its language
+  data: { first_name: 'Ada', order_id: 'A-1042' },
+  version: 'v3',                                      // optional: the template as it was at a version
+})
+// msg → { subject, html, text, locale, version, attachments: [{ filename, … }], warnings }
+const files = await engine.attachments(msg)           // [{ filename, content: Buffer, contentType }]
+await mailer.sendMail({ to, subject: msg.subject, html: msg.html, text: msg.text, attachments: files })
+
+const { pdf } = await engine.pdf('documents/invoice', { lang: 'en', data })   // Buffer (PDF/UA-1 with WeasyPrint)
+const jinja = await engine.compile('orders/order-confirmation', { lang: 'en' }) // Jinja2 output, no data
+await engine.versions('orders/order-confirmation')    // [{ number, rev, message, author, date }]
+```
+
+Everything runs in-process (no server). PDFs need one of the PDF engines installed (see *PDF documents*). The
+version history travels inside the package (`.templaitor/versions.json`, exported from git by `prepack`).
+Lower-level pieces (`loadProject`, `compileSource`, `renderMessage`, `createHandler`…) are exported too, and
+`templaitor/engine/<module>` reaches any engine module.
+
 
 # Project Specs
 
@@ -440,6 +479,23 @@ Put it behind a TLS reverse proxy (passkeys need HTTPS on the real domain). Conf
 `templaitor.server.yml` (see `templaitor.server.example.yml`) or `TEMPLAITOR_*` environment variables. Back
 up the data volume (SQLite database and organization projects). Plan: [`ROADMAP/2026-11-21/hosted-service.md`](ROADMAP/2026-11-21/hosted-service.md).
 
+**Project mode — deploying this repository's templates**: with `TEMPLAITOR_PROJECT=<folder>` (or `project:`)
+the service serves **one** templaitor project — in the Docker image, `/app`: the templates of this repository —
+as the organization `project`: the send API (`/v1/send`, `/v1/render`, `/v1/versions`, `/v1/templates`) with
+API keys from `TEMPLAITOR_API_KEYS` (comma separated, ≥ 24 characters), the deployment's SMTP
+(`TEMPLAITOR_SMTP_*`) for the sends, owners from `TEMPLAITOR_ADMINS` (they sign in to see the send log, set
+another SMTP or create more API keys), sign-up by invitation, and a **read-only** editor: the templates change
+in the repository and are deployed again. No other organizations can be created. The image has no `.git`, so
+the version history goes in as a snapshot (`templaitor versions export` → `.templaitor/versions.json`; CI
+and `make docker` run it), and pinned versions keep working. `deploy/docker-compose.yml` and the Helm chart
+(`project.enabled`, `project.apiKeys`, `project.admins`) use project mode by default; set
+`TEMPLAITOR_PROJECT=` (empty) / `project.enabled=false` for the multi-organization service.
+
+```bash
+docker run -p 3000:3000 -e TEMPLAITOR_SECRET=… -e TEMPLAITOR_PROJECT=/app \
+  -e TEMPLAITOR_API_KEYS=$(openssl rand -hex 24) -e TEMPLAITOR_SMTP_HOST=smtp.example.com … ghcr.io/jgermade/templaitor
+```
+
 **Database**: SQLite (a file in the data volume) by default — one instance. **Postgres** for several
 instances behind a load balancer: `TEMPLAITOR_DATABASE_URL=postgres://…` (or `database.url`), together with
 `TEMPLAITOR_STORAGE=db` so the templates are not on one instance's disk. With Docker:
@@ -456,7 +512,8 @@ against Postgres too when `TEMPLAITOR_TEST_POSTGRES_URL` points to a server (CI 
 ## Architecture
 
 ```
-bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · serve)
+bin/templaitor.js          CLI (compile · pdf · validate · engines · editor · new · versions · serve)
+src/index.js               public API of the npm package: createEngine() (render, attachments, pdf, compile, versions)
 src/shared/                code shared by Node and the browser
   mjml-tree.js             MJML parser/serializer that keeps $ commands and Jinja2
   components.js            component catalog (attributes, valid nesting)
@@ -470,6 +527,8 @@ src/engine/                compilation engine (ported from doomus-rs)
   pdf.js · verapdf.js      PDF engines and veraPDF validation
   attachments.js           email attachments (local PDF templates per language, remote files)
   versions.js · history.js template versions (list, read, save, init) · git version store
+  snapshot.js              versions exported from git for deployments without .git (read-only store)
+  message.js               a template rendered for one recipient (send API and library)
   commands.js · guard.js · resolver.js · render.js · project.js
 src/server/server.js       editor HTTP API + static files (local editor; reused per org by the service)
 src/service/               hosted service (templaitor serve)
@@ -482,7 +541,8 @@ src/service/               hosted service (templaitor serve)
 editor/                    Svelte 5 + Vite SPA (→ dist/editor)
   src/stores/editor.svelte.js   state: the source texts are the single source of truth
   src/lib/bridge.js             iframe script (selection, inline editing, serialization)
-examples/demo/             demo project
+templaitor.config.yml · templates/   this repository's templates (deployed and shipped in the package)
+examples/demo/             demo project (starter of new organizations)
 ```
 
 ## Website, CI and releases

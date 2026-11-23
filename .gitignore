@@ -7,3 +7,4 @@ artifacts/
 templaitor.server.yml
 data/
 deploy/.env
+.templaitor/

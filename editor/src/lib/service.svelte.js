@@ -29,7 +29,7 @@ class Session {
   signup = $state('open')
 
   isService = $derived(this.mode === 'service')
-  canEdit = $derived(!this.isService || ['editor', 'admin', 'owner'].includes(this.activeOrg?.role))
+  canEdit = $derived(!this.isService || (['editor', 'admin', 'owner'].includes(this.activeOrg?.role) && !this.activeOrg?.readOnly))
   isAdmin = $derived(['admin', 'owner'].includes(this.activeOrg?.role))
 
   async load() {

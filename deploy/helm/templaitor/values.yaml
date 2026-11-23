@@ -19,6 +19,14 @@ replicaCount: 1
 nameOverride: ""
 fullnameOverride: ""
 
+# Project mode: serve only the templates baked into the image (this repository's), read-only, with API keys
+# from the values. Disable it for the multi-organization service.
+project:
+  enabled: true
+  dir: /app
+  admins: []                   # emails that own the project (send log, SMTP, more API keys)
+  apiKeys: []                  # API keys for /v1/* (≥ 24 characters each; stored in the Secret)
+
 config:
   baseUrl: ""                  # public URL (default: http://<release>.<namespace>.svc:<port>); set it in production
   signup: invite               # open · invite
@@ -42,7 +50,7 @@ config:
 secret:
   value: ""
   existingSecret: ""           # use your own Secret instead (keys: TEMPLAITOR_SECRET, optional
-                               # TEMPLAITOR_DATABASE_URL and TEMPLAITOR_SMTP_PASS)
+                               # TEMPLAITOR_DATABASE_URL, TEMPLAITOR_SMTP_PASS and TEMPLAITOR_API_KEYS)
   keep: true                   # helm.sh/resource-policy: keep
 
 persistence:

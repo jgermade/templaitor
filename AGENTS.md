@@ -38,6 +38,8 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 
 ## Conventions
 
+- `src/index.js` is the public API of the npm package (`createEngine`): keep it stable; the hosted service and the
+  library share `src/engine/message.js` for rendering a template for one recipient.
 - `src/shared/` must stay browser-safe (no Node imports): it is bundled into the editor.
 - Compiled output must keep Jinja2 tokens intact (`{{ }}`, `{% %}`, `{# #}`).
 - Editor state: the template source texts (`mjml`, `yml`, `data`) are the single source of truth; visual
@@ -49,4 +51,5 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
   emoji as icons (✓ ✕ ⚠ → ◆ 📎 …), never native checkboxes/radios (use `components/Checkbox.svelte`), and flags
   through `components/Flag.svelte` (SVG files from `country-flag-icons`).
 - **Accessibility is a hard requirement**: emails and PDFs must meet WCAG 2.1 AA / EN 301 549, and PDFs
-  must be PDF/UA-1 (validated with veraPDF). The demo templates must pass the checker (there is a test).
+  must be PDF/UA-1 (validated with veraPDF). The demo templates and the repository's own templates (`templates/`,
+  the ones it deploys and ships in the npm package) must pass the checker (there is a test).

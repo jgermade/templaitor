@@ -1,0 +1,29 @@
+---
+layout: base.layout.mjml
+---
+
+<mj-section background-color="#ffffff" padding="24px 24px 0">
+  <mj-column>
+    <mj-text font-size="20px" font-weight="600" color="#111827"><h1 style="margin:0;font:inherit;color:inherit;letter-spacing:inherit">$t('title')</h1></mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section background-color="#ffffff" padding="16px 24px">
+  <mj-column>
+    <mj-text>$t('greeting')</mj-text>
+    <mj-text>$t('intro')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/cta-button, url="{{ app_url }}/verify?token={{ verification_token }}", label="$t('cta')")
+
+<mj-section background-color="#ffffff" padding="0 24px 16px">
+  <mj-column>
+    <mj-text font-size="12px" color="#6b7280">$t('expiry')</mj-text>
+    <mj-text font-size="12px" color="#6b7280">$t('ignore')</mj-text>
+  </mj-column>
+</mj-section>
+
+$import(_components/signature)
+
+$import(_components/legal-notice)

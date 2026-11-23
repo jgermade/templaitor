@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import JSON5 from 'json5'
 import { parse, serialize, findNode, moveNode, splitFrontmatter } from '../src/shared/mjml-tree.js'
 import { resolveCommands } from '../src/engine/commands.js'
 import { obfuscate, restore } from '../src/engine/guard.js'
@@ -227,12 +228,15 @@ test('accessibility: detects issues and the demo meets WCAG 2.1 AA', async () =>
     assert.ok(rules.includes(r), `should detect ${r}`)
   }
   assert.equal(Math.round(contrast(parseColor('#ffffff'), parseColor('#000')) * 10) / 10, 21)
-  const project = loadProject(DEMO)
-  for (const t of listTemplates(project)) {
-    const tpl = readTemplate(project, t.id)
-    for (const lang of t.langs) {
-      const r = await previewDraft(project, { ...tpl, langKey: lang })
-      assert.deepEqual(r.a11y, [], `${t.id} (${lang}) does not comply: ${r.a11y.map(i => i.message).join('; ')}`)
+  // the demo and the templates this repository deploys (its root project)
+  for (const dir of [DEMO, path.resolve(import.meta.dirname, '..')]) {
+    const project = loadProject(dir)
+    for (const t of listTemplates(project)) {
+      const tpl = readTemplate(project, t.id)
+      for (const lang of t.langs) {
+        const r = await previewDraft(project, { ...tpl, langKey: lang })
+        assert.deepEqual(r.a11y, [], `${dir}: ${t.id} (${lang}) does not comply: ${r.a11y.map(i => i.message).join('; ')}`)
+      }
     }
   }
 })
@@ -468,4 +472,59 @@ test('preview page: /preview/<id> renders the saved document (or a version) at a
   } finally {
     server.close()
   }
+})
+
+test('library: createEngine renders the bundled templates (email, attachments, PDF, Jinja2 output, versions)', { timeout: 120000 }, async () => {
+  const { createEngine, BUNDLED_PROJECT } = await import('templaitor')
+  assert.equal(BUNDLED_PROJECT, path.resolve(import.meta.dirname, '..'))
+  const engine = createEngine()
+  assert.deepEqual(engine.templates().map(t => t.id), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
+  const data = JSON5.parse(fs.readFileSync(path.join(BUNDLED_PROJECT, 'templates/orders/order-confirmation/order-confirmation.json5'), 'utf8'))
+  const es = await engine.render('orders/order-confirmation', { lang: 'es-ES', data })
+  assert.equal(es.subject, `Pedido #${data.order_id} confirmado`)
+  assert.equal(es.locale, 'es-ES')
+  assert.doesNotMatch(es.html, /\{\{|\{%/)
+  assert.match(es.text, /Gracias/)
+  assert.deepEqual(es.attachments.map(a => a.filename), [`factura-${data.invoice.number}.pdf`])
+  assert.equal(es.version, null)
+  const [pdf] = await engine.attachments(es)
+  assert.equal(pdf.contentType, 'application/pdf')
+  assert.equal(pdf.content.subarray(0, 5).toString(), '%PDF-')
+  const doc = await engine.pdf('documents/invoice', { lang: 'en', data: data.invoice })
+  assert.equal(doc.pdf.subarray(0, 5).toString(), '%PDF-')
+  assert.equal(doc.locale, 'en-US')
+  const raw = await engine.compile('orders/order-confirmation', { lang: 'en' })
+  assert.match(raw.html, /\{\{ ?first_name ?\}\}/) // Jinja2 kept for a Jinja2 backend
+  await assert.rejects(engine.render('orders/order-confirmation', { lang: 'fr' }), /Language not available/)
+  await assert.rejects(engine.render('documents/invoice'), /PDF document/)
+  await assert.rejects(engine.render('orders/missing'), /not found/)
+  // a project of the consumer's own
+  assert.deepEqual(createEngine({ cwd: DEMO }).templates().length, 3)
+})
+
+test('versions (snapshot): exported from git, they keep working without .git (read-only)', async () => {
+  const { exportVersions } = await import('../src/engine/snapshot.js')
+  const { listVersions, readVersion, saveVersion, resolveVersion } = await import('../src/engine/versions.js')
+  const { execFileSync } = await import('node:child_process')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-snap-'))
+  fs.cpSync(DEMO, dir, { recursive: true })
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: dir, stdio: 'pipe' }).toString()
+  git('init', '-q'); git('add', '.'); git('commit', '-q', '-m', 'first')
+  const yml = path.join(dir, 'templates/orders/order-confirmation/order-confirmation.yml')
+  fs.writeFileSync(yml, fs.readFileSync(yml, 'utf8').replace('Seguir envío', 'Ver envío'))
+  git('commit', '-q', '-am', 'second')
+  const r = await exportVersions(loadProject(dir))
+  assert.equal(r.versions, 11) // 10 documents with 1 version + 1 with 2
+  fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true })
+
+  const project = loadProject(dir)
+  const list = await listVersions(project, 'orders/order-confirmation')
+  assert.equal(list.backend, 'snapshot')
+  assert.deepEqual(list.versions.map(v => [v.number, v.message]), [[2, 'second'], [1, 'first']])
+  assert.equal(list.dirty, false)
+  assert.match((await readVersion(project, 'orders/order-confirmation', 'template', list.versions[1].short)).yml, /Seguir envío/)
+  assert.match((await resolveVersion(project, 'orders/order-confirmation', 'template', 'v1')).yml, /Seguir envío/)
+  await assert.rejects(saveVersion(project, 'orders/order-confirmation', 'template', { message: 'x' }), /read-only/)
+  fs.appendFileSync(yml, '\n')
+  assert.equal((await listVersions(project, 'orders/order-confirmation')).dirty, true)
 })

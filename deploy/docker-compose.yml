@@ -12,6 +12,9 @@ services:
     env_file: .env
     environment:
       TEMPLAITOR_DATA_DIR: /data
+      # project mode: serve the templates of this repository (baked into the image), read-only.
+      # Set TEMPLAITOR_PROJECT= (empty) in .env for the multi-organization service instead.
+      TEMPLAITOR_PROJECT: ${TEMPLAITOR_PROJECT-/app}
     volumes:
       - templaitor-data:/data              # SQLite database + org projects (back this up)
       # - /srv/acme/emails:/projects/acme  # optional: an org mapped to an existing folder (storage.projects)

@@ -55,7 +55,7 @@ async function startService(overrides = {}, pgAdminUrl = null) {
   await new Promise(r => server.listen(0, '127.0.0.1', r))
   const baseUrl = `http://127.0.0.1:${server.address().port}`
   const config = loadServiceConfig({ cwd: dataDir, env: {}, overrides: { secret: SECRET, dataDir, baseUrl, ...overrides } })
-  const app = await createApp(config, { transportFactory, log: process.env.DEBUG_SVC ? console.log : null })
+  const app = await createApp(config, { transportFactory, mailTransportFactory: () => ({ sendMail: async () => ({}) }), log: process.env.DEBUG_SVC ? console.log : null })
   server.on('request', app.handler)
   return {
     app, baseUrl, sent, config,
@@ -435,6 +435,69 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
 })
 
 after(() => setPdfSandbox(false))
+
+test('service: project mode serves one deployed project (read-only, env API keys, admins, snapshot versions)', { timeout: 60000 }, async () => {
+  const { execFileSync } = await import('node:child_process')
+  const { exportVersions } = await import('../src/engine/snapshot.js')
+  const { loadProject } = await import('../src/engine/project.js')
+  // the "repository": its root project with two commits, exported and deployed without .git
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-deploy-'))
+  const root = path.resolve(import.meta.dirname, '..')
+  fs.copyFileSync(path.join(root, 'templaitor.config.yml'), path.join(repoDir, 'templaitor.config.yml'))
+  fs.cpSync(path.join(root, 'templates'), path.join(repoDir, 'templates'), { recursive: true })
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=Ada', '-c', 'user.email=ada@example.com', ...a], { cwd: repoDir, stdio: 'pipe' })
+  git('init', '-q'); git('add', '.'); git('commit', '-q', '-m', 'first')
+  const tplFile = path.join(repoDir, 'templates/customers/email-verification/email-verification.yml')
+  const before = fs.readFileSync(tplFile, 'utf8')
+  const subject = before.match(/^ {2}en: "?(.+?)"?$/m)?.[1]
+  fs.writeFileSync(tplFile, before.replace(subject, 'Deployed subject'))
+  git('commit', '-q', '-am', 'second')
+  await exportVersions(loadProject(repoDir))
+  fs.rmSync(path.join(repoDir, '.git'), { recursive: true, force: true })
+
+  const KEY = 'deploy-key-0123456789abcdef'
+  const s = await startService({ project: repoDir, apiKeys: [KEY], admins: ['ops@example.com'], smtp: { host: 'smtp.deploy.test', from: 'Deploy <no-reply@deploy.test>' } })
+  try {
+    assert.equal(s.config.signup, 'invite')
+    const api = (url, body, key = KEY) => fetch(s.baseUrl + url, {
+      method: body ? 'POST' : 'GET', body: body && JSON.stringify(body),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    }).then(async r => ({ status: r.status, data: await r.json() }))
+    assert.deepEqual((await api('/v1/templates')).data.map(t => t.id), ['customers/email-verification', 'documents/invoice', 'orders/order-confirmation'])
+    assert.equal((await api('/v1/templates', undefined, 'wrong-key-0123456789abcdef')).status, 401)
+    const data = { first_name: 'Ada', verification_url: 'https://x.test/v', code: '123456', app_url: 'https://x.test' }
+    assert.equal((await api('/v1/render', { template: 'customers/email-verification', lang: 'en', data })).data.subject, 'Deployed subject')
+    const v1 = (await api('/v1/render', { template: 'customers/email-verification', lang: 'en', data, version: 'v1' })).data
+    assert.notEqual(v1.subject, 'Deployed subject')
+    assert.equal(v1.version.number, 1)
+    const versions = (await api('/v1/versions?template=customers/email-verification')).data.versions
+    assert.deepEqual(versions.map(v => v.message), ['second', 'first'])
+    // sending uses the deployment's SMTP
+    const sent = await api('/v1/send', { template: 'customers/email-verification', lang: 'en', data, to: 'ada@example.com', version: 2 })
+    assert.equal(sent.status, 202, JSON.stringify(sent.data))
+    await s.app.sender.tick()
+    assert.equal(s.sent.at(-1).subject, 'Deployed subject')
+    assert.equal(s.sent.at(-1).from, 'Deploy <no-reply@deploy.test>')
+
+    // the admin signs in: read-only editor of the project, no new organizations
+    const ops = client(s)
+    await ops.login('ops@example.com')
+    const session = (await ops.get('/auth/session')).data
+    assert.equal(session.activeOrg.slug, 'project')
+    assert.equal(session.activeOrg.role, 'owner')
+    assert.equal(session.activeOrg.readOnly, true)
+    const tpl = (await ops.get('/api/template?id=customers/email-verification')).data
+    assert.equal((await ops.put('/api/template', tpl)).status, 403)
+    assert.equal((await ops.post('/api/preview', { ...tpl, lang: 'en', mode: 'preview' })).status, 200)
+    assert.equal((await ops.get('/api/versions?id=customers/email-verification')).data.backend, 'snapshot')
+    assert.equal((await ops.post('/orgs', { name: 'Other' })).status, 403)
+    // signup is by invitation
+    await client(s).post('/auth/code', { email: 'stranger@example.com' })
+    assert.equal(s.app.mailer.outbox.some(m => m.to === 'stranger@example.com'), false) // no code is sent
+  } finally {
+    await s.close()
+  }
+})
 
 test('service: SSRF guard and secret encryption', async () => {
   for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.1.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:127.0.0.1', '100.64.0.1']) assert.ok(isPrivateAddress(ip), ip)
