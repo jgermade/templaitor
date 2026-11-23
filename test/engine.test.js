@@ -428,6 +428,12 @@ test('versions (git): list, read, save only the document, init and identity fall
     assert.equal((await listVersions(project, ID)).versions[0].message, 'from the terminal')
     assert.equal((await listVersions(project, ID)).versions[0].number, 3)
 
+    // a short revision made only of digits is a revision, not a version number
+    const { resolveVersion } = await import('../src/engine/versions.js')
+    const full = h.versions[1].rev
+    assert.equal((await resolveVersion(project, ID, 'template', full.slice(0, 7))).rev.slice(0, 7), full.slice(0, 7))
+    assert.equal((await resolveVersion(project, ID, 'template', 1)).number, 1)
+    assert.equal((await resolveVersion(project, ID, 'template', '1')).number, 1)
     await assert.rejects(readVersion(project, ID, 'template', 'HEAD; rm -rf /'), /Invalid revision/)
     await assert.rejects(readVersion(project, 'orders/missing', 'template', h.versions[0].rev), /did not exist/)
     await assert.rejects(listVersions(project, 'orders/missing'), /Not found/)

@@ -97,7 +97,8 @@ export async function resolveVersion(project, id, kind = 'template', spec) {
   if (/^latest$/i.test(s)) {
     rev = (await store.list(doc, { limit: 1 })).versions[0]?.rev
     if (!rev) throw httpError(404, `${id} has no versions yet`)
-  } else if (/^v?\d{1,9}$/i.test(s)) {
+  } else if (typeof spec === 'number' || /^v\d{1,9}$/i.test(s) || /^\d{1,6}$/.test(s)) {
+    // a number (3, "v3", "3"); a string of 7+ digits is a short git revision that happens to be all digits
     const n = Number(s.replace(/^v/i, ''))
     rev = n > 0 ? await store.revOf(doc, n) : null
     if (!rev) throw httpError(404, `${id} has no version v${n}`)
