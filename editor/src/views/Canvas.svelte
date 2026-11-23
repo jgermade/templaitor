@@ -29,13 +29,14 @@
   })
 
   let dragged = null
-  // a component dragged from the panel: the canvas gets the valid drop targets (the iframe draws the line)
+  // a block or component dragged from the library: the canvas gets the valid drop targets (the iframe
+  // draws the line)
   $effect(() => {
-    const comp = store.drag.comp
+    const item = store.drag.item
     if (!ready) return
-    if (comp && mode === 'design') {
-      dragged = comp // dragend (in the panel) may arrive before the iframe's drop message
-      post({ type: 'dragtargets', targets: store.dropTargets(comp.rootTag), label: comp.name })
+    if (item && mode === 'design') {
+      dragged = item // dragend (in the library) may arrive before the iframe's drop message
+      post({ type: 'dragtargets', targets: store.dropTargets(item), label: item.label })
     } else post({ type: 'dragend' })
   })
 
@@ -72,13 +73,12 @@
         break
       }
       case 'drop':
-        if (dragged && store.dropComponent(dragged, msg.id, msg.where)) {
+        if (dragged && store.dropItem(dragged, msg.id, msg.where)) {
           store.selectSource = 'canvas'
           queueMicrotask(() => (store.selectSource = null))
         }
         dragged = null
-        store.drag.comp = null
-        store.drag.tag = null
+        store.drag.item = null
         break
       case 'opencomp': {
         const info = store.instanceOf(findNode(store.tree, msg.id))

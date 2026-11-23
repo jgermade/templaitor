@@ -17,17 +17,13 @@
   }
 
   function dragStart(e, c) {
-    store.drag.comp = c
-    store.drag.tag = c.rootTag
+    store.drag.item = store.componentItem(c)
     store.drag.id = null
     e.dataTransfer.effectAllowed = 'copy'
     e.dataTransfer.setData('text/plain', `$import(${c.importPath})`)
   }
 
-  function dragEnd() {
-    store.drag.comp = null
-    store.drag.tag = null
-  }
+  const dragEnd = () => (store.drag.item = null)
 
   async function create() {
     const id = await promptDialog({ title: 'New component', label: 'Name', placeholder: 'header, legal-notice…', okLabel: 'Create', pattern: '[\\w.\\-]+' })

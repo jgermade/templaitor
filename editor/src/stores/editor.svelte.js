@@ -14,7 +14,7 @@ import {
 import { formatImportCall, normalizeParams, toBoolean } from '@shared/imports.js'
 import { splitWrapper, setHeadingLevel, rewrap } from '@shared/semantics.js'
 import { normalizeAttachments } from '@shared/attachments.js'
-import { COMPONENTS, canContain } from '@shared/components.js'
+import { COMPONENTS, canContain, describe } from '@shared/components.js'
 import { api } from '../lib/api.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
 
@@ -47,8 +47,11 @@ class EditorStore {
   pdfValidation = $state(null) // { status: 'running' | 'done' | 'error', result, error, stale }
   history = $state([])
   future = $state([])
-  /** Drag and drop in progress: a node of the tree (`id`) or a component from the panel (`comp`) */
-  drag = $state({ id: null, tag: null, comp: null })
+  /**
+   * Drag and drop in progress: a node of the tree (`id`, `tag`) or a new item from the library (`item`:
+   * a block or a component, see blockItem / componentItem)
+   */
+  drag = $state({ id: null, tag: null, item: null })
 
   // ── Derived ───────────────────────────────────────────────
   split = $derived(splitFrontmatter(this.doc?.mjml ?? ''))
@@ -346,14 +349,19 @@ class EditorStore {
   }
 
   /** Inserts a new component at the most sensible place given the selection */
-  add(tag) {
+  /** A new block of the palette (texts and buttons are translatable from the start) */
+  createBlock(tag) {
     const node = COMPONENTS[tag].create()
-    // texto y botones nacen traducibles
     if (COMPONENTS[tag].editable) {
       const key = this.uniqueKey(tag === 'mj-button' ? 'cta' : 'text')
       this.addMessage(key, tag === 'mj-button' ? 'Button' : 'New text')
       node.content = `$t('${key}')`
     }
+    return node
+  }
+
+  add(tag) {
+    const node = this.createBlock(tag)
     const placement = this.findPlacement(tag)
     if (placement) {
       this.mutate(tree => insertNode(tree, placement.pid, placement.index, node), null)
@@ -535,15 +543,33 @@ class EditorStore {
     })
   }
 
-  /** Where a node with root `tag` may be dropped → { [nodeId]: { before, after, inside } } (canvas drag and drop) */
-  dropTargets(tag) {
+  // ── Library items (blocks and components dragged to the canvas or the structure) ──
+  /** A palette block: it can also land wrapped in a column / section where it does not fit directly */
+  blockItem(tag) {
+    const tags = [tag]
+    let cur = tag
+    if (cur !== 'mj-column' && canContain('mj-column', cur)) tags.push((cur = 'mj-column'))
+    if (cur !== 'mj-section' && canContain('mj-section', cur)) tags.push('mj-section')
+    return { kind: 'block', tag, tags, label: describe(tag).label }
+  }
+
+  componentItem(comp) {
+    return { kind: 'component', comp, tags: [comp.rootTag], label: comp.name }
+  }
+
+  /** The tag the item takes when placed inside `pid` (itself or a wrapper), or null */
+  fitIn(item, pid) {
+    return item.tags.find(t => this.accepts(pid, t)) ?? null
+  }
+
+  /** Where an item may be dropped → { [nodeId]: { before, after, inside } } (canvas drag and drop) */
+  dropTargets(item) {
     const out = {}
     const visit = (node) => {
       // elements, and component instances ($import text nodes, drawn as one block on the canvas)
       if (node.id != null && (node.type === 'element' || this.instanceOf(node))) {
-        const pid = parentId(node.id)
-        const sibling = this.accepts(pid, tag)
-        const inside = node.type === 'element' && node.content == null && this.accepts(node.id, tag)
+        const sibling = !!this.fitIn(item, parentId(node.id))
+        const inside = node.type === 'element' && node.content == null && !!this.fitIn(item, node.id)
         if (sibling || inside) out[node.id] = { before: sibling, after: sibling, inside }
       }
       if (node.type === 'element' && node.content == null) node.children?.forEach(visit)
@@ -552,15 +578,29 @@ class EditorStore {
     return out
   }
 
-  /** Drops a component (an $import) before/after/inside `targetId` → true when it fits there */
-  dropComponent(comp, targetId, where) {
+  /** Drops a library item before/after/inside `targetId` → true when it fits there */
+  dropItem(item, targetId, where) {
     const target = findNode(this.tree, targetId)
     if (!target) return false
     const pid = where === 'inside' ? targetId : parentId(targetId)
     const index = where === 'inside' ? target.children.length : Number(targetId.split('.').pop()) + (where === 'after' ? 1 : 0)
-    if (!this.accepts(pid, comp.rootTag)) return false
-    this.mutate(tree => insertNode(tree, pid, index, { type: 'text', value: `$import(${comp.importPath})` }))
-    this.notify(`${comp.name} added`)
+    const as = this.fitIn(item, pid)
+    if (!as) return false
+    if (item.kind === 'component') {
+      this.mutate(tree => insertNode(tree, pid, index, { type: 'text', value: `$import(${item.comp.importPath})` }))
+    } else {
+      let node = this.createBlock(item.tag)
+      if (as !== item.tag) {
+        if (canContain('mj-column', node.tag)) node = { ...COMPONENTS['mj-column'].create(), children: [node] }
+        if (as === 'mj-section' && node.tag !== 'mj-section') node = { ...COMPONENTS['mj-section'].create(), children: [node] }
+      }
+      this.mutate(tree => {
+        let leaf = insertNode(tree, pid, index, node)
+        while (findNode(tree, leaf).tag !== item.tag) leaf = `${leaf}.0`
+        return leaf
+      })
+    }
+    this.notify(`${item.label} added`)
     return true
   }
 

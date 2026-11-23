@@ -29,17 +29,20 @@
   })
 
   function onDragOver(e) {
-    if (drag.comp ? false : !drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`)) return
+    const item = drag.item
+    if (!item && (!drag.id || drag.id === node.id || node.id.startsWith(`${drag.id}.`))) return
     const r = e.currentTarget.getBoundingClientRect()
     const y = (e.clientY - r.top) / r.height
-    const canInside = isEl && node.content == null && store.accepts(node.id, drag.tag)
+    // a new item from the library may land wrapped (block → column / section); a moved node as it is
+    const fits = (pid) => (item ? !!store.fitIn(item, pid) : store.accepts(pid, drag.tag))
+    const canInside = isEl && node.content == null && fits(node.id)
     let where = y < 0.3 ? 'before' : y > 0.7 ? 'after' : canInside ? 'inside' : y < 0.5 ? 'before' : 'after'
-    if (where !== 'inside' && !store.accepts(node.id.split('.').slice(0, -1).join('.'), drag.tag)) {
+    if (where !== 'inside' && !fits(node.id.split('.').slice(0, -1).join('.'))) {
       where = canInside ? 'inside' : null
     }
     if (!where) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = drag.comp ? 'copy' : 'move'
+    e.dataTransfer.dropEffect = item ? 'copy' : 'move'
     dropWhere = where
   }
 
@@ -47,8 +50,10 @@
     e.preventDefault()
     const where = dropWhere
     dropWhere = null
-    if (where && drag.comp) store.dropComponent(drag.comp, node.id, where)
+    if (where && drag.item) store.dropItem(drag.item, node.id, where)
     else if (where && drag.id) store.drop(drag.id, node.id, where)
+    // the new block gets selected and the library (the drag source) unmounts: its dragend never comes
+    drag.item = null
     drag.id = null
   }
 </script>
@@ -64,7 +69,7 @@
     tabindex="-1"
     draggable={node.tag !== 'mjml' && node.tag !== 'mj-body'}
     ondblclick={() => instance?.comp && store.openComponent(instance.comp.id)}
-    ondragstart={(e) => { drag.comp = null; drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
+    ondragstart={(e) => { drag.item = null; drag.id = node.id; drag.tag = node.tag ?? instance?.comp?.rootTag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id) }}
     ondragend={() => { drag.id = null; dropWhere = null }}
     ondragover={onDragOver}
     ondragleave={() => (dropWhere = null)}

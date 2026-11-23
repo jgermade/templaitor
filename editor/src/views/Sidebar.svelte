@@ -1,14 +1,11 @@
 <script>
-  import Icon from '../components/Icon.svelte'
   import Section from '../components/Section.svelte'
   import CodeEditor from '../components/CodeEditor.svelte'
   import MessagesPanel from './MessagesPanel.svelte'
-  import ComponentsPanel from './ComponentsPanel.svelte'
   import Outline from './Outline.svelte'
   import TemplateSettings from './TemplateSettings.svelte'
   import ParamsPanel from './ParamsPanel.svelte'
   import { store } from '../stores/editor.svelte.js'
-  import { PALETTE, describe } from '@shared/components.js'
 
   const design = $derived(store.view === 'design')
   const keyCount = $derived(Object.keys(store.messages).length)
@@ -54,22 +51,6 @@
     {/if}
 
     {#if design}
-      <Section id="components" title="Components" count={store.components.length} open>
-        <ComponentsPanel />
-      </Section>
-
-      <Section id="blocks" title="Blocks">
-        <div class="palette">
-          {#each PALETTE as tag}
-            {@const d = describe(tag)}
-            <button onclick={() => store.add(tag)} title="Add {d.label} ({tag})"><span class="ic"><Icon name={d.icon} size={15} /></span>{d.label}</button>
-          {/each}
-          {#if store.isPdf}
-            <button onclick={() => store.addPageBreak()} title="Forces a new page in the PDF"><span class="ic"><Icon name="page-break" size={15} /></span>Page break</button>
-          {/if}
-        </div>
-      </Section>
-
       <Section id="tree" title="Structure" open>
         <Outline />
       </Section>
@@ -92,7 +73,4 @@
   .borrowed { margin: 0; padding: 10px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
   .link { border: 0; background: none; padding: 0; color: #2563eb; text-decoration: underline; font-size: 12px; }
   .sections { flex: 1; overflow: auto; padding-bottom: 24px; }
-  .palette { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 0 14px; }
-  .palette button { display: flex; align-items: center; gap: 6px; text-align: left; font-size: 12px; padding: 4px 8px; }
-  .palette .ic { width: 16px; text-align: center; color: var(--muted); }
 </style>

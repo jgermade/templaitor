@@ -7,6 +7,7 @@
   import Sidebar from './views/Sidebar.svelte'
   import Canvas from './views/Canvas.svelte'
   import Inspector from './views/Inspector.svelte'
+  import LibraryPanel from './views/LibraryPanel.svelte'
   import CodeView from './views/CodeView.svelte'
   import PdfView from './views/PdfView.svelte'
   import CompareView from './views/CompareView.svelte'
@@ -167,7 +168,7 @@
         <CompareView />
       {:else}
         {@const report = store.view === 'preview' || store.view === 'pdf'}
-        <div class="layout" class:with-inspector={(store.view === 'design' && store.selected && !showText) || report}>
+        <div class="layout" class:with-inspector={(store.view === 'design' && !showText) || report}>
           <Sidebar />
           <div class="center">
             {#if store.view === 'pdf'}
@@ -180,8 +181,9 @@
           </div>
           {#if report}
             <A11yReport />
-          {:else if store.view === 'design' && store.selected && !showText}
-            <Inspector />
+          {:else if store.view === 'design' && !showText}
+            <!-- always there in Design: the selection's inspector, or the blocks and components to add -->
+            {#if store.selected}<Inspector />{:else}<LibraryPanel />{/if}
           {/if}
         </div>
       {/if}
