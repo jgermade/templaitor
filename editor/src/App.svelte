@@ -1,5 +1,6 @@
 <script>
   import Icon from './components/Icon.svelte'
+  import A11yIcon from './components/A11yIcon.svelte'
   import Checkbox from './components/Checkbox.svelte'
   import { onMount } from 'svelte'
   import Topbar from './views/Topbar.svelte'
@@ -129,8 +130,8 @@
           {@const fails = store.preview.a11yReport.checks.filter(c => c.status === 'fail').length + (vp && !vp.compliant ? 1 : 0)}
           {@const warns = store.preview.a11yReport.checks.filter(c => c.status === 'warn').length}
           <button class="ghost a11y" class:bad={fails} class:warn={!fails && warns} onclick={() => { if (store.view !== 'preview' && store.view !== 'pdf') store.view = 'preview' }} title="Accessibility report (WCAG 2.1 AA)">
-            <Icon name="a11y" size={16} label="Accessibility" />
-            {#if fails}{fails} <Icon name="x" size={13} label="failing" />{:else if warns}{warns} <Icon name="alert" size={13} label="warnings" />{:else}<Icon name="check" size={14} label="passes" />{/if}
+            <A11yIcon status={fails ? 'fail' : warns ? 'warn' : 'pass'} size={22} label={fails ? `Accessibility: ${fails} failing` : warns ? `Accessibility: ${warns} warnings` : 'Accessibility: passes'} />
+            {#if fails}{fails}{:else if warns}{warns}{/if}
           </button>
         {/if}
         <div class="issues-wrap">
@@ -197,7 +198,7 @@
   main { flex: 1; min-height: 0; }
   .layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; min-height: 0; }
   .layout.with-inspector { grid-template-columns: 400px minmax(0, 1fr) 340px; }
-  .a11y { font-size: 12px; padding: 2px 8px; color: var(--ok); font-weight: 600; }
+  .a11y { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 6px; color: var(--ok); font-weight: 600; }
   .a11y.warn { color: var(--warn); }
   .a11y.bad { color: var(--danger); }
   .center { min-width: 0; min-height: 0; overflow: auto; background: #f4f4f5; }

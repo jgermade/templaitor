@@ -1,5 +1,6 @@
 <script>
   import Icon from '../components/Icon.svelte'
+  import A11yIcon from '../components/A11yIcon.svelte'
   // Accessibility report (WCAG 2.1 AA · EN 301 549 · PDF/UA) of the current draft
   import { store } from '../stores/editor.svelte.js'
 
@@ -35,7 +36,7 @@
 
 <aside class="report" aria-label="Accessibility report">
   <header>
-    <h2><Icon name="a11y" size={17} /> Accessibility</h2>
+    <h2><A11yIcon status={counts.fail ? 'fail' : counts.warn ? 'warn' : 'pass'} size={22} /> Accessibility</h2>
     {#if report}
       <p class="std">{report.standard}</p>
       <div class="score" class:ok={!counts.fail && !counts.warn} class:bad={counts.fail}>
@@ -143,7 +144,7 @@
 <style>
   .report { background: var(--panel); border-left: 1px solid var(--border); overflow: auto; min-height: 0; font-size: 12.5px; }
   header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 1; }
-  h2 { margin: 0; font-size: 15px; }
+  h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
   .std { margin: 2px 0 10px; color: var(--muted); font-size: 11px; }
   .score { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #fffbeb; color: #92400e; }
   .score.ok { background: #f0fdf4; color: #166534; }

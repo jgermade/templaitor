@@ -72,7 +72,7 @@
     onkeydown={() => {}}
   >
     <button class="twisty ghost" class:hidden={!hasKids} onclick={(e) => { e.stopPropagation(); collapsed = !collapsed }} tabindex="-1">
-      <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={12} />
+      <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={15} strokeWidth={2.6} />
     </button>
     <span class="icon" class:comp={instance} class:slot><Icon name={isEl ? def.icon : instance ? 'component' : slot ? 'layout' : node.type === 'comment' ? 'hash' : 'variable'} size={instance ? 10 : 13} /></span>
     <span class="label" class:comp={instance} class:slot>{isEl ? def.label : instance ? instance.name : slot ? 'Template content' : node.type === 'comment' ? 'Comment' : 'Code'}</span>
@@ -103,7 +103,8 @@
   .row.drop-before { border-top-color: var(--accent); }
   .row.drop-after { border-bottom-color: var(--accent); }
   .row.drop-inside { background: #e0e7ff; outline: 1px dashed var(--accent); }
-  .twisty { width: 16px; padding: 0; font-size: 10px; color: var(--muted); }
+  .twisty { display: inline-grid; place-content: center; width: 18px; height: 18px; padding: 0; color: #3f3f46; border-radius: 4px; }
+  .twisty:hover { background: #e4e4e7; }
   .twisty.hidden { visibility: hidden; }
   .icon { width: 18px; text-align: center; font-size: 12px; color: var(--muted); flex: none; }
   .label { font-weight: 500; flex: none; }
