@@ -1,5 +1,6 @@
 <script>
   import Icon from '../components/Icon.svelte'
+  import Choice from '../components/Choice.svelte'
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
   import { confirmDialog, promptDialog } from '../lib/dialogs.svelte.js'
@@ -44,13 +45,11 @@
         {#each comp.usedBy as u}<div class="mono"><Icon name={u.kind === 'layout' ? 'layout' : 'template'} size={12} /> {u.id}</div>{:else}<div class="muted">No templates</div>{/each}
       </div>
     {:else}
-      <label class="field">
+      <div class="field">
         <span>Format</span>
-        <select value={store.isPdf ? 'pdf' : 'email'} onchange={(e) => store.setFormat(e.currentTarget.value)}>
-          <option value="email">Email</option>
-          <option value="pdf">PDF document</option>
-        </select>
-      </label>
+        <Choice label="Format" size="sm" value={store.isPdf ? 'pdf' : 'email'} onchange={(v) => store.setFormat(v)}
+          options={[{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]} />
+      </div>
       {#if store.isPdf}
         <div class="pdfgrid">
           <label class="field"><span>Size</span>
@@ -58,12 +57,10 @@
               {#each ['A4', 'A5', 'A3', 'Letter', 'Legal'] as s}<option value={s}>{s}</option>{/each}
             </select>
           </label>
-          <label class="field"><span>Orientation</span>
-            <select value={store.pdfSettings.orientation || 'portrait'} onchange={(e) => store.setFrontmatter(['pdf', 'orientation'], e.currentTarget.value)}>
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
-            </select>
-          </label>
+          <div class="field"><span>Orientation</span>
+            <Choice label="Orientation" size="sm" value={store.pdfSettings.orientation || 'portrait'} onchange={(v) => store.setFrontmatter(['pdf', 'orientation'], v)}
+              options={[{ value: 'portrait', label: 'Portrait', icon: 'portrait' }, { value: 'landscape', label: 'Landscape', icon: 'landscape' }]} />
+          </div>
           <label class="field"><span>Margins</span>
             <input class="mono" value={typeof store.pdfSettings.margin === 'object' ? '' : store.pdfSettings.margin ?? ''} placeholder="15mm" oninput={(e) => store.setFrontmatter(['pdf', 'margin'], e.currentTarget.value)} />
           </label>

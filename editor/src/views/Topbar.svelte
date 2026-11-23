@@ -87,7 +87,7 @@
 
   <div class="path">
     <button class="link" onclick={() => (picking = !picking)} title="Open a template, component or layout">
-      <span class="at" class:comp={store.isComponent} class:lay={store.isLayout}><Icon name={store.isComponent ? 'component' : store.isLayout ? 'layout' : 'template'} size={12} /></span>
+      <span class="at" class:comp={store.isComponent} class:lay={store.isLayout} class:pdf={store.isPdf}><Icon name={store.isComponent ? 'component' : store.isLayout ? 'layout' : store.isPdf ? 'pdf' : 'email'} size={13} label={store.isComponent ? 'Component' : store.isLayout ? 'Layout' : store.isPdf ? 'PDF document' : 'Email'} /></span>
       <span class="id">{store.isComponent ? `${store.project?.componentsDir}/` : ''}{store.isLayout ? '_layouts/' : ''}{store.doc?.id ?? '…'}{store.isLayout ? '' : '/'}</span>
     </button>
     <TemplatePicker bind:open={picking} {onnew} />
@@ -172,6 +172,7 @@
   }
   .at.comp { border-color: #c4b5fd; color: #7c3aed; background: #f5f3ff; }
   .at.lay { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
+  .at.pdf { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
   .id { color: #2563eb; text-decoration: underline; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .back { font-size: 12px; color: var(--muted); }
   .dirty { color: var(--warn); font-size: 10px; }

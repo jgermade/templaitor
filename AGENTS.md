@@ -50,6 +50,8 @@ and their reasons, results, and what is pending. `<summary>` is a kebab-case slu
 - Icons are **always SVG**: `editor/src/components/Icon.svelte` (add new ones to its set). Never text characters or
   emoji as icons (✓ ✕ ⚠ → ◆ 📎 …), never native checkboxes/radios (use `components/Checkbox.svelte`), and flags
   through `components/Flag.svelte` (SVG files from `country-flag-icons`).
+- A choice among a few fixed options (format, orientation…) is a button choice (`components/Choice.svelte`,
+  a radio group of buttons with icons), not a `<select>`; selects stay for open or long lists (layouts, templates).
 - **Accessibility is a hard requirement**: emails and PDFs must meet WCAG 2.1 AA / EN 301 549, and PDFs
   must be PDF/UA-1 (validated with veraPDF). The demo templates and the repository's own templates (`templates/`,
   the ones it deploys and ships in the npm package) must pass the checker (there is a test).

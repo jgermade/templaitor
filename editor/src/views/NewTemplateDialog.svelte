@@ -1,6 +1,9 @@
 <script>
   import { store } from '../stores/editor.svelte.js'
   import { api } from '../lib/api.js'
+  import Choice from '../components/Choice.svelte'
+
+  const FORMATS = [{ value: 'email', label: 'Email', icon: 'email', color: '#2563eb' }, { value: 'pdf', label: 'PDF document', icon: 'pdf', color: '#dc2626' }]
 
   let { open = $bindable(false) } = $props()
   let dialog = $state()
@@ -37,17 +40,14 @@
       <span>Id (folder/name)</span>
       <input class="mono" placeholder="customers/welcome" bind:value={id} required pattern="[\w.\-]+(/[\w.\-]+)*" />
     </label>
-    <label class="field">
+    <div class="field">
       <span>Format</span>
-      <select bind:value={format} onchange={() => {
+      <Choice label="Format" bind:value={format} options={FORMATS} onchange={() => {
         // suggests a layout matching the format (document layouts are usually called document*)
         const ls = store.project?.layouts || []
         layout = (format === 'pdf' ? ls.find(l => /document|pdf/i.test(l)) : ls.find(l => !/document|pdf/i.test(l))) || ls[0] || ''
-      }}>
-        <option value="email">Email</option>
-        <option value="pdf">PDF document</option>
-      </select>
-    </label>
+      }} />
+    </div>
     <label class="field">
       <span>Layout</span>
       <select bind:value={layout}>

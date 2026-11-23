@@ -67,6 +67,7 @@
       {#each groups as [group, items]}
         {#each items as t}
           <button class="item" class:cur={store.kind === 'template' && store.doc?.id === t.id} onclick={() => pick(t.id, 'template')}>
+            <span class="fmt" class:pdf={t.format === 'pdf'}><Icon name={t.format === 'pdf' ? 'pdf' : 'email'} size={14} label={t.format === 'pdf' ? 'PDF document' : 'Email'} /></span>
             <span class="muted">{group === '—' ? '' : `${group}/`}</span>{t.name}
             <span class="langs">{t.langs.join(' · ')}</span>
           </button>
@@ -112,4 +113,6 @@
   .langs { margin-left: auto; font-size: 11px; color: var(--muted); font-family: var(--mono); }
   .diamond { color: #7c3aed; margin-right: 6px; font-size: 11px; }
   .lay { color: #b45309; margin-right: 6px; font-size: 12px; }
+  .fmt { display: inline-grid; color: #2563eb; margin-right: 7px; }
+  .fmt.pdf { color: #dc2626; }
 </style>
