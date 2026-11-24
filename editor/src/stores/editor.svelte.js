@@ -18,6 +18,7 @@ import { COMPONENTS, canContain, describe } from '@shared/components.js'
 import { logicMap, unitBounds, unitsOf, moveUnit, removeUnit, duplicateUnit, setLogic } from '@shared/logic.js'
 import { normalizeContract, contractToYaml, inferContract, normalizeRules } from '@shared/contract.js'
 import { api } from '../lib/api.js'
+import { previewUrl } from '../lib/host.js'
 import { confirmDialog } from '../lib/dialogs.svelte.js'
 
 const EXACT_T = /^\$t\(\s*['"]([^'"]+)['"]\s*\)$/
@@ -215,7 +216,7 @@ class EditorStore {
     const params = new URLSearchParams({ lang: this.lang })
     if (this.kind !== 'template') params.set('kind', this.kind)
     if (version) params.set('version', version)
-    return `${location.origin}/preview/${this.doc.id.split('/').map(encodeURIComponent).join('/')}?${params}`
+    return previewUrl(this.doc.id.split('/').map(encodeURIComponent).join('/'), params)
   }
 
   /** Opens the preview (with demo data) in a new tab, at a URL that can be reloaded and shared */

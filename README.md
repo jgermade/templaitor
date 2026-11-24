@@ -612,6 +612,15 @@ examples/demo/             demo project (starter of new organizations)
 - **Landing page**: `site/` (static, accessible: axe-core reports no WCAG violations on desktop and
   mobile). `make site` builds it into `dist/site`; `make screenshots` regenerates `site/screenshots/`
   from the demo project.
+- **API reference** (`/api/` of the site): `site/api/index.html` documents every HTTP endpoint — send API
+  (`/v1`), editor API (`/api`, `/preview`, `/static`), sign-in (`/auth`), organizations (`/orgs`) and
+  `/healthz`. A test fails when a route is added or removed without updating it.
+- **Editor demo** (`/demo/` of the site): the real editor and engine running in the browser, without a
+  server. `npm run build:demo` (`vite.demo.config.js`) bundles `editor/demo`: Node built-ins are replaced by
+  shims (`editor/demo/shims`: an in-memory `fs` persisted to IndexedDB, `mjml-browser`, the browser build of
+  nunjucks), `fetch('/api/…')` is answered by the same route table as the server (`createRoutes`), versions are
+  kept in the browser, and `/static/` images become `data:` URLs. It starts from `examples/demo`; "Reset demo"
+  restores it. PDF rendering, veraPDF, sending email and remote attachments need a server and answer `501`.
 - **`build.yml`** (push to `main`, pull requests, manual, reusable): installs dependencies, installs
   WeasyPrint and veraPDF so the tests validate the demo PDF against PDF/UA-1, runs the tests, builds the
   editor, the site, the binary bundles (`scripts/build-binary.mjs`, smoke-tested: `version`, `compile`,
@@ -632,8 +641,9 @@ examples/demo/             demo project (starter of new organizations)
 - **`chart.yml`** (manual with a `version`, or called by `release.yml`): pushes the chart attached to that
   GitHub release to `oci://ghcr.io/jgermade/charts`. Helm is pinned to v3 (Helm 4's `helm push` fails
   against ghcr.io). Run it by hand to republish the chart of an existing release.
-- **`pages.yml`** (manual, or called by `release.yml`): builds `site/` and deploys it to GitHub Pages,
-  with upload and deployment in separate jobs. Run it on its own to redeploy the landing page.
+- **`pages.yml`** (manual, or called by `release.yml`): builds the site (landing page, API reference and
+  demo) and deploys it to GitHub Pages, with upload and deployment in separate jobs. Run it on its own to
+  redeploy the site.
 
 Project plan: [`ROADMAP/`](ROADMAP/) · project memory: [`RECORD/`](RECORD/) · conventions: [`AGENTS.md`](AGENTS.md).
 

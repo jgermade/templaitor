@@ -27,8 +27,12 @@ const MIME = {
   '.woff2': 'font/woff2',
 }
 
-export function createHandler(project) {
-  const routes = {
+/**
+ * JSON routes of the editor API → { 'METHOD /api/path': ({ query, body, req }) => result }.
+ * Shared by the HTTP handler below and the in-browser demo backend (editor/demo).
+ */
+export function createRoutes(project) {
+  return {
     'GET /api/project': () => ({
       name: project.name,
       locales: project.locales,
@@ -154,6 +158,10 @@ export function createHandler(project) {
       return { ok: true, messageId: info.messageId, attachments: attachments.map(a => a.filename) }
     },
   }
+}
+
+export function createHandler(project) {
+  const routes = createRoutes(project)
 
   return async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost')
@@ -229,7 +237,7 @@ export function startServer(project, { port = 3333, host = '127.0.0.1', open = f
  * The saved files (or a version) rendered with the demo data, as a normal page: it can be reloaded,
  * bookmarked and shared with whoever can open the editor.
  */
-async function previewPage(project, url, res) {
+export async function previewPage(project, url, res) {
   const q = url.searchParams
   const kind = docKind(q.get('kind'))
   const id = url.pathname.slice('/preview/'.length).split('/').map(decodeURIComponent).join('/').replace(/\/+$/, '')
