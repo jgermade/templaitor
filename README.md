@@ -620,7 +620,13 @@ examples/demo/             demo project (starter of new organizations)
   shims (`editor/demo/shims`: an in-memory `fs` persisted to IndexedDB, `mjml-browser`, the browser build of
   nunjucks), `fetch('/api/…')` is answered by the same route table as the server (`createRoutes`), versions are
   kept in the browser, and `/static/` images become `data:` URLs. It starts from `examples/demo`; "Reset demo"
-  restores it. PDF rendering, veraPDF, sending email and remote attachments need a server and answer `501`.
+  restores it. PDFs cannot be rendered in the browser, so `npm run build:demo` also runs
+  `scripts/build-demo-pdfs.mjs`: every PDF template (each language) and every PDF attachment of the emails,
+  rendered with WeasyPrint and validated with veraPDF when available, into `dist/demo/pdfs/` with a
+  `manifest.json`. The demo serves them for `/api/pdf`, `/api/attachment` and `/api/pdf/validate`: the exact
+  PDF when the draft is unchanged (sha256 of mjml, yml and data), otherwise the starter's PDF with a note that
+  the edits are not in it. Without a PDF engine the script warns and the demo answers `501` (CI uses
+  `--strict`). Sending email and remote attachments need a server and answer `501`.
 - **`build.yml`** (push to `main`, pull requests, manual, reusable): installs dependencies, installs
   WeasyPrint and veraPDF so the tests validate the demo PDF against PDF/UA-1, runs the tests, builds the
   editor, the site, the binary bundles (`scripts/build-binary.mjs`, smoke-tested: `version`, `compile`,

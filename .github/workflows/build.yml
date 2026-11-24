@@ -70,7 +70,7 @@ jobs:
 
       # landing page + API reference + the editor demo that runs the engine in the browser
       - name: Build site
-        run: npm run build:demo && node scripts/build-site.mjs --strict
+        run: npm run build:demo -- --strict --engine weasyprint && node scripts/build-site.mjs --strict
 
       - name: Package
         run: |

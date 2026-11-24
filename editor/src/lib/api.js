@@ -31,7 +31,8 @@ export const api = {
       const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    return { blob: await res.blob(), engine: res.headers.get('X-Templaitor-Engine') }
+    const note = res.headers.get('X-Templaitor-Note')
+    return { blob: await res.blob(), engine: res.headers.get('X-Templaitor-Engine'), note: note ? decodeURIComponent(note) : null }
   },
   /** One attachment of the draft rendered with the demo data → Blob */
   attachment: async (draft, index) => {

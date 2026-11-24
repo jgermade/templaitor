@@ -35,7 +35,7 @@
     "compile": "node bin/templaitor.js compile --cwd examples/demo",
     "test": "node --test test/*.test.js",
     "prepare": "vite build --config vite.config.js",
-    "build:demo": "vite build --config vite.demo.config.js",
+    "build:demo": "vite build --config vite.demo.config.js && node scripts/build-demo-pdfs.mjs",
     "build:site": "node scripts/build-site.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "prepack": "node scripts/prepack.mjs"
