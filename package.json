@@ -35,6 +35,7 @@
     "compile": "node bin/templaitor.js compile --cwd examples/demo",
     "test": "node --test test/*.test.js",
     "prepare": "vite build --config vite.config.js",
+    "build:demo": "vite build --config vite.demo.config.js && node scripts/build-demo-pdfs.mjs",
     "build:site": "node scripts/build-site.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "prepack": "node scripts/prepack.mjs"
@@ -64,6 +65,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "codemirror": "^6.0.2",
     "country-flag-icons": "^1.6.20",
+    "mjml-browser": "^5.4.1",
     "svelte": "^5.58.0",
     "vite": "^8.3.8"
   },

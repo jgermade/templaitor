@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>templaitor · demo</title>
+  <meta name="description" content="templaitor editor demo: the engine runs in your browser and your changes are saved in this browser (IndexedDB)." />
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+  <style>
+    body { display: flex; flex-direction: column; }
+    #app { flex: 1; min-height: 0; height: auto !important; }
+    .demo-banner {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 6px 14px; font: 13px/1.4 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      background: #312e81; color: #fff;
+    }
+    .demo-banner[hidden] { display: none; }
+    .demo-banner p { margin: 0; flex: 1; min-width: 240px; }
+    .demo-banner a { color: #fff; }
+    .demo-banner button, .demo-dialog button {
+      font: inherit; border-radius: 6px; padding: 3px 10px; cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, .6); background: transparent; color: inherit;
+    }
+    .demo-banner button:focus-visible, .demo-dialog button:focus-visible, .demo-banner a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .demo-dialog { border: 1px solid #e4e4e7; border-radius: 8px; padding: 20px; max-width: 420px; font: 14px/1.5 Inter, system-ui, sans-serif; color: #18181b; }
+    .demo-dialog::backdrop { background: rgba(24, 24, 27, .4); }
+    .demo-dialog h2 { font-size: 16px; margin: 0 0 8px; }
+    .demo-dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; margin: 16px 0 0; }
+    .demo-dialog button { border-color: #d4d4d8; }
+    .demo-dialog button[value=reset] { background: #dc2626; border-color: #dc2626; color: #fff; }
+    .demo-dialog button:focus-visible { outline-color: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="demo-banner" id="demo-banner" role="region" aria-label="About this demo" hidden>
+    <p><strong>Demo</strong> — the engine runs in your browser and your changes are saved in this browser only (IndexedDB).
+      PDFs are pre-generated when the site is built; sending email needs a server. <a href="../">About templaitor</a> · <a href="../api/">API</a></p>
+    <button type="button" id="demo-reset">Reset demo</button>
+  </div>
+  <dialog class="demo-dialog" id="demo-reset-dialog" aria-labelledby="demo-reset-title">
+    <form method="dialog">
+      <h2 id="demo-reset-title">Reset the demo?</h2>
+      <p>Your templates, components, images and versions in this browser are replaced with the starter project.</p>
+      <menu>
+        <button value="cancel" autofocus>Cancel</button>
+        <button value="reset">Reset</button>
+      </menu>
+    </form>
+  </dialog>
+  <div id="app"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

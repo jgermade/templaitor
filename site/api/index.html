@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>templaitor API reference</title>
+  <meta name="description" content="Every HTTP endpoint of templaitor: the send API (/v1), the editor API (/api), sign-in (/auth) and organizations (/orgs) of the hosted service." />
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #18181b;
+      --muted: #52525b;
+      --line: #e4e4e7;
+      --bg: #ffffff;
+      --soft: #f4f4f5;
+      --code-bg: #18181b;
+      --code-ink: #f4f4f5;
+      --indigo: #4f46e5;
+      --get: #166534; --get-bg: #dcfce7;
+      --post: #1e40af; --post-bg: #dbeafe;
+      --put: #854d0e; --put-bg: #fef9c3;
+      --patch: #6b21a8; --patch-bg: #f3e8ff;
+      --delete: #991b1b; --delete-bg: #fee2e2;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #f4f4f5; --muted: #a1a1aa; --line: #3f3f46; --bg: #111113; --soft: #1c1c1f;
+        --code-bg: #0a0a0b; --indigo: #a5b4fc;
+        --get: #86efac; --get-bg: #14532d; --post: #93c5fd; --post-bg: #1e3a8a;
+        --put: #fde047; --put-bg: #713f12; --patch: #d8b4fe; --patch-bg: #581c87;
+        --delete: #fca5a5; --delete-bg: #7f1d1d;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+    body { margin: 0; font: 15px/1.6 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg); }
+    a { color: var(--indigo); }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+    code, pre { font-family: var(--mono); font-size: 13px; }
+    p code, li code, td code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+    pre:focus-visible, .table-wrap:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+    pre { background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+    .skip { position: absolute; left: -9999px; }
+    .skip:focus { left: 16px; top: 16px; background: var(--bg); padding: 8px 12px; z-index: 10; }
+
+    .top { border-bottom: 1px solid var(--line); }
+    .top-in { max-width: 1240px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
+    .brand img { width: 28px; height: 28px; }
+    .top ul { list-style: none; display: flex; gap: 18px; margin: 0 0 0 auto; padding: 0; flex-wrap: wrap; }
+    .top ul a { color: var(--muted); text-decoration: none; font-weight: 500; }
+    .top ul a:hover, .top ul a[aria-current] { color: var(--ink); }
+
+    .layout { max-width: 1240px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; }
+    .toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 24px 0; font-size: 13.5px; }
+    .toc h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+    .toc h2:first-child { margin-top: 0; }
+    .toc ul { list-style: none; margin: 0; padding: 0; }
+    .toc a { display: block; padding: 2px 0; color: var(--ink); text-decoration: none; }
+    .toc a:hover { color: var(--indigo); }
+    .toc code { font-size: 12px; }
+    main { padding: 24px 0 80px; min-width: 0; }
+    h1 { font-size: 34px; line-height: 1.2; margin: 8px 0 12px; letter-spacing: -.02em; }
+    .lead { font-size: 17px; color: var(--muted); max-width: 760px; }
+    h2.group { font-size: 24px; margin: 56px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+    h2.group:first-of-type { border-top: 0; }
+    main > h3 { font-size: 18px; margin: 32px 0 8px; }
+    .surfaces { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 20px 0; }
+    .surfaces div { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+    .surfaces h3 { margin: 0 0 4px; font-size: 15px; }
+    .surfaces p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .ep { border: 1px solid var(--line); border-radius: 10px; padding: 4px 20px 8px; margin: 16px 0; }
+    .ep h4 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 16px; margin: 14px 0 6px; }
+    .ep h4 code { font-size: 15px; word-break: break-all; }
+    .m { font: 700 12px/1 var(--mono); padding: 5px 8px; border-radius: 5px; letter-spacing: .03em; }
+    .m.get { color: var(--get); background: var(--get-bg); }
+    .m.post { color: var(--post); background: var(--post-bg); }
+    .m.put { color: var(--put); background: var(--put-bg); }
+    .m.patch { color: var(--patch); background: var(--patch-bg); }
+    .m.delete { color: var(--delete); background: var(--delete-bg); }
+    .auth { font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0 12px; }
+    th, td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+    th { font-weight: 600; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+    td:first-child { white-space: nowrap; }
+    .note { border-left: 3px solid var(--indigo); background: var(--soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+    footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    footer div { max-width: 1240px; margin: 0 auto; padding: 20px 24px; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px; }
+      .toc { position: static; max-height: none; border-bottom: 1px solid var(--line); }
+      .top-in { padding: 12px 16px; }
+      .top ul { margin-left: 0; }
+      .ep { padding: 4px 14px 8px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <nav class="top-in" aria-label="Main">
+      <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28" />templaitor</a>
+      <ul>
+        <li><a href="../">Home</a></li>
+        <li><a href="./" aria-current="page">API</a></li>
+        <li><a href="../demo/">Demo</a></li>
+        <li><a href="https://github.com/jgermade/templaitor">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Endpoints">
+      <h2>Overview</h2>
+      <ul>
+        <li><a href="#surfaces">Surfaces and authentication</a></li>
+        <li><a href="#errors">Errors</a></li>
+      </ul>
+      <h2>Send API</h2>
+      <ul>
+        <li><a href="#post-v1-send"><code>POST /v1/send</code></a></li>
+        <li><a href="#post-v1-render"><code>POST /v1/render</code></a></li>
+        <li><a href="#get-v1-messages-id"><code>GET /v1/messages/:id</code></a></li>
+        <li><a href="#get-v1-templates"><code>GET /v1/templates</code></a></li>
+        <li><a href="#get-v1-schema"><code>GET /v1/schema</code></a></li>
+        <li><a href="#get-v1-versions"><code>GET /v1/versions</code></a></li>
+      </ul>
+      <h2>Editor API</h2>
+      <ul>
+        <li><a href="#editor-project">Project</a></li>
+        <li><a href="#editor-documents">Templates, components, layouts</a></li>
+        <li><a href="#editor-render">Rendering</a></li>
+        <li><a href="#editor-versions">Versions</a></li>
+        <li><a href="#editor-files">Files and images</a></li>
+        <li><a href="#editor-pages">Pages</a></li>
+      </ul>
+      <h2>Hosted service</h2>
+      <ul>
+        <li><a href="#auth">Sign-in and account</a></li>
+        <li><a href="#orgs">Organizations</a></li>
+        <li><a href="#members">Members and invitations</a></li>
+        <li><a href="#smtp">SMTP</a></li>
+        <li><a href="#keys">API keys</a></li>
+        <li><a href="#log">Send log</a></li>
+        <li><a href="#get-healthz">Health check</a></li>
+      </ul>
+    </nav>
+
+    <main id="main">
+      <h1>API reference</h1>
+      <p class="lead">Every HTTP endpoint of templaitor. JSON in, JSON out (UTF-8), unless an endpoint says otherwise.
+        Try the editor API without installing anything in the <a href="../demo/">demo</a>: it runs the same engine in your browser.</p>
+
+      <h2 class="group" id="surfaces">Surfaces and authentication</h2>
+      <div class="surfaces">
+        <div>
+          <h3>Send API · <code>/v1</code></h3>
+          <p>Hosted service. Render and send a template for one recipient from your backend.
+            <code>Authorization: Bearer tpl_…</code> (an organization's API key, or a deployment key in project mode).</p>
+        </div>
+        <div>
+          <h3>Editor API · <code>/api</code></h3>
+          <p>What the visual editor calls. Locally (<code>templaitor editor</code>) it is open on <code>127.0.0.1</code>;
+            in the hosted service it needs the session cookie and acts on the active organization.</p>
+        </div>
+        <div>
+          <h3>Account · <code>/auth</code>, <code>/orgs</code></h3>
+          <p>Hosted service only: sign-in with an emailed code or a passkey, organizations, members, SMTP, API keys and the send log.
+            Session cookie.</p>
+        </div>
+      </div>
+      <div class="note">
+        <p><strong>Hosted service rules.</strong> Cookie-authenticated writes must come from the service's own origin
+          (<code>Origin</code> header), or they are rejected with <code>403</code>. Roles, from least to most:
+          <code>viewer</code> (read and render only: <code>GET</code>, plus <code>POST /api/preview</code>, <code>/api/pdf</code>,
+          <code>/api/pdf/validate</code> and <code>/api/attachment</code>), <code>editor</code> (edits templates),
+          <code>admin</code> (members, SMTP, API keys) and <code>owner</code>. In project mode the templates come from
+          the deployed repository: editor writes answer <code>403</code>.</p>
+      </div>
+
+      <h2 class="group" id="errors">Errors</h2>
+      <p>Errors answer with an HTTP status and <code>{ "error": "message" }</code>. A data contract violation (<code>422</code>)
+        adds <code>details</code>: <code>[{ path, message, template }]</code>.</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Error statuses"><table>
+        <thead><tr><th scope="col">Status</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>400</code></td><td>Invalid request: missing field, invalid YAML/JSON5, unknown language or version.</td></tr>
+          <tr><td><code>401</code></td><td>Missing or invalid API key, or not signed in.</td></tr>
+          <tr><td><code>403</code></td><td>The role or the deployment does not allow it, or a cross-site write.</td></tr>
+          <tr><td><code>404</code></td><td>Template, version, message or route not found.</td></tr>
+          <tr><td><code>409</code></td><td>Conflict: already exists, no changes since the last version, choose an organization first…</td></tr>
+          <tr><td><code>413</code></td><td>Body too large (2 MB for the account and editor APIs, 40 MB for <code>/v1</code>; images 5 MB).</td></tr>
+          <tr><td><code>422</code></td><td><code>data</code> does not fulfil the template's data contract, or Jinja2 failed with it.</td></tr>
+          <tr><td><code>429</code></td><td>Too many sign-in attempts.</td></tr>
+          <tr><td><code>501</code></td><td>Not available here: no PDF engine installed, veraPDF missing.</td></tr>
+          <tr><td><code>502</code></td><td>The SMTP server could not be reached.</td></tr>
+        </tbody>
+      </table></div>
+
+      <!-- ───────────────────────── Send API ───────────────────────── -->
+      <h2 class="group" id="send-api">Send API</h2>
+      <p>Base URL: your hosted service, e.g. <code>https://templaitor.example.com</code>. Every request carries
+        <code>Authorization: Bearer tpl_…</code>. The organization comes from the key.</p>
+
+      <h3 id="send-messages">Messages</h3>
+
+      <section class="ep" id="post-v1-send" data-route="POST /v1/send">
+        <h4><span class="m post">POST</span> <code>/v1/send</code> <span class="auth">API key</span></h4>
+        <p>Queues an email. Either a <strong>hosted template</strong> rendered with your data in the recipient's language
+          (with its attachments, PDFs included), or <strong>raw</strong> HTML you rendered yourself. Delivery uses the
+          organization's SMTP and retries with backoff.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Fields"><table>
+          <thead><tr><th scope="col">Field</th><th scope="col">Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>to</code>, <code>cc</code>, <code>bcc</code></td><td>Address, comma-separated string or array (<code>"Ada &lt;ada@example.com&gt;"</code> works). Up to 50 recipients in all.</td></tr>
+            <tr><td><code>template</code></td><td>Hosted: template id, e.g. <code>orders/order-confirmation</code>.</td></tr>
+            <tr><td><code>lang</code></td><td>Hosted: language key (<code>es</code>), locale (<code>es-ES</code>) or a locale's language (<code>es-MX</code> → <code>es</code>). Default: the template's first language.</td></tr>
+            <tr><td><code>data</code></td><td>Hosted: object with the template's variables. Checked against its data contract (<code>422</code> when it does not match).</td></tr>
+            <tr><td><code>version</code></td><td>Hosted, optional: <code>3</code>, <code>"v3"</code>, <code>"latest"</code> or a revision. Sends the template as it was at that version; without it, the current files.</td></tr>
+            <tr><td><code>subject</code>, <code>html</code>, <code>text</code></td><td>Raw: the message. <code>text</code> defaults to a conversion of <code>html</code>.</td></tr>
+            <tr><td><code>attachments</code></td><td>Raw: <code>[{ filename, content (base64) | url, contentType? }]</code>, 20 MB each.</td></tr>
+            <tr><td><code>replyTo</code></td><td>Optional reply-to address.</td></tr>
+            <tr><td><code>from</code></td><td>Optional sender; must use the organization's domain.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Header <code>Idempotency-Key</code> (optional): a retry with the same key returns the original message (<code>200</code>) instead of sending twice.
+          Answers <code>202</code> with the message (see <a href="#get-v1-messages-id"><code>GET /v1/messages/:id</code></a>) and <code>warnings</code> when there are any.</p>
+<pre tabindex="0"><code>curl https://templaitor.example.com/v1/send \
+  -H "Authorization: Bearer tpl_…" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-1042" \
+  -d '{ "template": "orders/order-confirmation", "lang": "es", "to": "ada@example.com",
+        "version": "latest", "data": { "first_name": "Ada", "order_id": "1042" } }'
+
+HTTP/1.1 202 Accepted
+{ "id": "6f1c…", "status": "queued", "kind": "hosted", "template": "orders/order-confirmation",
+  "version": { "number": 3, "rev": "…", "short": "v3" }, "locale": "es-ES",
+  "subject": "Acme | Pedido 1042 confirmado", "to": ["ada@example.com"], "cc": [], "bcc": [],
+  "attempts": 0, "attachments": ["factura-1042.pdf"], "createdAt": 1764000000000, … }</code></pre>
+      </section>
+
+      <section class="ep" id="post-v1-render" data-route="POST /v1/render">
+        <h4><span class="m post">POST</span> <code>/v1/render</code> <span class="auth">API key</span></h4>
+        <p>Same body as <code>/v1/send</code>; renders without sending (recipients are optional).</p>
+<pre tabindex="0"><code>{ "subject": "…", "html": "&lt;!doctype html&gt;…", "text": "…", "locale": "es-ES",
+  "version": null, "attachments": ["factura-1042.pdf"], "warnings": [] }</code></pre>
+      </section>
+
+      <section class="ep" id="get-v1-messages-id" data-route="GET /v1/messages/:mid">
+        <h4><span class="m get">GET</span> <code>/v1/messages/:id</code> <span class="auth">API key</span></h4>
+        <p>Delivery status of a message: <code>queued</code> · <code>sending</code> · <code>sent</code> · <code>failed</code>.</p>
+<pre tabindex="0"><code>{ "id": "6f1c…", "status": "sent", "kind": "hosted", "template": "orders/order-confirmation",
+  "version": null, "locale": "es-ES", "subject": "…", "to": ["ada@example.com"], "cc": [], "bcc": [],
+  "attempts": 1, "attachments": [], "lastError": null, "smtpMessageId": "&lt;…&gt;", "purged": false,
+  "createdAt": 1764000000000, "sentAt": 1764000001200, "nextAttemptAt": null }</code></pre>
+      </section>
+
+      <h3 id="send-templates">Templates</h3>
+      <section class="ep" id="get-v1-templates" data-route="GET /v1/templates">
+        <h4><span class="m get">GET</span> <code>/v1/templates</code> <span class="auth">API key</span></h4>
+        <p>The organization's templates.</p>
+<pre tabindex="0"><code>[{ "id": "orders/order-confirmation", "format": "email", "langs": ["es", "en"] },
+ { "id": "documents/invoice", "format": "pdf", "langs": ["es", "en"] }]</code></pre>
+      </section>
+
+      <section class="ep" id="get-v1-schema" data-route="GET /v1/schema">
+        <h4><span class="m get">GET</span> <code>/v1/schema?template=&amp;version=</code> <span class="auth">API key</span></h4>
+        <p>The template's data contract (<code>data:</code> in its frontmatter) as JSON Schema: what <code>data</code> must fulfil.
+          <code>version</code> is optional. <code>404</code> when the template declares no contract.</p>
+      </section>
+
+      <section class="ep" id="get-v1-versions" data-route="GET /v1/versions">
+        <h4><span class="m get">GET</span> <code>/v1/versions?template=&amp;limit=</code> <span class="auth">API key</span></h4>
+        <p>Versions of a template, newest first, to pick one for <code>/v1/send { version }</code>.</p>
+<pre tabindex="0"><code>{ "available": true,
+  "versions": [{ "number": 3, "rev": "…", "short": "v3", "message": "New footer", "author": "Ada", "date": "2026-11-23T10:00:00.000Z" }] }</code></pre>
+      </section>
+
+      <!-- ───────────────────────── Editor API ───────────────────────── -->
+      <h2 class="group" id="editor-api">Editor API</h2>
+      <p>The API of the visual editor: local (<code>templaitor editor</code>, <code>make up</code>) or hosted (session cookie,
+        active organization). Documents are identified by <code>id</code> and <code>kind</code>: <code>template</code> (default),
+        <code>component</code> or <code>layout</code> (a layout's id is its file name, e.g. <code>base.layout.mjml</code>).
+        A <em>draft</em> is the unsaved source of a document: <code>{ mjml, yml, data, lang?, kind? }</code>, where <code>yml</code>
+        holds the subject and messages per language and <code>data</code> the demo data (JSON5).</p>
+
+      <h3 id="editor-project">Project</h3>
+      <section class="ep" id="get-api-project" data-route="GET /api/project">
+        <h4><span class="m get">GET</span> <code>/api/project</code></h4>
+        <p>Project settings the editor needs.</p>
+<pre tabindex="0"><code>{ "name": "Demo", "locales": { "es": "es-ES", "en": "en-US", … }, "defaultLocale": "es",
+  "templatesDir": "templates", "outDir": "dist", "layouts": ["base.layout.mjml", "document.layout.mjml"],
+  "files": ["_layouts/base.layout.mjml", "_shared/links.yml"], "links": { "homepage": "https://example.com" },
+  "smtp": { "label": "mailpit", "web": "/mailpit/" }, "componentsDir": "_components", "assetsUrl": "{{ assets_url }}",
+  "pdf": { "engines": [{ "id": "weasyprint", "label": "WeasyPrint", "pdfua": true, "available": true, … }],
+           "defaultEngine": "weasyprint", "configured": "auto", "verapdf": "veraPDF (docker)" } }</code></pre>
+      </section>
+
+      <h3 id="editor-documents">Templates, components and layouts</h3>
+      <section class="ep" id="get-api-templates" data-route="GET /api/templates">
+        <h4><span class="m get">GET</span> <code>/api/templates</code></h4>
+<pre tabindex="0"><code>[{ "id": "customers/email-verification", "name": "email-verification", "group": "customers",
+   "format": "email", "langs": ["es", "en"], "kind": "template" }]</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-templates" data-route="POST /api/templates">
+        <h4><span class="m post">POST</span> <code>/api/templates</code></h4>
+        <p>Creates a template: <code>{ id, layout?, langs?, format? }</code> (<code>format</code>: <code>email</code> or <code>pdf</code>).
+          It inherits the variables and messages its layout needs. Returns the new document (as <a href="#get-api-template"><code>GET /api/template</code></a>).</p>
+      </section>
+
+      <section class="ep" id="get-api-template" data-route="GET /api/template">
+        <h4><span class="m get">GET</span> <code>/api/template?id=&amp;kind=</code></h4>
+        <p>A document's source files. A layout also brings the template it is previewed with (<code>previewFrom</code>) and its texts and data.</p>
+<pre tabindex="0"><code>{ "kind": "template", "id": "customers/email-verification", "name": "email-verification",
+  "mjml": "---\nlayout: base.layout.mjml\n…", "yml": "subject:\n  es: …", "data": "{\n  first_name: \"María\", … }" }</code></pre>
+      </section>
+
+      <section class="ep" id="put-api-template" data-route="PUT /api/template">
+        <h4><span class="m put">PUT</span> <code>/api/template</code></h4>
+        <p>Saves a document: <code>{ id, kind?, mjml, yml, data }</code>. <code>yml</code> and <code>data</code> are validated
+          (<code>400</code> on invalid YAML or JSON5). For a layout only <code>mjml</code> is saved. Returns the saved document.</p>
+      </section>
+
+      <section class="ep" id="delete-api-template" data-route="DELETE /api/template">
+        <h4><span class="m delete">DELETE</span> <code>/api/template?id=&amp;kind=</code></h4>
+        <p>Deletes a template, component or layout → <code>{ "ok": true }</code>.</p>
+      </section>
+
+      <section class="ep" id="get-api-components" data-route="GET /api/components">
+        <h4><span class="m get">GET</span> <code>/api/components</code></h4>
+        <p>Reusable components with their parameters and where they are used.</p>
+<pre tabindex="0"><code>[{ "id": "banner", "kind": "component", "format": "email", "langs": ["es", "en"],
+   "importPath": "_components/banner", "rootTag": "mj-section",
+   "params": { "image": { "type": "image", "label": "Image", "default": "{{ assets_url }}/banner-order.svg" }, … },
+   "usedBy": [{ "kind": "template", "id": "orders/order-confirmation" }] }]</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-components" data-route="POST /api/components">
+        <h4><span class="m post">POST</span> <code>/api/components</code></h4>
+        <p>Creates a component, optionally from a selection: <code>{ id, mjml?, yml?, data? }</code> (the <code>messages</code> of
+          <code>yml</code> and the JSON5 <code>data</code> become the component's own). Returns the new document.</p>
+      </section>
+
+      <section class="ep" id="get-api-layouts" data-route="GET /api/layouts">
+        <h4><span class="m get">GET</span> <code>/api/layouts</code></h4>
+<pre tabindex="0"><code>[{ "kind": "layout", "id": "base.layout.mjml", "name": "base.layout", "format": "email",
+   "usedBy": [{ "kind": "template", "id": "customers/email-verification" }] }]</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-layouts" data-route="POST /api/layouts">
+        <h4><span class="m post">POST</span> <code>/api/layouts</code></h4>
+        <p>Creates a layout: <code>{ id, format }</code> (<code>email</code> or <code>pdf</code>). <code>409</code> if it exists.</p>
+      </section>
+
+      <h3 id="editor-render">Rendering</h3>
+      <section class="ep" id="post-api-preview" data-route="POST /api/preview">
+        <h4><span class="m post">POST</span> <code>/api/preview</code></h4>
+        <p>Compiles a draft and renders it with its demo data. <code>mode</code>: <code>preview</code> (default), <code>design</code>
+          (annotated for the visual canvas) or <code>raw</code> (Jinja2 left unrendered).</p>
+<pre tabindex="0"><code>{ "locale": "es-ES", "langKey": "es", "subject": "Acme | Valida tu email", "format": "email",
+  "html": "&lt;!doctype html&gt;…", "text": "VALIDA TU DIRECCIÓN DE EMAIL…", "meta": { "layout": "base.layout.mjml", … },
+  "pdf": null, "attachments": [], "warnings": [], "errors": [],
+  "a11y": [], "a11yReport": { "standard": "WCAG 2.1 AA · EN 301 549", "issues": [], "checks": [{ "id": "lang", "wcag": "3.1.1", "status": "pass", … }] },
+  "hasContract": true, "contract": { … }, "usedVars": ["first_name", …] }</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-compile" data-route="POST /api/compile">
+        <h4><span class="m post">POST</span> <code>/api/compile</code></h4>
+        <p>Writes the Jinja2 output (HTML, text, subject per locale) to <code>outDir</code>: <code>{ id? , samplePdf? }</code>
+          (one template or all; <code>samplePdf</code> also renders a sample PDF of PDF templates).</p>
+<pre tabindex="0"><code>{ "files": ["dist/customers/email-verification.es-ES.html", …], "issues": [] }</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-pdf" data-route="POST /api/pdf">
+        <h4><span class="m post">POST</span> <code>/api/pdf</code></h4>
+        <p>The PDF of a draft with its demo data: draft + <code>engine?</code> (<code>weasyprint</code> · <code>prince</code> ·
+          <code>chromium</code> · <code>auto</code>) + <code>name?</code>. Answers <code>application/pdf</code> with the headers
+          <code>X-Templaitor-Engine</code> (engine used) and <code>X-Templaitor-Warnings</code> (URL-encoded JSON array).
+          <code>501</code> when no engine is installed.</p>
+      </section>
+
+      <section class="ep" id="post-api-pdf-validate" data-route="POST /api/pdf/validate">
+        <h4><span class="m post">POST</span> <code>/api/pdf/validate</code></h4>
+        <p>Renders the draft's PDF and validates it against PDF/UA-1 with veraPDF.</p>
+<pre tabindex="0"><code>{ "engine": "weasyprint", "locale": "es-ES",
+  "validation": { "validator": "veraPDF 1.28", "profile": "PDF/UA-1 validation profile", "compliant": true,
+                  "passedRules": 106, "failedRules": 0, "failedChecks": 0, "rules": [] } }</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-attachment" data-route="POST /api/attachment">
+        <h4><span class="m post">POST</span> <code>/api/attachment</code></h4>
+        <p>One attachment of a draft (draft + <code>index</code>, default 0) rendered with the demo data: a local PDF template or a
+          downloaded remote file. Answers the file itself, with its <code>Content-Type</code> and file name.</p>
+      </section>
+
+      <section class="ep" id="post-api-send" data-route="POST /api/send">
+        <h4><span class="m post">POST</span> <code>/api/send</code></h4>
+        <p>Sends a test of the draft (with its attachments) to <code>to</code> through the project's SMTP
+          (<code>smtp</code> in <code>templaitor.config.yml</code>, e.g. Mailpit).</p>
+<pre tabindex="0"><code>{ "ok": true, "messageId": "&lt;…@localhost&gt;", "attachments": ["factura-2026-0042.pdf"] }</code></pre>
+      </section>
+
+      <h3 id="editor-versions">Versions</h3>
+      <p>Named snapshots of a document: git commits locally, database rows in the hosted <code>db</code> storage.</p>
+      <section class="ep" id="get-api-versions" data-route="GET /api/versions">
+        <h4><span class="m get">GET</span> <code>/api/versions?id=&amp;kind=&amp;limit=</code></h4>
+        <p>Versions of a document, newest first (<code>limit</code>: 50 by default, 200 at most). <code>dirty</code>: the saved
+          files differ from the latest version. <code>canInit</code>: versions can be turned on (<code>POST /api/versions/init</code>).</p>
+<pre tabindex="0"><code>{ "backend": "git", "available": true, "canInit": false, "branch": "main", "dirty": false,
+  "versions": [{ "id": "a1b2c3…", "rev": "a1b2c3…", "short": "a1b2c3d", "number": 2, "message": "New footer",
+                 "author": "Ada", "date": "2026-11-23T10:00:00+01:00" }] }</code></pre>
+      </section>
+
+      <section class="ep" id="get-api-version" data-route="GET /api/version">
+        <h4><span class="m get">GET</span> <code>/api/version?id=&amp;kind=&amp;rev=</code></h4>
+        <p>A document at a version: the version's fields plus its <code>mjml</code>, <code>yml</code> and <code>data</code>.</p>
+      </section>
+
+      <section class="ep" id="post-api-versions" data-route="POST /api/versions">
+        <h4><span class="m post">POST</span> <code>/api/versions</code></h4>
+        <p>Saves the document as it is on disk as a new version: <code>{ id, kind?, message? }</code>. In the hosted service the
+          signed-in user is the author. <code>409</code> when nothing changed since the last version.</p>
+      </section>
+
+      <section class="ep" id="post-api-versions-init" data-route="POST /api/versions/init">
+        <h4><span class="m post">POST</span> <code>/api/versions/init</code></h4>
+        <p>Turns versions on for a project that has none (git: <code>git init</code> and a first commit).</p>
+      </section>
+
+      <h3 id="editor-files">Files and images</h3>
+      <section class="ep" id="get-api-file" data-route="GET /api/file">
+        <h4><span class="m get">GET</span> <code>/api/file?path=</code></h4>
+        <p>An auxiliary project file (layouts, partials, <code>_shared/links.yml</code>), path relative to the templates root.</p>
+<pre tabindex="0"><code>{ "path": "_shared/links.yml", "content": "# URLs shared by every template…" }</code></pre>
+      </section>
+
+      <section class="ep" id="put-api-file" data-route="PUT /api/file">
+        <h4><span class="m put">PUT</span> <code>/api/file</code></h4>
+        <p>Writes an auxiliary file: <code>{ path, content }</code> (YAML is validated) → <code>{ "ok": true }</code>.</p>
+      </section>
+
+      <section class="ep" id="get-api-assets" data-route="GET /api/assets">
+        <h4><span class="m get">GET</span> <code>/api/assets</code></h4>
+        <p>Images of the static folder (served at <code>/static/</code>).</p>
+<pre tabindex="0"><code>[{ "path": "logo.svg", "size": 194 }, { "path": "banner-order.svg", "size": 505 }]</code></pre>
+      </section>
+
+      <section class="ep" id="post-api-assets" data-route="POST /api/assets">
+        <h4><span class="m post">POST</span> <code>/api/assets?name=</code></h4>
+        <p>Uploads an image: the body is the file itself (binary, 5 MB at most). A free name is picked when <code>name</code> is taken.</p>
+<pre tabindex="0"><code>curl -X POST "http://127.0.0.1:3333/api/assets?name=hero.png" --data-binary @hero.png
+
+{ "path": "hero.png", "size": 48213 }</code></pre>
+      </section>
+
+      <h3 id="editor-pages">Pages</h3>
+      <section class="ep" id="get-preview-id" data-route="GET /preview/:id">
+        <h4><span class="m get">GET</span> <code>/preview/:id?lang=&amp;kind=&amp;version=</code></h4>
+        <p>A shareable HTML page: the saved document (or a version: <code>v3</code>, a revision…) rendered with its demo data.
+          <code>lang</code> accepts a key or a locale.</p>
+      </section>
+
+      <section class="ep" id="get-static-path" data-route="GET /static/:path">
+        <h4><span class="m get">GET</span> <code>/static/:path</code></h4>
+        <p>Files of the project's static folder (<code>static</code> in <code>templaitor.config.yml</code>, <code>_shared</code> by default).</p>
+      </section>
+
+      <!-- ───────────────────────── Hosted service ───────────────────────── -->
+      <h2 class="group" id="hosted">Hosted service</h2>
+      <p>Account endpoints of <code>templaitor serve</code> (Docker image, Helm chart). They use the session cookie set by sign-in.</p>
+
+      <h3 id="auth">Sign-in and account</h3>
+      <section class="ep" id="get-auth-session" data-route="GET /auth/session">
+        <h4><span class="m get">GET</span> <code>/auth/session</code></h4>
+        <p>The current session. Signed out: <code>{ mode: "service", user: null, signup, appName }</code>.
+          (The local editor has no such route: that is how the editor tells both apart.)</p>
+<pre tabindex="0"><code>{ "mode": "service", "appName": "templaitor",
+  "user": { "id": "…", "email": "ada@example.com", "name": "Ada", "passkeys": 1 },
+  "orgs": [{ "id": "…", "slug": "acme", "name": "Acme", "role": "owner", "storage": "fs", "mapped": false }],
+  "activeOrg": { "id": "…", "slug": "acme", … } }</code></pre>
+      </section>
+
+      <section class="ep" id="post-auth-code" data-route="POST /auth/code">
+        <h4><span class="m post">POST</span> <code>/auth/code</code></h4>
+        <p>Emails a one-time sign-in code: <code>{ email }</code> → <code>{ "ok": true }</code> (the same answer whether the
+          address can sign in or not). Rate-limited (<code>429</code>).</p>
+      </section>
+
+      <section class="ep" id="post-auth-code-verify" data-route="POST /auth/code/verify">
+        <h4><span class="m post">POST</span> <code>/auth/code/verify</code></h4>
+        <p>Signs in with the code: <code>{ email, code }</code>. Sets the session cookie. <code>403</code> when sign-up is by
+          invitation and the address was not invited.</p>
+      </section>
+
+      <section class="ep" id="post-auth-logout" data-route="POST /auth/logout">
+        <h4><span class="m post">POST</span> <code>/auth/logout</code></h4>
+        <p>Ends the session and clears the cookie.</p>
+      </section>
+
+      <section class="ep" id="post-auth-passkeys-login-options" data-route="POST /auth/passkeys/login/options">
+        <h4><span class="m post">POST</span> <code>/auth/passkeys/login/options</code></h4>
+        <p>WebAuthn authentication options (a challenge) to sign in with a passkey.</p>
+      </section>
+
+      <section class="ep" id="post-auth-passkeys-login" data-route="POST /auth/passkeys/login">
+        <h4><span class="m post">POST</span> <code>/auth/passkeys/login</code></h4>
+        <p>Verifies the browser's WebAuthn assertion and signs in.</p>
+      </section>
+
+      <section class="ep" id="get-auth-passkeys" data-route="GET /auth/passkeys">
+        <h4><span class="m get">GET</span> <code>/auth/passkeys</code></h4>
+        <p>The signed-in user's passkeys.</p>
+      </section>
+
+      <section class="ep" id="post-auth-passkeys-register-options" data-route="POST /auth/passkeys/register/options">
+        <h4><span class="m post">POST</span> <code>/auth/passkeys/register/options</code></h4>
+        <p>WebAuthn registration options to add a passkey.</p>
+      </section>
+
+      <section class="ep" id="post-auth-passkeys-register" data-route="POST /auth/passkeys/register">
+        <h4><span class="m post">POST</span> <code>/auth/passkeys/register</code></h4>
+        <p>Verifies the browser's WebAuthn attestation and stores the passkey.</p>
+      </section>
+
+      <section class="ep" id="patch-auth-passkeys-id" data-route="PATCH /auth/passkeys/:id">
+        <h4><span class="m patch">PATCH</span> <code>/auth/passkeys/:id</code></h4>
+        <p>Renames a passkey: <code>{ name }</code> (60 characters at most).</p>
+      </section>
+
+      <section class="ep" id="delete-auth-passkeys-id" data-route="DELETE /auth/passkeys/:id">
+        <h4><span class="m delete">DELETE</span> <code>/auth/passkeys/:id</code></h4>
+        <p>Removes a passkey.</p>
+      </section>
+
+      <section class="ep" id="patch-auth-me" data-route="PATCH /auth/me">
+        <h4><span class="m patch">PATCH</span> <code>/auth/me</code></h4>
+        <p>Updates the profile: <code>{ name }</code> (80 characters at most).</p>
+      </section>
+
+      <h3 id="orgs">Organizations</h3>
+      <p>An organization view is <code>{ id, slug, name, role, storage, mapped, project?, readOnly? }</code>.</p>
+      <section class="ep" id="get-orgs" data-route="GET /orgs">
+        <h4><span class="m get">GET</span> <code>/orgs</code></h4>
+        <p>The organizations of the signed-in user.</p>
+      </section>
+
+      <section class="ep" id="post-orgs" data-route="POST /orgs">
+        <h4><span class="m post">POST</span> <code>/orgs</code></h4>
+        <p>Creates an organization and makes it active: <code>{ name, slug?, starter? }</code> (<code>starter</code>:
+          <code>demo</code> for the example templates, <code>blank</code> otherwise). <code>403</code> in project mode.</p>
+      </section>
+
+      <section class="ep" id="get-orgs-id" data-route="GET /orgs/:id">
+        <h4><span class="m get">GET</span> <code>/orgs/:id</code></h4>
+        <p>An organization; admins also get its <code>smtp</code> settings.</p>
+      </section>
+
+      <section class="ep" id="patch-orgs-id" data-route="PATCH /orgs/:id">
+        <h4><span class="m patch">PATCH</span> <code>/orgs/:id</code> <span class="auth">admin</span></h4>
+        <p>Renames it: <code>{ name }</code>.</p>
+      </section>
+
+      <section class="ep" id="delete-orgs-id" data-route="DELETE /orgs/:id">
+        <h4><span class="m delete">DELETE</span> <code>/orgs/:id</code> <span class="auth">owner</span></h4>
+        <p>Deletes the organization and its templates: <code>{ confirm: "&lt;slug&gt;" }</code>.</p>
+      </section>
+
+      <section class="ep" id="post-orgs-id-activate" data-route="POST /orgs/:id/activate">
+        <h4><span class="m post">POST</span> <code>/orgs/:id/activate</code></h4>
+        <p>Makes it the session's active organization (the one the editor API acts on).</p>
+      </section>
+
+      <h3 id="members">Members and invitations</h3>
+      <section class="ep" id="get-orgs-id-members" data-route="GET /orgs/:id/members">
+        <h4><span class="m get">GET</span> <code>/orgs/:id/members</code></h4>
+        <p><code>{ members, invitations }</code> (pending invitations only for admins).</p>
+      </section>
+
+      <section class="ep" id="post-orgs-id-invitations" data-route="POST /orgs/:id/invitations">
+        <h4><span class="m post">POST</span> <code>/orgs/:id/invitations</code> <span class="auth">admin</span></h4>
+        <p>Invites someone by email: <code>{ email, role? }</code> (<code>editor</code> by default; only an owner grants <code>owner</code>).
+          Sends the invitation email.</p>
+      </section>
+
+      <section class="ep" id="delete-orgs-id-invitations-iid" data-route="DELETE /orgs/:id/invitations/:iid">
+        <h4><span class="m delete">DELETE</span> <code>/orgs/:id/invitations/:iid</code> <span class="auth">admin</span></h4>
+        <p>Cancels an invitation.</p>
+      </section>
+
+      <section class="ep" id="patch-orgs-id-members-uid" data-route="PATCH /orgs/:id/members/:uid">
+        <h4><span class="m patch">PATCH</span> <code>/orgs/:id/members/:uid</code> <span class="auth">admin</span></h4>
+        <p>Changes a member's role: <code>{ role }</code>. The organization always keeps at least one owner.</p>
+      </section>
+
+      <section class="ep" id="delete-orgs-id-members-uid" data-route="DELETE /orgs/:id/members/:uid">
+        <h4><span class="m delete">DELETE</span> <code>/orgs/:id/members/:uid</code></h4>
+        <p>Removes a member (admin), or leaves the organization (yourself).</p>
+      </section>
+
+      <h3 id="smtp">SMTP</h3>
+      <section class="ep" id="get-orgs-id-smtp" data-route="GET /orgs/:id/smtp">
+        <h4><span class="m get">GET</span> <code>/orgs/:id/smtp</code> <span class="auth">admin</span></h4>
+        <p>The organization's SMTP. The password is never returned.</p>
+<pre tabindex="0"><code>{ "host": "smtp.example.com", "port": 587, "secure": false, "user": "apikey", "from": "Acme &lt;no-reply@acme.com&gt;", "hasPassword": true }</code></pre>
+      </section>
+
+      <section class="ep" id="put-orgs-id-smtp" data-route="PUT /orgs/:id/smtp">
+        <h4><span class="m put">PUT</span> <code>/orgs/:id/smtp</code> <span class="auth">admin</span></h4>
+        <p>Sets it: <code>{ host, port?, secure?, user?, password?, from? }</code>. Omit <code>password</code> to keep the stored one
+          (it is stored encrypted); an empty <code>host</code> removes the SMTP.</p>
+      </section>
+
+      <section class="ep" id="post-orgs-id-smtp-test" data-route="POST /orgs/:id/smtp/test">
+        <h4><span class="m post">POST</span> <code>/orgs/:id/smtp/test</code> <span class="auth">admin</span></h4>
+        <p>Queues a test email to <code>to</code> (default: you). Returns the message, as in the send log.</p>
+      </section>
+
+      <h3 id="keys">API keys</h3>
+      <section class="ep" id="get-orgs-id-keys" data-route="GET /orgs/:id/keys">
+        <h4><span class="m get">GET</span> <code>/orgs/:id/keys</code> <span class="auth">admin</span></h4>
+        <p>The organization's API keys (name, prefix, creation and last use; never the key).</p>
+      </section>
+
+      <section class="ep" id="post-orgs-id-keys" data-route="POST /orgs/:id/keys">
+        <h4><span class="m post">POST</span> <code>/orgs/:id/keys</code> <span class="auth">admin</span></h4>
+        <p>Creates a key: <code>{ name? }</code>. The answer carries <code>key</code> (<code>tpl_…</code>): it is shown only once.</p>
+      </section>
+
+      <section class="ep" id="delete-orgs-id-keys-kid" data-route="DELETE /orgs/:id/keys/:kid">
+        <h4><span class="m delete">DELETE</span> <code>/orgs/:id/keys/:kid</code> <span class="auth">admin</span></h4>
+        <p>Revokes a key.</p>
+      </section>
+
+      <h3 id="log">Send log</h3>
+      <section class="ep" id="get-orgs-id-messages" data-route="GET /orgs/:id/messages">
+        <h4><span class="m get">GET</span> <code>/orgs/:id/messages?limit=&amp;before=&amp;status=</code></h4>
+        <p>Messages sent by the organization, newest first (<code>before</code>: a <code>createdAt</code> for paging;
+          <code>status</code>: <code>queued</code> · <code>sending</code> · <code>sent</code> · <code>failed</code>).</p>
+      </section>
+
+      <section class="ep" id="get-orgs-id-messages-mid" data-route="GET /orgs/:id/messages/:mid">
+        <h4><span class="m get">GET</span> <code>/orgs/:id/messages/:mid</code></h4>
+        <p>One message with its <code>html</code> and <code>text</code> (until the retention period purges them).</p>
+      </section>
+
+      <h3 id="health">Health check</h3>
+      <section class="ep" id="get-healthz" data-route="GET /healthz">
+        <h4><span class="m get">GET</span> <code>/healthz</code></h4>
+        <p>Liveness probe → <code>{ "ok": true }</code>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div><span id="version">templaitor</span> · <a href="../">Home</a> · <a href="../demo/">Demo</a> ·
+      <a href="https://github.com/jgermade/templaitor">GitHub</a></div>
+  </footer>
+</body>
+</html>

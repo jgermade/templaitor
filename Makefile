@@ -107,9 +107,10 @@ helm:
 	helm lint deploy/helm/templaitor --strict
 	helm package deploy/helm/templaitor -d artifacts
 
-# Landing page for GitHub Pages → dist/site
+# GitHub Pages → dist/site: landing page, API reference (/api/) and the in-browser editor demo (/demo/)
 site: node_modules
-	npm run build:site
+	npm run build:demo
+	node scripts/build-site.mjs --strict
 
 # Regenerates the landing screenshots (needs Playwright with Chromium; pdftoppm for the PDF page)
 screenshots: build

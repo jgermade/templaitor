@@ -1,5 +1,6 @@
 <script>
   import Icon from './Icon.svelte'
+  import { staticUrl } from '../lib/host.js'
   // Image field: URL + thumbnail + gallery of project images + upload.
   // Store-agnostic: receives the image list and the callbacks as props.
   let {
@@ -40,7 +41,7 @@
     <div class="gallery">
       {#each assets as a (a.path)}
         <button type="button" class="item" class:cur={value === urlOf(a.path)} title={a.path} onclick={() => { onchange(urlOf(a.path)); open = false }}>
-          <img src={`/static/${a.path}`} alt="" loading="lazy" />
+          <img src={staticUrl(a.path)} alt="" loading="lazy" />
           <span>{a.path}</span>
         </button>
       {:else}

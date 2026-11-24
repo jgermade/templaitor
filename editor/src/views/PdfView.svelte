@@ -8,6 +8,7 @@
   let url = $state(null)
   let loading = $state(false)
   let error = $state(null)
+  let note = $state(null) // e.g. the demo serves pre-generated PDFs
   let seq = 0
 
   const engines = $derived(store.project?.pdf?.engines || [])
@@ -34,12 +35,13 @@
     const t = setTimeout(async () => {
       loading = true
       try {
-        const { blob, engine } = await api.pdf(d)
+        const { blob, engine, note: n2 } = await api.pdf(d)
         if (n !== seq) return
         const previous = url
         url = URL.createObjectURL(blob)
         if (previous) URL.revokeObjectURL(previous)
         store.pdfEngineUsed = engine
+        note = n2
         error = null
       } catch (e) {
         if (n === seq) error = e.message
@@ -89,6 +91,7 @@
       <a class="download" href={url} download={`${store.doc.name}.${store.project?.locales?.[store.lang] || store.lang}.pdf`}><Icon name="download" size={14} /> Download</a>
     {/if}
   </div>
+  {#if note && !error}<p class="note" role="status"><Icon name="info" size={14} /> {note}</p>{/if}
   <div class="frame">
     {#if error}
       <div class="error">
@@ -112,6 +115,7 @@
   .badge.no { background: #fef3c7; color: #92400e; }
   .grow { flex: 1; }
   .download { white-space: nowrap; background: var(--accent); color: #fff; text-decoration: none; padding: 4px 12px; border-radius: 6px; font-weight: 600; }
+  .note { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; font-size: 12px; background: var(--accent-soft); color: #3730a3; border-bottom: 1px solid var(--border); }
   .frame { position: relative; flex: 1; min-height: 0; }
   iframe { width: 100%; height: 100%; border: 0; display: block; }
   .loading {
