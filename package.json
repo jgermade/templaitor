@@ -1,6 +1,6 @@
 {
   "name": "templaitor",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Generic MJML template editor with Jinja2 output, WYSIWYG editing, reusable components and accessible PDFs",
   "type": "module",
   "main": "./src/index.js",
