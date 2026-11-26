@@ -464,14 +464,17 @@ test('preview page: /preview/<id> renders the saved document (or a version) at a
     const es = await get('/preview/orders/order-confirmation?lang=es')
     assert.equal(es.status, 200)
     assert.match(es.type, /text\/html/)
-    assert.match(es.html, /<base href="\/"><title>Pedido #A-1042 confirmado<\/title>/)
+    // relative base: /static/… resolves against the editor root, also when it is mounted under a sub-path
+    assert.match(es.html, /<base href="\.\.\/\.\.\/"><title>Pedido #A-1042 confirmado<\/title>/)
     assert.doesNotMatch(es.html, /\{\{/) // rendered with the demo data
     assert.match((await get('/preview/orders/order-confirmation?lang=en-US')).html, /<title>Order #A-1042 confirmed/)
     assert.match((await get('/preview/orders/order-confirmation')).html, /<title>Pedido/) // first language
     assert.equal((await get('/preview/orders/order-confirmation?lang=fr')).status, 404)
     assert.equal((await get('/preview/orders/missing')).status, 404)
     assert.equal((await get('/preview/..%2F..%2Fetc/passwd')).status >= 400, true)
-    assert.equal((await get('/preview/base.layout.mjml?kind=layout')).status, 200)
+    const layout = await get('/preview/base.layout.mjml?kind=layout')
+    assert.equal(layout.status, 200)
+    assert.match(layout.html, /<base href="\.\.\/">/)
     // a version: the saved files change, ?version=v1 still shows the first one
     const prev = process.env.GIT_CONFIG_GLOBAL
     process.env.GIT_CONFIG_GLOBAL = path.join(dir, '.no-global')
