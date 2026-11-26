@@ -35,7 +35,8 @@ class Session {
   async load() {
     let data = null
     try {
-      const res = await fetch('/auth/session', { headers: { Accept: 'application/json' } })
+      // relative: in local mode the editor may be mounted under a sub-path (e.g. `/templaitor/`)
+      const res = await fetch('auth/session', { headers: { Accept: 'application/json' } })
       if (res.ok && (res.headers.get('content-type') || '').includes('json')) data = await res.json()
     } catch {}
     if (data?.mode !== 'service') { this.mode = 'local'; return }

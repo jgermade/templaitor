@@ -12,21 +12,21 @@ async function request(method, url, body) {
 const q = (params) => new URLSearchParams(params).toString()
 
 export const api = {
-  project: () => request('GET', '/api/project'),
-  templates: () => request('GET', '/api/templates'),
-  components: () => request('GET', '/api/components'),
-  layouts: () => request('GET', '/api/layouts'),
-  createLayout: (id, format = 'email') => request('POST', '/api/layouts', { id, format }),
-  template: (id, kind = 'template') => request('GET', `/api/template?${q({ id, kind })}`),
-  save: (doc) => request('PUT', '/api/template', doc),
-  create: (id, layout, format) => request('POST', '/api/templates', { id, layout, format }),
-  createComponent: (comp) => request('POST', '/api/components', comp),
-  remove: (id, kind = 'template') => request('DELETE', `/api/template?${q({ id, kind })}`),
-  preview: (draft) => request('POST', '/api/preview', draft),
-  compile: (id) => request('POST', '/api/compile', { id }),
-  send: (draft) => request('POST', '/api/send', draft),
+  project: () => request('GET', 'api/project'),
+  templates: () => request('GET', 'api/templates'),
+  components: () => request('GET', 'api/components'),
+  layouts: () => request('GET', 'api/layouts'),
+  createLayout: (id, format = 'email') => request('POST', 'api/layouts', { id, format }),
+  template: (id, kind = 'template') => request('GET', `api/template?${q({ id, kind })}`),
+  save: (doc) => request('PUT', 'api/template', doc),
+  create: (id, layout, format) => request('POST', 'api/templates', { id, layout, format }),
+  createComponent: (comp) => request('POST', 'api/components', comp),
+  remove: (id, kind = 'template') => request('DELETE', `api/template?${q({ id, kind })}`),
+  preview: (draft) => request('POST', 'api/preview', draft),
+  compile: (id) => request('POST', 'api/compile', { id }),
+  send: (draft) => request('POST', 'api/send', draft),
   pdf: async (draft) => {
-    const res = await fetch('/api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) })
+    const res = await fetch('api/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) })
     if (!res.ok) {
       const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -36,26 +36,26 @@ export const api = {
   },
   /** One attachment of the draft rendered with the demo data → Blob */
   attachment: async (draft, index) => {
-    const res = await fetch('/api/attachment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, index }) })
+    const res = await fetch('api/attachment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, index }) })
     if (!res.ok) {
       const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
     return res.blob()
   },
-  validatePdf: (draft) => request('POST', '/api/pdf/validate', draft),
+  validatePdf: (draft) => request('POST', 'api/pdf/validate', draft),
   /** Versions of a document (git commits or database rows): list, read one, save the saved files as a version */
-  versions: (id, kind = 'template') => request('GET', `/api/versions?${q({ id, kind })}`),
-  version: (id, kind, rev) => request('GET', `/api/version?${q({ id, kind, rev })}`),
-  saveVersion: (id, kind, message) => request('POST', '/api/versions', { id, kind, message }),
-  initVersions: () => request('POST', '/api/versions/init', {}),
-  assets: () => request('GET', '/api/assets'),
+  versions: (id, kind = 'template') => request('GET', `api/versions?${q({ id, kind })}`),
+  version: (id, kind, rev) => request('GET', `api/version?${q({ id, kind, rev })}`),
+  saveVersion: (id, kind, message) => request('POST', 'api/versions', { id, kind, message }),
+  initVersions: () => request('POST', 'api/versions/init', {}),
+  assets: () => request('GET', 'api/assets'),
   uploadAsset: async (file) => {
-    const res = await fetch(`/api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })
+    const res = await fetch(`api/assets?${q({ name: file.name })}`, { method: 'POST', body: file })
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
     if (!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`)
     return data
   },
-  file: (path) => request('GET', `/api/file?${q({ path })}`),
-  saveFile: (path, content) => request('PUT', '/api/file', { path, content }),
+  file: (path) => request('GET', `api/file?${q({ path })}`),
+  saveFile: (path, content) => request('PUT', 'api/file', { path, content }),
 }

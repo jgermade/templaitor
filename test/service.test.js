@@ -364,7 +364,7 @@ for (const [driver, pgUrl] of DRIVERS) describe(`hosted service on ${driver}`, (
     // shareable preview URL of the org's template (members only)
     const pv = await erin.get('/preview/general/welcome?lang=en&version=v1')
     assert.equal(pv.status, 200)
-    assert.match(String(pv.data), /<base href="\/">/)
+    assert.match(String(pv.data), /<base href="\.\.\/\.\.\/">/)
     assert.equal((await client(svc).get('/preview/general/welcome')).status, 401)
 
     // db storage: versions are rows, numbered per document

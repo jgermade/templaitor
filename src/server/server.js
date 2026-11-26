@@ -258,10 +258,12 @@ export async function previewPage(project, url, res) {
     if (want && !lang && langs.length) throw httpError(404, `Language not available: ${q.get('lang')} (available: ${langs.join(', ')})`)
     const r = await previewDraft(project, { mjml: doc.mjml, yml: doc.yml, data: doc.data, langKey: lang, mode: 'preview', kind })
     const title = `${r.subject || doc.name || id}${version ? ` · ${version}` : ''}`
+    // `/static/…` in the document resolves against the editor root, wherever the editor is mounted
+    const base = '../'.repeat(url.pathname.split('/').length - 2) || './'
     // relative URLs (static images) resolve from the server root, as in the editor
     const html = /<head(\s[^>]*)?>/i.test(r.html)
-      ? r.html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}<base href="/"><title>${escapeHtml(title)}</title>`)
-      : `<!doctype html><html><head><base href="/"><title>${escapeHtml(title)}</title></head><body>${r.html}</body></html>`
+      ? r.html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}<base href="${base}"><title>${escapeHtml(title)}</title>`)
+      : `<!doctype html><html><head><base href="${base}"><title>${escapeHtml(title)}</title></head><body>${r.html}</body></html>`
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
     res.end(html)
   } catch (err) {
